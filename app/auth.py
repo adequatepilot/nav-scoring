@@ -28,61 +28,113 @@ class Auth:
 
     # ===== UNIFIED USER AUTHENTICATION (NEW) =====
 
-    def signup(self, username: str, email: str, name: str, password: str) -> dict:
+    def signup(self, email: str, name: str, password: str) -> dict:
         """
         Register a new user account via self-signup.
         Email must end with @siu.edu.
-        Returns {"success": bool, "message": str, "user_id": int or None}
+        Stores user in verification_pending table until email is verified.
+        Returns {"success": bool, "message": str, "verification_token": str or None}
         """
         # Validate email domain
         if not email.endswith("@siu.edu"):
             return {"success": False, "message": "Email must end with @siu.edu"}
 
-        # Check if username exists
-        existing = self.db.get_user_by_username(username)
-        if existing:
-            return {"success": False, "message": "Username already taken"}
-
-        # Check if email exists
+        # Check if email exists in users table
         existing = self.db.get_user_by_email(email)
         if existing:
             return {"success": False, "message": "Email already registered"}
 
+        # Check if email is pending verification
+        pending = self.db.get_verification_pending_by_email(email)
+        if pending:
+            return {"success": False, "message": "Email verification already pending. Check your email."}
+
         try:
             password_hash = self.hash_password(password)
-            # Create user with is_approved=0 (pending admin approval)
-            user_id = self.db.create_user(
-                username=username,
-                password_hash=password_hash,
+            verification_token = self.generate_token()
+            
+            # Store in verification_pending table, not users table yet
+            verification_id = self.db.create_verification_pending(
                 email=email,
+                password_hash=password_hash,
                 name=name,
-                is_coach=False,
-                is_admin=False,
-                is_approved=False  # Pending approval
+                verification_token=verification_token
             )
-            logger.info(f"User registered (pending approval): {username}")
+            
+            logger.info(f"User registered (pending email verification): {email}")
             return {
                 "success": True,
-                "message": "Account created. Awaiting admin approval.",
-                "user_id": user_id,
+                "message": "Verification email sent. Check your inbox.",
+                "verification_token": verification_token,
             }
         except Exception as e:
             logger.error(f"Signup error: {e}")
             return {"success": False, "message": "Registration failed"}
-
-    def login(self, username: str, password: str) -> dict:
+    
+    def verify_email(self, verification_token: str) -> dict:
         """
-        Authenticate a user (unified method for all roles).
+        Verify user email and create user account.
+        Returns {"success": bool, "message": str, "user_id": int or None}
+        """
+        try:
+            # Look up token in verification_pending
+            pending = self.db.get_verification_pending_by_token(verification_token)
+            if not pending:
+                return {"success": False, "message": "Invalid or expired verification link"}
+            
+            # Check if expired (24 hours)
+            from datetime import datetime
+            expires_at = datetime.fromisoformat(pending["expires_at"])
+            if expires_at < datetime.utcnow():
+                logger.warning(f"Verification token expired: {pending['email']}")
+                # Delete expired entry
+                self.db.delete_verification_pending(pending["id"])
+                return {"success": False, "message": "Verification link has expired. Please sign up again."}
+            
+            # Create user in users table with is_approved=0, email_verified=1
+            user_id = self.db.create_user(
+                username=pending["email"],  # Use email as username
+                password_hash=pending["password_hash"],
+                email=pending["email"],
+                name=pending["name"],
+                is_coach=False,
+                is_admin=False,
+                is_approved=False,  # Pending admin approval
+                email_verified=True
+            )
+            
+            # Delete from verification_pending
+            self.db.delete_verification_pending(pending["id"])
+            
+            logger.info(f"User email verified and account created (pending approval): {pending['email']}")
+            return {
+                "success": True,
+                "message": "Email verified! Account created and awaiting admin approval.",
+                "user_id": user_id,
+            }
+        except Exception as e:
+            logger.error(f"Email verification error: {e}")
+            return {"success": False, "message": "Verification failed"}
+
+    def login(self, email: str, password: str) -> dict:
+        """
+        Authenticate a user by email (unified method for all roles).
         Returns {"success": bool, "message": str, "user": dict or None}
         """
-        user = self.db.get_user_by_username(username)
+        # Look up user by email
+        user = self.db.get_user_by_email(email)
         if not user:
-            logger.warning(f"Login attempt: user not found: {username}")
-            return {"success": False, "message": "Invalid username or password"}
+            logger.warning(f"Login attempt: user not found: {email}")
+            return {"success": False, "message": "Invalid email or password"}
+
+        # Check if email is verified
+        if not user.get("email_verified"):
+            logger.warning(f"Login attempt: email not verified: {email}")
+            return {"success": False, "message": "Email not verified. Check your inbox for verification link."}
 
         # Check if account is approved
         if not user.get("is_approved"):
-            logger.warning(f"Login attempt: account not approved: {username}")
+            logger.warning(f"Login attempt: account not approved: {email}")
             return {"success": False, "message": "Account pending approval. Contact admin."}
 
         if not user.get("password_hash"):
@@ -92,21 +144,20 @@ class Auth:
             }
 
         if not self.verify_password(password, user["password_hash"]):
-            logger.warning(f"Login attempt: wrong password: {username}")
-            return {"success": False, "message": "Invalid username or password"}
+            logger.warning(f"Login attempt: wrong password: {email}")
+            return {"success": False, "message": "Invalid email or password"}
 
         # Update last login
         self.db.update_user_last_login(user["id"])
-        logger.info(f"User logged in: {username} (coach={user.get('is_coach')}, admin={user.get('is_admin')})")
+        logger.info(f"User logged in: {email} (coach={user.get('is_coach')}, admin={user.get('is_admin')})")
 
         return {
             "success": True,
             "message": "Login successful",
             "user": {
                 "id": user["id"],
-                "username": user["username"],
-                "name": user["name"],
                 "email": user["email"],
+                "name": user["name"],
                 "is_coach": user.get("is_coach", 0) == 1,
                 "is_admin": user.get("is_admin", 0) == 1,
             },

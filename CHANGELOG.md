@@ -2,6 +2,36 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.0] - 2026-02-12
+
+### Added
+- Email verification workflow with activation link
+- Pre-verification holding table (verification_pending) for signups
+- 24-hour verification token expiry with automatic cleanup
+- SMTP configuration check for signup page visibility
+- Automatic cleanup of expired verification tokens on app startup
+- Email verification template with professional styling
+- Verification result page (success/failure)
+
+### Changed
+- Email is now the login credential (removed separate username field) BREAKING CHANGE
+- Signup workflow: form → verification email → click link → pending → admin approval
+- Login form now uses email instead of username
+- Member management UI shows email only (removed username column)
+- Self-signup only available when SMTP is configured
+- Coach-created accounts skip email verification (marked as verified)
+- Session now stores email instead of username
+
+### Removed
+- Username field from signup form
+- Username column from member management UI
+- Direct user creation without email verification (self-signup)
+
+### Security
+- Email verification required before account appears as pending
+- 24-hour token expiry prevents long-lived verification links
+- Automatic cleanup of expired tokens prevents database bloat
+
 ## [0.2.0] - 2026-02-12
 
 ### Added

@@ -33,19 +33,22 @@
     <h2>NAV Scoring System</h2>
     <h3 style="color: #666; margin-bottom: 2rem;">Create Account</h3>
 
-    {% if error %}
+    {% if smtp_error %}
+    <div class="error">{{ smtp_error }}</div>
+    {% elif error %}
     <div class="error">{{ error }}</div>
     {% endif %}
 
+    {% if not smtp_configured %}
+    <div class="info" style="text-align: center; padding: 1.5rem; background: #e3f2fd; border: 1px solid #90caf9; border-radius: 5px;">
+        <p style="margin: 0;">Self-signup is currently disabled.</p>
+        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">Please contact an administrator for account access.</p>
+    </div>
+    {% else %}
     <form method="POST" action="/signup" class="signup-form">
         <div class="form-group">
             <label for="name">Full Name:</label>
             <input type="text" id="name" name="name" required autofocus>
-        </div>
-
-        <div class="form-group">
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username" required>
         </div>
         
         <div class="form-group">
@@ -73,7 +76,8 @@
     </p>
 
     <p style="color: #999; text-align: center; margin-top: 1rem; font-size: 0.85rem;">
-        After creating your account, an administrator will need to approve it before you can log in.
+        After creating your account, a verification email will be sent to you. Click the link in the email to verify your account, then an administrator will need to approve it before you can log in.
     </p>
+    {% endif %}
 </div>
 {% endblock %}

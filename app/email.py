@@ -27,6 +27,55 @@ class EmailService:
         self.sender_name = config.get("sender_name", "NAV Scoring")
         self.coach_email = config.get("recipients_coach")
 
+    async def send_verification_email(
+        self, email: str, name: str, verification_link: str
+    ) -> bool:
+        """Send email verification link to new user."""
+        subject = "Verify Your NAV Scoring Account"
+        
+        html_body = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; color: #333;">
+                <h2>Welcome to NAV Scoring!</h2>
+                <p>Hi {name},</p>
+                <p>Thank you for signing up for the NAV Scoring system. Please verify your email address by clicking the link below:</p>
+                <p style="margin: 2rem 0;">
+                    <a href="{verification_link}" style="background-color: #003366; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Verify Email Address</a>
+                </p>
+                <p>Or copy and paste this link in your browser:</p>
+                <p style="word-break: break-all; background-color: #f0f0f0; padding: 10px; font-family: monospace; font-size: 12px;">
+                    {verification_link}
+                </p>
+                <p style="color: #999; font-size: 12px;">This link expires in 24 hours.</p>
+                <p style="color: #999; font-size: 12px;">If you didn't request this, please ignore this email.</p>
+                <p>NAV Scoring System</p>
+            </body>
+        </html>
+        """
+        
+        text_body = f"""
+Welcome to NAV Scoring!
+
+Hi {name},
+
+Thank you for signing up for the NAV Scoring system. Please verify your email address by clicking the link below:
+
+{verification_link}
+
+This link expires in 24 hours.
+
+If you didn't request this, please ignore this email.
+
+NAV Scoring System
+        """
+        
+        return await self._send_email(
+            to_email=email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body
+        )
+
     async def send_prenav_confirmation(
         self, team_email: str, team_name: str, nav_name: str, token: str
     ) -> bool:

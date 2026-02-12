@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Email Verification - NAV Scoring{% endblock %}
+
+{% block extra_css %}
+<style>
+.verification-container {
+    text-align: center;
+    max-width: 500px;
+    margin: 3rem auto;
+    padding: 2rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+.success-icon {
+    font-size: 3rem;
+    color: #28a745;
+    margin-bottom: 1rem;
+}
+.error-icon {
+    font-size: 3rem;
+    color: #dc3545;
+    margin-bottom: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="verification-container">
+    {% if success %}
+    <div class="success-icon">✓</div>
+    <h2>Email Verified!</h2>
+    
+    <p style="color: #666; line-height: 1.6;">
+        Your email address has been successfully verified.
+    </p>
+
+    <div style="background-color: #d4edda; border: 1px solid #28a745; border-radius: 4px; padding: 1rem; margin: 1.5rem 0;">
+        <p style="margin: 0; color: #155724;">
+            <strong>✓ Account Created</strong><br>
+            Your account has been created and is awaiting admin approval. You will be able to log in once approved.
+        </p>
+    </div>
+
+    <p style="color: #999; font-size: 0.9rem; margin-top: 1.5rem;">
+        Check your email for an admin approval notification.
+    </p>
+
+    {% else %}
+    <div class="error-icon">✕</div>
+    <h2>Verification Failed</h2>
+    
+    <p style="color: #666; line-height: 1.6;">
+        {{ message }}
+    </p>
+
+    <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 1rem; margin: 1.5rem 0;">
+        <p style="margin: 0; color: #721c24;">
+            <strong>⚠️ Try Again</strong><br>
+            Please return to the signup page and try again. If the link has expired, you can request a new verification email.
+        </p>
+    </div>
+    {% endif %}
+
+    <a href="/login" style="display: inline-block; margin-top: 1.5rem; padding: 0.75rem 1.5rem; background-color: #003366; color: white; text-decoration: none; border-radius: 4px;">
+        Return to Login
+    </a>
+</div>
+{% endblock %}

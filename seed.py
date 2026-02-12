@@ -25,26 +25,26 @@ def seed_database(db_path: str = "data/navs.db"):
         print("👤 Creating admin account...")
         try:
             # Clear existing admin
-            conn.execute('DELETE FROM users WHERE username = ?', ('admin',))
+            conn.execute('DELETE FROM users WHERE email = ?', ('admin@siu.edu',))
             admin_hash = auth.hash_password('admin123')
             conn.execute(
-                'INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                ('admin', admin_hash, 'admin@siu.edu', 'Main Administrator', 1, 1, 1)
+                'INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                ('admin@siu.edu', admin_hash, 'admin@siu.edu', 'Main Administrator', 1, 1, 1, 1)
             )
-            print("   ✅ Admin created: username=admin, password=admin123\n")
+            print("   ✅ Admin created: email=admin@siu.edu, password=admin123\n")
         except Exception as e:
             print(f"   ⚠️  Admin creation failed: {e}\n")
         
         # ===== COACH ACCOUNT =====
         print("👤 Creating coach account...")
         try:
-            conn.execute('DELETE FROM users WHERE username = ?', ('coach',))
+            conn.execute('DELETE FROM users WHERE email = ?', ('coach@siu.edu',))
             coach_hash = auth.hash_password('coach123')
             conn.execute(
-                'INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                ('coach', coach_hash, 'coach@siu.edu', 'Coach User', 1, 0, 1)
+                'INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                ('coach@siu.edu', coach_hash, 'coach@siu.edu', 'Coach User', 1, 0, 1, 1)
             )
-            print("   ✅ Coach created: username=coach, password=coach123 (read-only access)\n")
+            print("   ✅ Coach created: email=coach@siu.edu, password=coach123 (read-only access)\n")
         except Exception as e:
             print(f"   ⚠️  Coach creation failed: {e}\n")
         
@@ -52,24 +52,30 @@ def seed_database(db_path: str = "data/navs.db"):
         print("👥 Creating member accounts...")
         members_data = [
             # 6 members (will pair them as pilot+observer)
-            ('pilot1', 'pass123', 'pilot1@siu.edu', 'Alex Johnson'),
-            ('observer1', 'pass123', 'observer1@siu.edu', 'Taylor Brown'),
-            ('pilot2', 'pass123', 'pilot2@siu.edu', 'Jordan Smith'),
-            ('observer2', 'pass123', 'observer2@siu.edu', 'Morgan Davis'),
-            ('pilot3', 'pass123', 'pilot3@siu.edu', 'Casey Martinez'),
-            ('observer3', 'pass123', 'observer3@siu.edu', 'Riley Wilson'),
+            # (email, password, name)
+            ('pilot1@siu.edu', 'pass123', 'Alex Johnson'),
+            ('observer1@siu.edu', 'pass123', 'Taylor Brown'),
+            ('pilot2@siu.edu', 'pass123', 'Jordan Smith'),
+            ('observer2@siu.edu', 'pass123', 'Morgan Davis'),
+            ('pilot3@siu.edu', 'pass123', 'Casey Martinez'),
+            ('observer3@siu.edu', 'pass123', 'Riley Wilson'),
         ]
         
         try:
-            # Clear existing members
-            conn.execute('DELETE FROM users WHERE is_coach = 0')
-            for username, password, email, name in members_data:
+            # Clear existing members (keep coaches and admins)
+            conn.execute('DELETE FROM users WHERE is_coach = 0 AND email NOT LIKE "%@siu.edu"')
+            for email, password, name in members_data:
+                # Check if user already exists
+                existing = conn.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
+                if existing:
+                    continue
+                    
                 password_hash = auth.hash_password(password)
                 conn.execute(
-                    'INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    (username, password_hash, email, name, 0, 0, 1)
+                    'INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    (email, password_hash, email, name, 0, 0, 1, 1)
                 )
-                print(f"   ✅ Member: {name} (username={username})")
+                print(f"   ✅ Member: {name} (email={email})")
             print(f"\n   📝 All members use password: pass123\n")
         except Exception as e:
             print(f"   ⚠️  Member creation failed: {e}\n")
@@ -77,13 +83,13 @@ def seed_database(db_path: str = "data/navs.db"):
         # ===== PENDING APPROVAL ACCOUNT (for testing) =====
         print("👤 Creating pending approval account...")
         try:
-            conn.execute('DELETE FROM users WHERE username = ?', ('pending_user',))
+            conn.execute('DELETE FROM users WHERE email = ?', ('pending@siu.edu',))
             pending_hash = auth.hash_password('pass123')
             conn.execute(
-                'INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                ('pending_user', pending_hash, 'pending@siu.edu', 'Pending User', 0, 0, 0)
+                'INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                ('pending@siu.edu', pending_hash, 'pending@siu.edu', 'Pending User', 0, 0, 0, 1)
             )
-            print("   ✅ Pending user created: username=pending_user (awaiting approval)\n")
+            print("   ✅ Pending user created: email=pending@siu.edu (awaiting approval)\n")
         except Exception as e:
             print(f"   ⚠️  Pending user creation failed: {e}\n")
         
@@ -130,8 +136,8 @@ def seed_database(db_path: str = "data/navs.db"):
         try:
             conn.execute('DELETE FROM pairings')  # Clear existing
             
-            # Get member IDs from unified users table (is_coach=0)
-            members = conn.execute('SELECT id, username, name FROM users WHERE is_coach = 0 AND username NOT LIKE "pending%" ORDER BY id LIMIT 6').fetchall()
+            # Get member IDs from unified users table (is_coach=0, not admin/coach)
+            members = conn.execute('SELECT id, email, name FROM users WHERE is_coach = 0 AND is_admin = 0 AND email LIKE "pilot%" OR email LIKE "observer%" ORDER BY id LIMIT 6').fetchall()
             
             if len(members) >= 6:
                 # Pair: pilot1+observer1, pilot2+observer2, pilot3+observer3
@@ -159,22 +165,22 @@ def seed_database(db_path: str = "data/navs.db"):
         # ===== SUMMARY =====
         print("=" * 60)
         print("✅ SEEDING COMPLETE!\n")
-        print("🔐 LOGIN CREDENTIALS:")
+        print("🔐 LOGIN CREDENTIALS (Email-based):")
         print("\n   ADMIN (Full Access):")
         print("      → http://localhost:8000/coach")
-        print("      → username: admin")
+        print("      → email: admin@siu.edu")
         print("      → password: admin123\n")
         print("   COACH (Read-Only Access):")
         print("      → http://localhost:8000/coach")
-        print("      → username: coach")
+        print("      → email: coach@siu.edu")
         print("      → password: coach123\n")
         print("   Team Members (Competitors):")
         print("      → http://localhost:8000/login")
-        print("      → Pilots: pilot1, pilot2, pilot3")
-        print("      → Observers: observer1, observer2, observer3")
+        print("      → Pilots: pilot1@siu.edu, pilot2@siu.edu, pilot3@siu.edu")
+        print("      → Observers: observer1@siu.edu, observer2@siu.edu, observer3@siu.edu")
         print("      → password: pass123 (all competitors)\n")
         print("   Pending Approval (for testing):")
-        print("      → Username: pending_user")
+        print("      → email: pending@siu.edu")
         print("      → Password: pass123")
         print("      → Status: Awaiting admin approval\n")
         print("📊 DATABASE CONTENTS:")

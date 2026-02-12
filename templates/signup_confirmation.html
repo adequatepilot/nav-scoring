@@ -24,16 +24,23 @@
 {% block content %}
 <div class="confirmation-container">
     <div class="success-icon">✓</div>
-    <h2>Account Created Successfully!</h2>
+    <h2>Check Your Email!</h2>
     
     <p style="color: #666; line-height: 1.6;">
-        Your account has been created with username <strong>{{ username }}</strong>.
+        A verification email has been sent to <strong>{{ email }}</strong>.
     </p>
+
+    <div style="background-color: #e3f2fd; border: 1px solid #90caf9; border-radius: 4px; padding: 1rem; margin: 1.5rem 0;">
+        <p style="margin: 0; color: #1565c0;">
+            <strong>📧 Verify Your Email</strong><br>
+            Click the link in the email to verify your account. The link expires in 24 hours.
+        </p>
+    </div>
 
     <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 1rem; margin: 1.5rem 0;">
         <p style="margin: 0; color: #856404;">
             <strong>⚠️ Awaiting Admin Approval</strong><br>
-            An administrator needs to approve your account before you can log in. You'll receive an email notification once your account is approved.
+            After verifying your email, an administrator needs to approve your account before you can log in.
         </p>
     </div>
 

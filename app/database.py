@@ -251,19 +251,23 @@ class Database:
     # ===== UNIFIED USER MANAGEMENT (NEW) =====
 
     def create_user(self, username: str, password_hash: str, email: str, name: str, 
-                   is_coach: bool = False, is_admin: bool = False, is_approved: bool = False) -> int:
-        """Create a new user in the unified users table. Returns user ID."""
+                   is_coach: bool = False, is_admin: bool = False, is_approved: bool = False,
+                   email_verified: bool = False) -> int:
+        """Create a new user in the unified users table. Returns user ID.
+        username is now the same as email for consistency.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved, email_verified)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (username, password_hash, email, name, 1 if is_coach else 0, 1 if is_admin else 0, 1 if is_approved else 0),
+                (username, password_hash, email, name, 1 if is_coach else 0, 1 if is_admin else 0, 
+                 1 if is_approved else 0, 1 if email_verified else 0),
             )
             user_id = cursor.lastrowid
-            logger.info(f"Created user: {username} (ID: {user_id}, coach={is_coach}, admin={is_admin})")
+            logger.info(f"Created user: {email} (ID: {user_id}, coach={is_coach}, admin={is_admin}, verified={email_verified})")
             return user_id
 
     def get_user_by_username(self, username: str) -> Optional[Dict]:
@@ -343,6 +347,64 @@ class Database:
                 (user_id,),
             )
             return cursor.rowcount > 0
+
+    # ===== EMAIL VERIFICATION =====
+
+    def create_verification_pending(self, email: str, password_hash: str, name: str, 
+                                   verification_token: str) -> int:
+        """Create a pending verification entry. Returns ID."""
+        from datetime import datetime, timedelta
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO verification_pending (email, password_hash, name, verification_token, expires_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (email, password_hash, name, verification_token, expires_at.isoformat()),
+            )
+            verification_id = cursor.lastrowid
+            logger.info(f"Created verification pending: {email} (ID: {verification_id})")
+            return verification_id
+
+    def get_verification_pending_by_token(self, token: str) -> Optional[Dict]:
+        """Get verification pending by token."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM verification_pending WHERE verification_token = ?", (token,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_verification_pending_by_email(self, email: str) -> Optional[Dict]:
+        """Get verification pending by email."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM verification_pending WHERE email = ?", (email,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def delete_verification_pending(self, verification_id: int) -> bool:
+        """Delete a verification pending entry."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM verification_pending WHERE id = ?", (verification_id,))
+            return cursor.rowcount > 0
+
+    def cleanup_expired_verification_pending(self) -> int:
+        """Delete expired verification pending entries. Returns count deleted."""
+        from datetime import datetime
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM verification_pending WHERE expires_at < ?",
+                (datetime.utcnow().isoformat(),)
+            )
+            count = cursor.rowcount
+            if count > 0:
+                logger.info(f"Cleaned up {count} expired verification tokens")
+            return count
 
     # ===== PAIRING MANAGEMENT =====
 

@@ -129,18 +129,14 @@ th, td {
     <h3>Add New Member</h3>
     <form method="POST" action="/coach/members">
         <div class="form-group">
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username" required>
+            <label for="name">Full Name:</label>
+            <input type="text" id="name" name="name" required autofocus>
         </div>
-        
+
         <div class="form-group">
             <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
-        </div>
-        
-        <div class="form-group">
-            <label for="name">Full Name:</label>
-            <input type="text" id="name" name="name" required>
+            <input type="email" id="email" name="email" placeholder="user@siu.edu" required>
+            <small style="color: #666;">Email will be used as login credential</small>
         </div>
         
         <div class="form-group">
@@ -159,7 +155,7 @@ th, td {
         <div class="form-group">
             <label for="csv_file">CSV File:</label>
             <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
-            <small style="color: #666;">Format: username,email,name (one per line)</small>
+            <small style="color: #666;">Format: email,name (one per line, no header)</small>
         </div>
         <button type="submit">Upload CSV</button>
     </form>
@@ -183,9 +179,8 @@ th, td {
     <table>
         <thead>
             <tr>
-                <th>Username</th>
-                <th>Name</th>
                 <th>Email</th>
+                <th>Name</th>
                 <th>Status</th>
                 <th>Approved</th>
                 <th>Coach</th>
@@ -196,9 +191,8 @@ th, td {
         <tbody id="userTableBody">
             {% for member in members %}
             <tr class="user-row {% if not member.is_approved %}pending{% endif %}" data-member-id="{{ member.id }}" data-approved="{{ member.is_approved }}" data-coach="{{ member.is_coach }}" data-admin="{{ member.is_admin }}">
-                <td>{{ member.username }}</td>
-                <td>{{ member.name }}</td>
                 <td>{{ member.email }}</td>
+                <td>{{ member.name }}</td>
                 <td>
                     {% if member.is_approved %}
                         <span class="badge badge-approved">✅ Approved</span>

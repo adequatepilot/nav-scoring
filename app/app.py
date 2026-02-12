@@ -44,6 +44,7 @@ def load_config(config_path: str = "config/config.yaml") -> dict:
     except FileNotFoundError:
         logger.warning(f"Config file not found: {config_path}, using defaults")
         # Return default config
+        # Return default config
         return {
             "database": {"path": "data/navs.db"},
             "app": {"title": "NAV Scoring", "version": "1.0.0", "debug": False},
@@ -123,6 +124,17 @@ static_path = Path("static")
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
+# Cleanup on startup
+@app.on_event("startup")
+async def startup_event():
+    """Run cleanup tasks on app startup."""
+    logger.info("Running startup tasks...")
+    # Cleanup expired verification tokens
+    try:
+        db.cleanup_expired_verification_pending()
+    except Exception as e:
+        logger.error(f"Error during startup cleanup: {e}")
+
 # ===== DEPENDENCIES =====
 
 def get_session_user(request: Request) -> Optional[dict]:
@@ -163,6 +175,13 @@ def require_admin(request: Request) -> dict:
     return user
 
 # ===== UTILITY FUNCTIONS =====
+
+def is_smtp_configured() -> bool:
+    """Check if SMTP is configured in config.yaml."""
+    email_config = config.get("email", {})
+    smtp_host = email_config.get("smtp_host", "").strip()
+    smtp_password = email_config.get("sender_password", "").strip()
+    return bool(smtp_host and smtp_password)
 
 def parse_mmss(time_str: str) -> float:
     """Parse MM:SS or M:SS format to seconds."""
@@ -343,54 +362,113 @@ async def signup_page(request: Request):
     if user:
         return RedirectResponse(url="/", status_code=303)
     
-    return templates.TemplateResponse("signup.html", {"request": request})
+    # Check if SMTP is configured
+    smtp_configured = is_smtp_configured()
+    
+    return templates.TemplateResponse("signup.html", {
+        "request": request,
+        "smtp_configured": smtp_configured,
+        "smtp_error": None if smtp_configured else "Self-signup is currently disabled. Please contact an administrator."
+    })
 
 @app.post("/signup")
 async def signup(
     request: Request,
-    username: str = Form(...),
     email: str = Form(...),
     name: str = Form(...),
     password: str = Form(...),
     password_confirm: str = Form(...)
 ):
-    """Handle self-signup."""
+    """Handle self-signup with email verification."""
+    # Check if SMTP is configured
+    if not is_smtp_configured():
+        return templates.TemplateResponse("signup.html", {
+            "request": request,
+            "error": "Self-signup is currently disabled. Please contact an administrator.",
+            "smtp_configured": False
+        })
+    
     # Validate password confirmation
     if password != password_confirm:
         return templates.TemplateResponse("signup.html", {
             "request": request,
-            "error": "Passwords do not match"
+            "error": "Passwords do not match",
+            "smtp_configured": True
         })
 
     # Validate password strength
     if len(password) < 6:
         return templates.TemplateResponse("signup.html", {
             "request": request,
-            "error": "Password must be at least 6 characters"
+            "error": "Password must be at least 6 characters",
+            "smtp_configured": True
         })
 
-    # Attempt signup
-    result = auth.signup(username, email, name, password)
+    # Attempt signup (stores in verification_pending)
+    result = auth.signup(email, name, password)
     if not result["success"]:
         return templates.TemplateResponse("signup.html", {
             "request": request,
-            "error": result["message"]
+            "error": result["message"],
+            "smtp_configured": True
         })
 
-    # Signup successful - show confirmation message and redirect to login
+    # Send verification email
+    verification_token = result.get("verification_token")
+    if verification_token:
+        try:
+            # Build verification link with request host
+            host = request.headers.get("host", "localhost:8000")
+            scheme = request.url.scheme
+            verification_link = f"{scheme}://{host}/verify?token={verification_token}"
+            await email_service.send_verification_email(
+                email=email,
+                name=name,
+                verification_link=verification_link
+            )
+            logger.info(f"Verification email sent to {email}")
+        except Exception as e:
+            logger.error(f"Failed to send verification email: {e}")
+            # Even if email fails, show the message to user
+            return templates.TemplateResponse("signup.html", {
+                "request": request,
+                "error": "Verification email could not be sent. Please contact support.",
+                "smtp_configured": True
+            })
+
+    # Signup successful - show confirmation message
     return templates.TemplateResponse("signup_confirmation.html", {
         "request": request,
-        "username": username
+        "email": email
+    })
+
+@app.get("/verify")
+async def verify_email(request: Request, token: str):
+    """Verify email and create user account."""
+    result = auth.verify_email(token)
+    
+    if not result["success"]:
+        return templates.TemplateResponse("verify_email.html", {
+            "request": request,
+            "success": False,
+            "message": result["message"]
+        })
+    
+    # Email verified and user created, redirect to login
+    return templates.TemplateResponse("verify_email.html", {
+        "request": request,
+        "success": True,
+        "message": "Email verified! Your account has been created and is awaiting admin approval. You will be able to log in once approved."
     })
 
 @app.post("/login")
 async def login(
     request: Request,
-    username: str = Form(...),
+    email: str = Form(...),
     password: str = Form(...)
 ):
-    """Handle unified login for all users."""
-    result = auth.login(username, password)
+    """Handle unified login for all users (email-based)."""
+    result = auth.login(email, password)
     
     if not result["success"]:
         return templates.TemplateResponse("login.html", {
@@ -402,9 +480,8 @@ async def login(
     user_data = result["user"]
     request.session["user"] = {
         "user_id": user_data["id"],
-        "username": user_data["username"],
-        "name": user_data["name"],
         "email": user_data["email"],
+        "name": user_data["name"],
         "is_coach": user_data["is_coach"],
         "is_admin": user_data["is_admin"]
     }
@@ -1146,7 +1223,6 @@ async def delete_user_route(
 async def coach_create_member(
     request: Request,
     user: dict = Depends(require_coach),
-    username: str = Form(...),
     email: str = Form(...),
     name: str = Form(...),
     password: Optional[str] = Form(None)
@@ -1154,17 +1230,19 @@ async def coach_create_member(
     """Create new user (unified users table). New users are created as pending approval."""
     try:
         # Create user in unified users table with is_approved=False (pending)
+        # For coach-created accounts, email is already verified
         password_hash = auth.hash_password(password) if password else ""
         user_id = db.create_user(
-            username=username,
+            username=email,  # Email is now the login credential
             password_hash=password_hash,
             email=email,
             name=name,
             is_coach=False,
             is_admin=False,
-            is_approved=False  # Pending admin approval
+            is_approved=False,  # Pending admin approval
+            email_verified=True  # Coach-created accounts have verified email
         )
-        logger.info(f"New user created (pending approval): {username} (ID: {user_id})")
+        logger.info(f"New user created (pending approval): {email} (ID: {user_id})")
         return RedirectResponse(url="/coach/members?message=User created (pending approval)", status_code=303)
     except Exception as e:
         logger.error(f"Error creating user: {e}")
@@ -1176,19 +1254,39 @@ async def coach_bulk_members(
     user: dict = Depends(require_coach),
     csv_file: UploadFile = File(...)
 ):
-    """Bulk import members."""
+    """Bulk import members from CSV."""
     try:
         content = await csv_file.read()
         csv_text = content.decode('utf-8')
         reader = csv.reader(io.StringIO(csv_text))
         
-        members = []
+        count = 0
         for row in reader:
-            if len(row) >= 3:
-                username, email, name = row[0].strip(), row[1].strip(), row[2].strip()
-                members.append((username, email, name))
+            if len(row) >= 2:
+                email = row[0].strip()
+                name = row[1].strip()
+                
+                # Skip if email already exists
+                if db.get_user_by_email(email):
+                    logger.warning(f"Skipping duplicate email: {email}")
+                    continue
+                
+                # Create user (email is used as username for coach-created accounts)
+                try:
+                    db.create_user(
+                        username=email,
+                        password_hash="",  # No password initially
+                        email=email,
+                        name=name,
+                        is_coach=False,
+                        is_admin=False,
+                        is_approved=False,  # Pending approval
+                        email_verified=True  # Coach-imported, so email is verified
+                    )
+                    count += 1
+                except Exception as e:
+                    logger.error(f"Error creating user {email}: {e}")
         
-        count = db.bulk_create_members(members)
         return RedirectResponse(url=f"/coach/members?message=Created {count} members", status_code=303)
     except Exception as e:
         logger.error(f"Error bulk creating members: {e}")

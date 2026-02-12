@@ -1151,13 +1151,23 @@ async def coach_create_member(
     name: str = Form(...),
     password: Optional[str] = Form(None)
 ):
-    """Create new member."""
+    """Create new user (unified users table). New users are created as pending approval."""
     try:
+        # Create user in unified users table with is_approved=False (pending)
         password_hash = auth.hash_password(password) if password else ""
-        member_id = db.create_member(username, password_hash, email, name)
-        return RedirectResponse(url="/coach/members?message=Member created", status_code=303)
+        user_id = db.create_user(
+            username=username,
+            password_hash=password_hash,
+            email=email,
+            name=name,
+            is_coach=False,
+            is_admin=False,
+            is_approved=False  # Pending admin approval
+        )
+        logger.info(f"New user created (pending approval): {username} (ID: {user_id})")
+        return RedirectResponse(url="/coach/members?message=User created (pending approval)", status_code=303)
     except Exception as e:
-        logger.error(f"Error creating member: {e}")
+        logger.error(f"Error creating user: {e}")
         return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
 
 @app.post("/coach/members/bulk")

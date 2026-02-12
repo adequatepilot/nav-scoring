@@ -18,12 +18,22 @@ class Database:
     def __init__(self, db_path: str = "data/navs.db"):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        # Don't initialize immediately - do it lazily on first use
+        self._initialized = False
+
+    def _ensure_initialized(self):
+        """Ensure database is initialized (lazy initialization)."""
+        if self._initialized:
+            return
         self._init_db()
+        self._initialized = True
 
     @contextmanager
     def get_connection(self):
         """Context manager for database connections."""
-        conn = sqlite3.connect(str(self.db_path))
+        self._ensure_initialized()
+        # Use a very long timeout for CIFS mount compatibility
+        conn = sqlite3.connect(str(self.db_path), timeout=300.0)
         conn.row_factory = sqlite3.Row
         try:
             yield conn
@@ -37,61 +47,18 @@ class Database:
 
     def _init_db(self):
         """Initialize database with schema and run migrations."""
-        # Check if already initialized
         try:
-            conn = sqlite3.connect(str(self.db_path), timeout=5.0)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM members")
-            conn.close()
-            logger.info("Database already initialized, running migrations...")
-            self._run_migrations()
-            return
-        except sqlite3.OperationalError:
-            # Table doesn't exist, need to initialize
-            pass
-        
-        # Load and execute initial schema
-        migration_file = Path(__file__).parent.parent / "migrations" / "001_initial_schema.sql"
-        if not migration_file.exists():
-            raise FileNotFoundError(f"Migration file not found: {migration_file}")
-
-        with open(migration_file, "r") as f:
-            schema_sql = f.read()
-
-        # Execute schema statements one by one
-        conn = sqlite3.connect(str(self.db_path), timeout=30.0, check_same_thread=False)
-        try:
-            # Enable WAL mode for better concurrency
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout=30000")
-            
-            # Remove comments and split statements
-            lines = []
-            for line in schema_sql.split('\n'):
-                if not line.strip().startswith('--'):
-                    lines.append(line)
-            
-            full_sql = '\n'.join(lines)
-            statements = full_sql.split(';')
-            
-            for statement in statements:
-                statement = statement.strip()
-                if statement:
-                    try:
-                        conn.execute(statement)
-                    except sqlite3.OperationalError as e:
-                        if "already exists" in str(e):
-                            logger.debug(f"Skipped: {statement[:50]}")
-                        else:
-                            logger.error(f"SQL Error: {e}\nStatement: {statement[:100]}")
-                            raise
-            conn.commit()
-            logger.info("Database schema initialized")
-        finally:
-            conn.close()
-        
-        # Run additional migrations
-        self._run_migrations()
+            # Try to run migrations if database exists
+            if self.db_path.exists():
+                self._run_migrations()
+            else:
+                logger.warning(
+                    f"Database file does not exist at {self.db_path}. "
+                    "Run: python3 bootstrap_db.py to create it, or run this in Docker. "
+                    "See SETUP.md for instructions."
+                )
+        except Exception as e:
+            logger.warning(f"Could not initialize database: {e}. Database may need manual setup.")
 
     def _run_migrations(self):
         """Run any pending migrations."""
@@ -278,6 +245,102 @@ class Database:
             cursor.execute(
                 "UPDATE coach SET is_admin = ? WHERE id = 1",
                 (1 if is_admin else 0,)
+            )
+            return cursor.rowcount > 0
+
+    # ===== UNIFIED USER MANAGEMENT (NEW) =====
+
+    def create_user(self, username: str, password_hash: str, email: str, name: str, 
+                   is_coach: bool = False, is_admin: bool = False, is_approved: bool = False) -> int:
+        """Create a new user in the unified users table. Returns user ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (username, password_hash, email, name, 1 if is_coach else 0, 1 if is_admin else 0, 1 if is_approved else 0),
+            )
+            user_id = cursor.lastrowid
+            logger.info(f"Created user: {username} (ID: {user_id}, coach={is_coach}, admin={is_admin})")
+            return user_id
+
+    def get_user_by_username(self, username: str) -> Optional[Dict]:
+        """Get user by username from unified users table."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_user_by_id(self, user_id: int) -> Optional[Dict]:
+        """Get user by ID from unified users table."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_user_by_email(self, email: str) -> Optional[Dict]:
+        """Get user by email from unified users table."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def list_users(self, filter_type: str = "all") -> List[Dict]:
+        """List users with optional filtering.
+        filter_type: 'all', 'pending', 'coaches', 'admins', 'approved'
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if filter_type == "pending":
+                cursor.execute("SELECT * FROM users WHERE is_approved = 0 ORDER BY created_at")
+            elif filter_type == "coaches":
+                cursor.execute("SELECT * FROM users WHERE is_coach = 1 ORDER BY name")
+            elif filter_type == "admins":
+                cursor.execute("SELECT * FROM users WHERE is_admin = 1 ORDER BY name")
+            elif filter_type == "approved":
+                cursor.execute("SELECT * FROM users WHERE is_approved = 1 ORDER BY name")
+            else:
+                cursor.execute("SELECT * FROM users ORDER BY name")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_user(self, user_id: int, **kwargs) -> bool:
+        """Update user fields. Returns success."""
+        allowed_fields = {"password_hash", "email", "name", "is_coach", "is_admin", "is_approved"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
+        if not updates:
+            return False
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
+        values = list(updates.values()) + [user_id]
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE users SET {set_clause} WHERE id = ?", values)
+            return cursor.rowcount > 0
+
+    def approve_user(self, user_id: int) -> bool:
+        """Approve a pending user account."""
+        return self.update_user(user_id, is_approved=1)
+
+    def delete_user(self, user_id: int) -> bool:
+        """Delete a user."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            return cursor.rowcount > 0
+
+    def update_user_last_login(self, user_id: int) -> bool:
+        """Update last login timestamp for user."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
+                (user_id,),
             )
             return cursor.rowcount > 0
 

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up - NAV Scoring{% endblock %}
+
+{% block extra_css %}
+<style>
+.signup-container {
+    text-align: center;
+}
+.siu-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 2rem;
+}
+.siu-logo img {
+    width: 180px;
+    height: auto;
+    max-width: 100%;
+}
+.signup-form {
+    max-width: 400px;
+    margin: 0 auto;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="signup-container">
+    <div class="siu-logo">
+        <img src="/static/images/siu_logo_stacked_full_color_black_text.png" alt="SIU Salukis Logo">
+    </div>
+    <h2>NAV Scoring System</h2>
+    <h3 style="color: #666; margin-bottom: 2rem;">Create Account</h3>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/signup" class="signup-form">
+        <div class="form-group">
+            <label for="name">Full Name:</label>
+            <input type="text" id="name" name="name" required autofocus>
+        </div>
+
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" placeholder="user@siu.edu" required>
+            <small style="color: #999;">Must be a @siu.edu email address</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <small style="color: #999;">At least 6 characters</small>
+        </div>
+
+        <div class="form-group">
+            <label for="password_confirm">Confirm Password:</label>
+            <input type="password" id="password_confirm" name="password_confirm" required>
+        </div>
+        
+        <button type="submit">Create Account</button>
+    </form>
+
+    <p style="text-align: center; margin-top: 1.5rem;">
+        Already have an account? <a href="/login" style="color: #003366; text-decoration: none; font-weight: bold;">Login here</a>
+    </p>
+
+    <p style="color: #999; text-align: center; margin-top: 1rem; font-size: 0.85rem;">
+        After creating your account, an administrator will need to approve it before you can log in.
+    </p>
+</div>
+{% endblock %}

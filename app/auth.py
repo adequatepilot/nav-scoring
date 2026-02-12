@@ -26,6 +26,129 @@ class Auth:
         """Verify a password against its hash."""
         return pwd_context.verify(password, password_hash)
 
+    # ===== UNIFIED USER AUTHENTICATION (NEW) =====
+
+    def signup(self, username: str, email: str, name: str, password: str) -> dict:
+        """
+        Register a new user account via self-signup.
+        Email must end with @siu.edu.
+        Returns {"success": bool, "message": str, "user_id": int or None}
+        """
+        # Validate email domain
+        if not email.endswith("@siu.edu"):
+            return {"success": False, "message": "Email must end with @siu.edu"}
+
+        # Check if username exists
+        existing = self.db.get_user_by_username(username)
+        if existing:
+            return {"success": False, "message": "Username already taken"}
+
+        # Check if email exists
+        existing = self.db.get_user_by_email(email)
+        if existing:
+            return {"success": False, "message": "Email already registered"}
+
+        try:
+            password_hash = self.hash_password(password)
+            # Create user with is_approved=0 (pending admin approval)
+            user_id = self.db.create_user(
+                username=username,
+                password_hash=password_hash,
+                email=email,
+                name=name,
+                is_coach=False,
+                is_admin=False,
+                is_approved=False  # Pending approval
+            )
+            logger.info(f"User registered (pending approval): {username}")
+            return {
+                "success": True,
+                "message": "Account created. Awaiting admin approval.",
+                "user_id": user_id,
+            }
+        except Exception as e:
+            logger.error(f"Signup error: {e}")
+            return {"success": False, "message": "Registration failed"}
+
+    def login(self, username: str, password: str) -> dict:
+        """
+        Authenticate a user (unified method for all roles).
+        Returns {"success": bool, "message": str, "user": dict or None}
+        """
+        user = self.db.get_user_by_username(username)
+        if not user:
+            logger.warning(f"Login attempt: user not found: {username}")
+            return {"success": False, "message": "Invalid username or password"}
+
+        # Check if account is approved
+        if not user.get("is_approved"):
+            logger.warning(f"Login attempt: account not approved: {username}")
+            return {"success": False, "message": "Account pending approval. Contact admin."}
+
+        if not user.get("password_hash"):
+            return {
+                "success": False,
+                "message": "Password not set. Contact admin.",
+            }
+
+        if not self.verify_password(password, user["password_hash"]):
+            logger.warning(f"Login attempt: wrong password: {username}")
+            return {"success": False, "message": "Invalid username or password"}
+
+        # Update last login
+        self.db.update_user_last_login(user["id"])
+        logger.info(f"User logged in: {username} (coach={user.get('is_coach')}, admin={user.get('is_admin')})")
+
+        return {
+            "success": True,
+            "message": "Login successful",
+            "user": {
+                "id": user["id"],
+                "username": user["username"],
+                "name": user["name"],
+                "email": user["email"],
+                "is_coach": user.get("is_coach", 0) == 1,
+                "is_admin": user.get("is_admin", 0) == 1,
+            },
+        }
+
+    def approve_user(self, user_id: int) -> dict:
+        """
+        Approve a pending user account (admin only).
+        Returns {"success": bool, "message": str}
+        """
+        try:
+            success = self.db.approve_user(user_id)
+            if success:
+                logger.info(f"User approved: ID {user_id}")
+                return {"success": True, "message": "User approved"}
+            else:
+                return {"success": False, "message": "User not found"}
+        except Exception as e:
+            logger.error(f"Approve user error: {e}")
+            return {"success": False, "message": "Failed to approve user"}
+
+    def change_password(self, user_id: int, old_password: str, new_password: str) -> dict:
+        """
+        Change password for a user.
+        Returns {"success": bool, "message": str}
+        """
+        user = self.db.get_user_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "User not found"}
+
+        if not self.verify_password(old_password, user["password_hash"]):
+            logger.warning(f"Password change: wrong old password for user {user_id}")
+            return {"success": False, "message": "Invalid old password"}
+
+        password_hash = self.hash_password(new_password)
+        success = self.db.update_user(user_id, password_hash=password_hash)
+        if success:
+            logger.info(f"Password changed for user {user_id}")
+            return {"success": True, "message": "Password changed"}
+        else:
+            return {"success": False, "message": "Failed to change password"}
+
     # ===== MEMBER AUTHENTICATION =====
 
     def member_register(self, username: str, email: str, name: str, password: str) -> dict:

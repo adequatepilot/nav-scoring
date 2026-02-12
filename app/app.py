@@ -129,25 +129,35 @@ def get_session_user(request: Request) -> Optional[dict]:
     """Get current user from session."""
     return request.session.get("user")
 
-def require_member(request: Request) -> dict:
-    """Require member user to be logged in."""
+def require_login(request: Request) -> dict:
+    """Require any logged-in user."""
     user = get_session_user(request)
-    if not user or user.get("user_type") != "member":
-        raise HTTPException(status_code=401, detail="Not authenticated as member")
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     return user
 
+def require_member(request: Request) -> dict:
+    """Require competitor (team member, non-coach)."""
+    user = require_login(request)
+    # Competitors are users with is_coach=0 (but can be is_admin)
+    if user.get("is_coach"):
+        raise HTTPException(status_code=403, detail="This page is for competitors only")
+    return user
+
+def require_competitor(request: Request) -> dict:
+    """Alias for require_member."""
+    return require_member(request)
+
 def require_coach(request: Request) -> dict:
-    """Require coach to be logged in."""
-    user = get_session_user(request)
-    if not user or user.get("user_type") != "coach":
-        raise HTTPException(status_code=401, detail="Not authenticated as coach")
+    """Require coach access (coach or admin)."""
+    user = require_login(request)
+    if not user.get("is_coach") and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Coach access required")
     return user
 
 def require_admin(request: Request) -> dict:
-    """Require admin coach to be logged in."""
-    user = get_session_user(request)
-    if not user or user.get("user_type") != "coach":
-        raise HTTPException(status_code=401, detail="Not authenticated as coach")
+    """Require admin access."""
+    user = require_login(request)
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
@@ -303,64 +313,84 @@ def generate_pdf_report(
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    """Redirect to appropriate page based on auth status."""
+    """Redirect to appropriate page based on auth status and role."""
     user = get_session_user(request)
-    if user:
-        if user["user_type"] == "member":
-            return RedirectResponse(url="/team", status_code=303)
-        elif user["user_type"] == "coach":
-            return RedirectResponse(url="/coach", status_code=303)
-    return RedirectResponse(url="/login", status_code=303)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    # Route based on role
+    if user.get("is_coach"):
+        return RedirectResponse(url="/coach", status_code=303)
+    else:
+        return RedirectResponse(url="/team", status_code=303)
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Display login form."""
     user = get_session_user(request)
     if user:
-        if user["user_type"] == "member":
-            return RedirectResponse(url="/team", status_code=303)
-        elif user["user_type"] == "coach":
+        if user.get("is_coach"):
             return RedirectResponse(url="/coach", status_code=303)
+        else:
+            return RedirectResponse(url="/team", status_code=303)
     
     return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/signup", response_class=HTMLResponse)
+async def signup_page(request: Request):
+    """Display signup form."""
+    user = get_session_user(request)
+    if user:
+        return RedirectResponse(url="/", status_code=303)
+    
+    return templates.TemplateResponse("signup.html", {"request": request})
+
+@app.post("/signup")
+async def signup(
+    request: Request,
+    username: str = Form(...),
+    email: str = Form(...),
+    name: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...)
+):
+    """Handle self-signup."""
+    # Validate password confirmation
+    if password != password_confirm:
+        return templates.TemplateResponse("signup.html", {
+            "request": request,
+            "error": "Passwords do not match"
+        })
+
+    # Validate password strength
+    if len(password) < 6:
+        return templates.TemplateResponse("signup.html", {
+            "request": request,
+            "error": "Password must be at least 6 characters"
+        })
+
+    # Attempt signup
+    result = auth.signup(username, email, name, password)
+    if not result["success"]:
+        return templates.TemplateResponse("signup.html", {
+            "request": request,
+            "error": result["message"]
+        })
+
+    # Signup successful - show confirmation message and redirect to login
+    return templates.TemplateResponse("signup_confirmation.html", {
+        "request": request,
+        "username": username
+    })
 
 @app.post("/login")
 async def login(
     request: Request,
     username: str = Form(...),
-    password: str = Form(...),
-    user_type: str = Form(None)
+    password: str = Form(...)
 ):
-    """Handle login. Auto-detects role if user_type not specified."""
-    # If user_type is provided (form field), use it
-    if user_type:
-        if user_type == "member":
-            result = auth.member_login(username, password)
-            user_key = "member"
-        elif user_type == "coach":
-            result = auth.coach_login(username, password)
-            user_key = "coach"
-        else:
-            return templates.TemplateResponse("login.html", {
-                "request": request,
-                "error": "Invalid user type"
-            })
-    else:
-        # Auto-detect: try coach first, then member
-        result = auth.coach_login(username, password)
-        if result["success"]:
-            user_type = "coach"
-            user_key = "coach"
-        else:
-            result = auth.member_login(username, password)
-            if result["success"]:
-                user_type = "member"
-                user_key = "member"
-            else:
-                return templates.TemplateResponse("login.html", {
-                    "request": request,
-                    "error": "Invalid username or password"
-                })
+    """Handle unified login for all users."""
+    result = auth.login(username, password)
     
     if not result["success"]:
         return templates.TemplateResponse("login.html", {
@@ -369,21 +399,21 @@ async def login(
         })
     
     # Store in session
-    user_data = result[user_key]
+    user_data = result["user"]
     request.session["user"] = {
-        "user_type": user_type,
         "user_id": user_data["id"],
         "username": user_data["username"],
-        "name": user_data.get("name", user_data.get("username")),
-        "email": user_data.get("email", ""),
-        "is_admin": user_data.get("is_admin", False)  # For coach only
+        "name": user_data["name"],
+        "email": user_data["email"],
+        "is_coach": user_data["is_coach"],
+        "is_admin": user_data["is_admin"]
     }
     
-    # Redirect
-    if user_type == "member":
-        return RedirectResponse(url="/team", status_code=303)
-    else:
+    # Redirect based on role
+    if user_data["is_coach"]:
         return RedirectResponse(url="/coach", status_code=303)
+    else:
+        return RedirectResponse(url="/team", status_code=303)
 
 @app.get("/logout")
 async def logout(request: Request):
@@ -392,7 +422,7 @@ async def logout(request: Request):
     return RedirectResponse(url="/login", status_code=303)
 
 @app.get("/team", response_class=HTMLResponse)
-async def team_dashboard(request: Request, user: dict = Depends(require_member)):
+async def team_dashboard(request: Request, user: dict = Depends(require_competitor)):
     """Team member main dashboard."""
     # Get pairing info
     pairing = db.get_active_pairing_for_member(user["user_id"])

@@ -21,6 +21,9 @@ data/pdf_reports/
 # Config with secrets
 config/config.yaml
 
+# GitHub credentials (NEVER commit this!)
+.github-credentials
+
 # IDE
 .vscode/
 .idea/

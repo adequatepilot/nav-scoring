@@ -96,6 +96,12 @@
 
 <h3>Quick Actions</h3>
 <div class="quick-links">
+    {% if is_admin and pending_count > 0 %}
+    <div class="quick-link" onclick="window.location.href='/coach/members?filter=pending'" style="background: #fff3e0; border: 2px solid #ff9800;">
+        <h3>⏳ Pending Approvals</h3>
+        <p>{{ pending_count }} user(s) awaiting approval</p>
+    </div>
+    {% endif %}
     <div class="quick-link" onclick="window.location.href='/coach/results'">
         <h3>📊 View Results</h3>
         <p>Search and filter all flight results</p>

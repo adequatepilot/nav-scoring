@@ -505,13 +505,17 @@ async def submit_prenav(
 ):
     """Submit pre-flight plan."""
     try:
+        logger.info(f"Prenav submission from user {user['user_id']}: nav_id={nav_id}, fuel_estimate={fuel_estimate}")
+        
         # Get pairing
         pairing = db.get_active_pairing_for_member(user["user_id"])
         if not pairing:
+            logger.error(f"No active pairing found for user {user['user_id']}")
             raise HTTPException(status_code=400, detail="No active pairing found")
         
         # Verify user is pilot
         if pairing["pilot_id"] != user["user_id"]:
+            logger.error(f"User {user['user_id']} is not the pilot (pilot_id={pairing['pilot_id']})")
             raise HTTPException(status_code=403, detail="Only pilot can submit pre-flight plan")
         
         # Parse times
@@ -519,6 +523,7 @@ async def submit_prenav(
             leg_times_list = json.loads(leg_times_str)
             leg_times = [parse_mmss(t) for t in leg_times_list]
             total_time = parse_mmss(total_time_str)
+            logger.info(f"Parsed times: {leg_times} (total={total_time}s)")
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Error parsing times: {e}")
             raise HTTPException(status_code=400, detail=f"Invalid time format: {str(e)}")
@@ -537,6 +542,8 @@ async def submit_prenav(
             token=token,
             expires_at=expires_at
         )
+        
+        logger.info(f"Created prenav: ID={prenav_id}, token={token}")
         
         # Get NAV name
         nav = db.get_nav(nav_id)
@@ -566,6 +573,7 @@ async def submit_prenav(
         except Exception as email_err:
             logger.warning(f"Email send failed (non-critical): {email_err}")
         
+        logger.info(f"Prenav submitted successfully, redirecting to confirmation")
         # Redirect to confirmation page instead of returning template
         return RedirectResponse(url=f"/prenav_confirmation?token={token}", status_code=303)
     
@@ -928,6 +936,10 @@ async def coach_dashboard(request: Request, user: dict = Depends(require_coach))
     pairings = db.list_pairings(active_only=True)
     results = db.list_flight_results()
     
+    # Get pending approvals count (for admins)
+    pending_users = db.list_users(filter_type="pending")
+    pending_count = len(pending_users)
+    
     # Recent results (last 5)
     recent = results[:5] if results else []
     
@@ -945,6 +957,7 @@ async def coach_dashboard(request: Request, user: dict = Depends(require_coach))
     return templates.TemplateResponse("coach/dashboard.html", {
         "request": request,
         "is_admin": user.get("is_admin", False),
+        "pending_count": pending_count,
         "stats": {
             "total_members": len(members),
             "active_pairings": len(pairings),
@@ -1070,12 +1083,13 @@ async def coach_delete_result(result_id: int, user: dict = Depends(require_coach
     return RedirectResponse(url="/coach/results", status_code=303)
 
 @app.get("/coach/members", response_class=HTMLResponse)
-async def coach_members(request: Request, user: dict = Depends(require_coach)):
-    """Member management."""
-    members = db.list_members()
+async def coach_members(request: Request, user: dict = Depends(require_coach), filter_type: str = "all"):
+    """Member management - now using unified users table."""
+    members = db.list_users(filter_type=filter_type)
     return templates.TemplateResponse("coach/members.html", {
         "request": request,
-        "members": members
+        "members": members,
+        "current_filter": filter_type
     })
 
 @app.post("/coach/members")
@@ -1118,6 +1132,56 @@ async def coach_bulk_members(
         return RedirectResponse(url=f"/coach/members?message=Created {count} members", status_code=303)
     except Exception as e:
         logger.error(f"Error bulk creating members: {e}")
+        return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
+
+@app.post("/coach/members/update")
+async def update_user_role(
+    request: Request,
+    user: dict = Depends(require_admin)
+):
+    """Update user role (is_approved, is_coach, is_admin). Admin only."""
+    try:
+        body = await request.json()
+        user_id = body.get("user_id")
+        field = body.get("field")
+        value = body.get("value")
+        
+        if not all([user_id, field, value is not None]):
+            return {"success": False, "message": "Missing required fields"}
+        
+        # Validate field
+        if field not in ["is_approved", "is_coach", "is_admin"]:
+            return {"success": False, "message": "Invalid field"}
+        
+        # Update user
+        success = db.update_user(user_id, **{field: 1 if value else 0})
+        
+        if success:
+            logger.info(f"User {user_id} updated: {field}={value}")
+            return {"success": True, "message": f"User {field} updated"}
+        else:
+            return {"success": False, "message": "User not found"}
+    
+    except Exception as e:
+        logger.error(f"Error updating user role: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/coach/members/{user_id}/delete")
+async def delete_user_route(
+    user_id: int,
+    request: Request,
+    user: dict = Depends(require_admin)
+):
+    """Delete a user. Admin only."""
+    try:
+        success = db.delete_user(user_id)
+        if success:
+            logger.info(f"User {user_id} deleted")
+            return RedirectResponse(url="/coach/members?message=User deleted", status_code=303)
+        else:
+            return RedirectResponse(url="/coach/members?error=User not found", status_code=303)
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
         return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
 
 @app.get("/coach/members/{member_id}/deactivate")

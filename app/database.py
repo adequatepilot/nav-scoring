@@ -1,0 +1,685 @@
+"""
+SQLite database wrapper for NAV Scoring system.
+Handles schema migrations, queries, and data access.
+"""
+
+import sqlite3
+import json
+import logging
+from pathlib import Path
+from typing import List, Dict, Optional, Tuple, Any
+from datetime import datetime, timedelta
+from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
+
+
+class Database:
+    def __init__(self, db_path: str = "data/navs.db"):
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    @contextmanager
+    def get_connection(self):
+        """Context manager for database connections."""
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Database error: {e}")
+            raise
+        finally:
+            conn.close()
+
+    def _init_db(self):
+        """Initialize database with schema."""
+        # Check if already initialized
+        try:
+            conn = sqlite3.connect(str(self.db_path), timeout=5.0)
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM members")
+            conn.close()
+            logger.info("Database already initialized")
+            return
+        except sqlite3.OperationalError:
+            # Table doesn't exist, need to initialize
+            pass
+        
+        # Load and execute schema
+        migration_file = Path(__file__).parent.parent / "migrations" / "001_initial_schema.sql"
+        if not migration_file.exists():
+            raise FileNotFoundError(f"Migration file not found: {migration_file}")
+
+        with open(migration_file, "r") as f:
+            schema_sql = f.read()
+
+        # Execute schema statements one by one
+        conn = sqlite3.connect(str(self.db_path), timeout=30.0, check_same_thread=False)
+        try:
+            # Enable WAL mode for better concurrency
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=30000")
+            
+            # Remove comments and split statements
+            lines = []
+            for line in schema_sql.split('\n'):
+                if not line.strip().startswith('--'):
+                    lines.append(line)
+            
+            full_sql = '\n'.join(lines)
+            statements = full_sql.split(';')
+            
+            for statement in statements:
+                statement = statement.strip()
+                if statement:
+                    try:
+                        conn.execute(statement)
+                    except sqlite3.OperationalError as e:
+                        if "already exists" in str(e):
+                            logger.debug(f"Skipped: {statement[:50]}")
+                        else:
+                            logger.error(f"SQL Error: {e}\nStatement: {statement[:100]}")
+                            raise
+            conn.commit()
+            logger.info("Database schema initialized")
+        finally:
+            conn.close()
+
+    # ===== MEMBER MANAGEMENT =====
+
+    def create_member(self, username: str, password_hash: str, email: str, name: str) -> int:
+        """Create a new member account. Returns member ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO members (username, password_hash, email, name)
+                VALUES (?, ?, ?, ?)
+                """,
+                (username, password_hash, email, name),
+            )
+            member_id = cursor.lastrowid
+            logger.info(f"Created member: {username} (ID: {member_id})")
+            return member_id
+
+    def get_member_by_username(self, username: str) -> Optional[Dict]:
+        """Get member by username."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM members WHERE username = ?", (username,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_member_by_id(self, member_id: int) -> Optional[Dict]:
+        """Get member by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM members WHERE id = ?", (member_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def list_members(self) -> List[Dict]:
+        """List all members."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM members ORDER BY name")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def list_active_members(self) -> List[Dict]:
+        """List active members only."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM members WHERE is_active = 1 ORDER BY name")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_member(self, member_id: int, **kwargs) -> bool:
+        """Update member fields. Returns success."""
+        allowed_fields = {"password_hash", "email", "name", "is_active"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
+        if not updates:
+            return False
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
+        values = list(updates.values()) + [member_id]
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE members SET {set_clause} WHERE id = ?", values)
+            return cursor.rowcount > 0
+
+    def update_member_last_login(self, member_id: int) -> bool:
+        """Update last login timestamp."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE members SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
+                (member_id,),
+            )
+            return cursor.rowcount > 0
+
+    def delete_member(self, member_id: int) -> bool:
+        """Delete a member."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM members WHERE id = ?", (member_id,))
+            return cursor.rowcount > 0
+
+    def bulk_create_members(self, members: List[Tuple[str, str, str]]) -> int:
+        """Bulk create members. Input: [(username, email, name), ...]"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.executemany(
+                """
+                INSERT INTO members (username, email, name, password_hash)
+                VALUES (?, ?, ?, ?)
+                """,
+                [(u, e, n, "") for u, e, n in members],  # Empty password_hash initially
+            )
+            logger.info(f"Bulk created {cursor.rowcount} members")
+            return cursor.rowcount
+
+    # ===== COACH MANAGEMENT =====
+
+    def init_coach(self, username: str, password_hash: str, email: str) -> bool:
+        """Initialize coach account."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM coach")
+            if cursor.fetchone()[0] > 0:
+                logger.warning("Coach account already exists")
+                return False
+            cursor.execute(
+                "INSERT INTO coach (username, password_hash, email) VALUES (?, ?, ?)",
+                (username, password_hash, email),
+            )
+            logger.info("Coach account initialized")
+            return True
+
+    def get_coach(self) -> Optional[Dict]:
+        """Get coach account."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM coach LIMIT 1")
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def update_coach_password(self, password_hash: str) -> bool:
+        """Update coach password."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE coach SET password_hash = ? WHERE id = 1", (password_hash,))
+            return cursor.rowcount > 0
+
+    def update_coach_last_login(self) -> bool:
+        """Update coach last login timestamp."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE coach SET last_login = CURRENT_TIMESTAMP WHERE id = 1"
+            )
+            return cursor.rowcount > 0
+
+    # ===== PAIRING MANAGEMENT =====
+
+    def create_pairing(self, pilot_id: int, safety_observer_id: int) -> int:
+        """Create a new pairing. Returns pairing ID."""
+        if pilot_id == safety_observer_id:
+            raise ValueError("Pilot and safety observer must be different members")
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO pairings (pilot_id, safety_observer_id, is_active)
+                VALUES (?, ?, 1)
+                """,
+                (pilot_id, safety_observer_id),
+            )
+            pairing_id = cursor.lastrowid
+            logger.info(f"Created pairing: pilot={pilot_id}, observer={safety_observer_id} (ID: {pairing_id})")
+            return pairing_id
+
+    def get_pairing(self, pairing_id: int) -> Optional[Dict]:
+        """Get pairing by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM pairings WHERE id = ?", (pairing_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def list_pairings(self, active_only: bool = False) -> List[Dict]:
+        """List all pairings."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if active_only:
+                cursor.execute("SELECT * FROM pairings WHERE is_active = 1 ORDER BY id")
+            else:
+                cursor.execute("SELECT * FROM pairings ORDER BY id")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def list_pairings_for_member(self, member_id: int, active_only: bool = True) -> List[Dict]:
+        """List pairings for a specific member (as pilot or observer)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if active_only:
+                cursor.execute(
+                    """
+                    SELECT * FROM pairings 
+                    WHERE (pilot_id = ? OR safety_observer_id = ?) AND is_active = 1
+                    """,
+                    (member_id, member_id),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT * FROM pairings 
+                    WHERE pilot_id = ? OR safety_observer_id = ?
+                    """,
+                    (member_id, member_id),
+                )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_active_pairing_for_member(self, member_id: int) -> Optional[Dict]:
+        """Get active pairing for a member (should be only 1)."""
+        pairings = self.list_pairings_for_member(member_id, active_only=True)
+        return pairings[0] if pairings else None
+
+    def update_pairing(self, pairing_id: int, **kwargs) -> bool:
+        """Update pairing fields. Returns success."""
+        allowed_fields = {"pilot_id", "safety_observer_id", "is_active"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
+        if not updates:
+            return False
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates.keys())
+        values = list(updates.values()) + [pairing_id]
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE pairings SET {set_clause} WHERE id = ?", values)
+            return cursor.rowcount > 0
+
+    def break_pairing(self, pairing_id: int) -> bool:
+        """Disable a pairing (set is_active = 0)."""
+        return self.update_pairing(pairing_id, is_active=0)
+
+    def delete_pairing(self, pairing_id: int) -> bool:
+        """Delete a pairing."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pairings WHERE id = ?", (pairing_id,))
+            return cursor.rowcount > 0
+
+    # ===== AIRPORT MANAGEMENT =====
+
+    def create_airport(self, code: str) -> int:
+        """Create airport. Returns airport ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO airports (code) VALUES (?)",
+                (code,),
+            )
+            return cursor.lastrowid
+
+    def get_airport(self, airport_id: int) -> Optional[Dict]:
+        """Get airport by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM airports WHERE id = ?", (airport_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def list_airports(self) -> List[Dict]:
+        """List all airports."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM airports ORDER BY code")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def delete_airport(self, airport_id: int) -> bool:
+        """Delete airport."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM airports WHERE id = ?", (airport_id,))
+            return cursor.rowcount > 0
+
+    # ===== START GATE MANAGEMENT =====
+
+    def create_start_gate(self, airport_id: int, name: str, lat: float, lon: float) -> int:
+        """Create start gate. Returns gate ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO start_gates (airport_id, name, lat, lon)
+                VALUES (?, ?, ?, ?)
+                """,
+                (airport_id, name, lat, lon),
+            )
+            return cursor.lastrowid
+
+    def delete_start_gate(self, gate_id: int) -> bool:
+        """Delete start gate."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM start_gates WHERE id = ?", (gate_id,))
+            return cursor.rowcount > 0
+
+    # ===== NAV & CHECKPOINT MANAGEMENT =====
+
+    def create_nav(self, name: str, airport_id: int) -> int:
+        """Create NAV route. Returns nav ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO navs (name, airport_id) VALUES (?, ?)",
+                (name, airport_id),
+            )
+            return cursor.lastrowid
+
+    def delete_nav(self, nav_id: int) -> bool:
+        """Delete NAV route."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM navs WHERE id = ?", (nav_id,))
+            return cursor.rowcount > 0
+
+    def create_checkpoint(self, nav_id: int, sequence: int, name: str, lat: float, lon: float) -> int:
+        """Create checkpoint. Returns checkpoint ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO checkpoints (nav_id, sequence, name, lat, lon)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (nav_id, sequence, name, lat, lon),
+            )
+            return cursor.lastrowid
+
+    def get_checkpoint(self, checkpoint_id: int) -> Optional[Dict]:
+        """Get checkpoint by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM checkpoints WHERE id = ?", (checkpoint_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def delete_checkpoint(self, checkpoint_id: int) -> bool:
+        """Delete checkpoint."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM checkpoints WHERE id = ?", (checkpoint_id,))
+            return cursor.rowcount > 0
+
+    def get_nav(self, nav_id: int) -> Optional[Dict]:
+        """Get NAV with checkpoints."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM navs WHERE id = ?", (nav_id,))
+            nav_row = cursor.fetchone()
+            if not nav_row:
+                return None
+            nav = dict(nav_row)
+            cursor.execute(
+                "SELECT * FROM checkpoints WHERE nav_id = ? ORDER BY sequence",
+                (nav_id,),
+            )
+            nav["checkpoints"] = [dict(row) for row in cursor.fetchall()]
+            return nav
+
+    def list_navs(self) -> List[Dict]:
+        """List all NAVs."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM navs ORDER BY name")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def list_navs_by_airport(self, airport_id: int) -> List[Dict]:
+        """List NAVs for an airport."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM navs WHERE airport_id = ? ORDER BY name",
+                (airport_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_checkpoints(self, nav_id: int) -> List[Dict]:
+        """Get checkpoints for a NAV."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM checkpoints WHERE nav_id = ? ORDER BY sequence",
+                (nav_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_start_gates(self, airport_id: int) -> List[Dict]:
+        """Get start gates for an airport."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM start_gates WHERE airport_id = ? ORDER BY name",
+                (airport_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_start_gate(self, gate_id: int) -> Optional[Dict]:
+        """Get a specific start gate."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM start_gates WHERE id = ?", (gate_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    # ===== SECRETS MANAGEMENT =====
+
+    def get_secrets(self, nav_id: int) -> List[Dict]:
+        """Get secrets for a NAV."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM secrets WHERE nav_id = ? ORDER BY id",
+                (nav_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_secret(self, secret_id: int) -> Optional[Dict]:
+        """Get secret by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM secrets WHERE id = ?", (secret_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def create_secret(
+        self, nav_id: int, name: str, lat: float, lon: float, secret_type: str
+    ) -> int:
+        """Create a secret. Returns secret ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO secrets (nav_id, name, lat, lon, type)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (nav_id, name, lat, lon, secret_type),
+            )
+            return cursor.lastrowid
+
+    def delete_secret(self, secret_id: int) -> bool:
+        """Delete a secret."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM secrets WHERE id = ?", (secret_id,))
+            return cursor.rowcount > 0
+
+    # ===== PRE-NAV SUBMISSIONS =====
+
+    def create_prenav(
+        self,
+        pairing_id: int,
+        pilot_id: int,
+        nav_id: int,
+        leg_times: List[float],
+        total_time: float,
+        fuel_estimate: float,
+        token: str,
+        expires_at: datetime,
+    ) -> int:
+        """Create a pre-NAV submission. Returns prenav ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO prenav_submissions
+                (pairing_id, pilot_id, nav_id, leg_times, total_time, fuel_estimate, token, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    pairing_id,
+                    pilot_id,
+                    nav_id,
+                    json.dumps(leg_times),
+                    total_time,
+                    fuel_estimate,
+                    token,
+                    expires_at,
+                ),
+            )
+            return cursor.lastrowid
+
+    def get_prenav_by_token(self, token: str) -> Optional[Dict]:
+        """Get pre-NAV by token."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM prenav_submissions WHERE token = ?", (token,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            prenav = dict(row)
+            prenav["leg_times"] = json.loads(prenav["leg_times"])
+            return prenav
+
+    def get_prenav(self, prenav_id: int) -> Optional[Dict]:
+        """Get pre-NAV by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM prenav_submissions WHERE id = ?", (prenav_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            prenav = dict(row)
+            prenav["leg_times"] = json.loads(prenav["leg_times"])
+            return prenav
+
+    def delete_expired_prenavs(self) -> int:
+        """Delete expired pre-NAV submissions. Returns count deleted."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM prenav_submissions WHERE expires_at < CURRENT_TIMESTAMP"
+            )
+            return cursor.rowcount
+
+    # ===== FLIGHT RESULTS =====
+
+    def create_flight_result(
+        self,
+        prenav_id: int,
+        pairing_id: int,
+        nav_id: int,
+        gpx_filename: str,
+        actual_fuel: float,
+        secrets_checkpoint: int,
+        secrets_enroute: int,
+        start_gate_id: int,
+        overall_score: float,
+        checkpoint_results: List[Dict],
+    ) -> int:
+        """Create a flight result. Returns result ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO flight_results
+                (prenav_id, pairing_id, nav_id, gpx_filename, actual_fuel,
+                 secrets_missed_checkpoint, secrets_missed_enroute, start_gate_id,
+                 overall_score, checkpoint_results)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    prenav_id,
+                    pairing_id,
+                    nav_id,
+                    gpx_filename,
+                    actual_fuel,
+                    secrets_checkpoint,
+                    secrets_enroute,
+                    start_gate_id,
+                    overall_score,
+                    json.dumps(checkpoint_results),
+                ),
+            )
+            return cursor.lastrowid
+
+    def get_flight_result(self, result_id: int) -> Optional[Dict]:
+        """Get flight result by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM flight_results WHERE id = ?", (result_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            result = dict(row)
+            result["checkpoint_results"] = json.loads(result["checkpoint_results"])
+            return result
+
+    def list_flight_results(
+        self,
+        pairing_id: Optional[int] = None,
+        nav_id: Optional[int] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> List[Dict]:
+        """List flight results with optional filters."""
+        query = "SELECT * FROM flight_results WHERE 1=1"
+        params = []
+
+        if pairing_id:
+            query += " AND pairing_id = ?"
+            params.append(pairing_id)
+        if nav_id:
+            query += " AND nav_id = ?"
+            params.append(nav_id)
+        if start_date:
+            query += " AND scored_at >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND scored_at <= ?"
+            params.append(end_date)
+
+        query += " ORDER BY scored_at DESC"
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            results = []
+            for row in cursor.fetchall():
+                result = dict(row)
+                result["checkpoint_results"] = json.loads(result["checkpoint_results"])
+                results.append(result)
+            return results
+
+    def delete_flight_result(self, result_id: int) -> bool:
+        """Delete a flight result."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM flight_results WHERE id = ?", (result_id,))
+            return cursor.rowcount > 0

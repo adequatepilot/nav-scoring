@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Checkpoints - NAV Management{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Manage Checkpoints</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/navs">NAV Management</a>
+        <a href="/coach/navs/routes">Routes</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.checkpoint-list {
+    margin-top: 2rem;
+}
+.checkpoint-item {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.checkpoint-item .checkpoint-seq {
+    display: inline-block;
+    background: #0066cc;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-right: 0.5rem;
+}
+.checkpoint-item .checkpoint-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+.checkpoint-item .checkpoint-coords {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+.checkpoint-item .actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.button-danger {
+    background-color: #dc3545;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.button-danger:hover {
+    background-color: #c82333;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Manage Checkpoints - {{ nav.name }}</h2>
+
+{% if message %}
+<div class="success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width: 600px;">
+    <h3>Add Checkpoint</h3>
+    <form method="POST" action="/coach/navs/checkpoints">
+        <input type="hidden" name="nav_id" value="{{ nav.id }}">
+        
+        <div class="form-group">
+            <label for="sequence">Checkpoint Number:</label>
+            <input type="number" id="sequence" name="sequence" placeholder="1" min="1" required>
+            <small style="color: #666;">Sequence order in the route</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="name">Checkpoint Name:</label>
+            <input type="text" id="name" name="name" placeholder="Lake Michigan, Golden Gate, etc." required>
+        </div>
+        
+        <div class="form-group">
+            <label for="lat">Latitude:</label>
+            <input type="number" id="lat" name="lat" placeholder="41.8781" step="0.00001" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="lon">Longitude:</label>
+            <input type="number" id="lon" name="lon" placeholder="-87.6298" step="0.00001" required>
+        </div>
+        
+        <button type="submit">Add Checkpoint</button>
+    </form>
+</div>
+
+<div class="checkpoint-list">
+    <h3>Checkpoints</h3>
+    {% if checkpoints %}
+        {% for checkpoint in checkpoints %}
+        <div class="checkpoint-item">
+            <span class="checkpoint-seq">#{{ checkpoint.sequence }}</span>
+            <span class="checkpoint-name">{{ checkpoint.name }}</span>
+            <div class="checkpoint-coords">
+                📍 {{ "%.5f"|format(checkpoint.lat) }}, {{ "%.5f"|format(checkpoint.lon) }}
+            </div>
+            <div class="actions">
+                <a href="/coach/navs/checkpoints/{{ checkpoint.id }}/delete?nav_id={{ nav.id }}" 
+                   class="button-danger" 
+                   onclick="return confirm('Delete checkpoint {{ checkpoint.name }}?')">
+                    Delete
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color: #999;">No checkpoints yet. Add one above.</p>
+    {% endif %}
+</div>
+
+{% endblock %}

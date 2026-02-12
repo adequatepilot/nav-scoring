@@ -1,0 +1,60 @@
+# NAV Scoring Configuration
+# Copy this to /app/config/config.yaml and edit with your values
+
+# Scoring Rules (adjustable by coach)
+scoring:
+  # Timing penalty: points per second of deviation
+  timing_penalty_per_second: 1.0
+  
+  # Off-course penalties (distance-based)
+  off_course:
+    max_no_penalty_nm: 0.25        # Within 0.25 NM = no penalty
+    max_penalty_distance_nm: 5.0   # Beyond 5.0 NM = max penalty
+    max_penalty_points: 500         # Max penalty points
+  
+  # Fuel burn penalties
+  fuel_burn:
+    over_estimate_multiplier: 500   # If actual > estimated
+    under_estimate_threshold: 0.1   # Allow 10% under without penalty
+    under_estimate_multiplier: 250  # Penalty for >10% under
+  
+  # Secret penalties (by type)
+  secrets:
+    checkpoint_penalty: 20           # Points per checkpoint secret missed
+    enroute_penalty: 10              # Points per enroute secret missed
+    max_distance_miles: 1.0          # Must find within 1 mile (Phase 2)
+
+# Email Configuration
+email:
+  smtp_host: "smtp.zoho.com"
+  smtp_port: 587
+  sender_email: "nav-scoring@YOUR_DOMAIN.com"  # ← CHANGE THIS
+  sender_name: "SIU Salukis NAV Scoring"
+  sender_password: "YOUR_ZOHO_APP_PASSWORD"     # ← CHANGE THIS (app-specific password, not main password)
+  recipients_coach: "mike@YOUR_DOMAIN.com"      # ← CHANGE THIS
+
+# Pre-NAV Submission Settings
+prenav:
+  token_expiry_hours: 48            # Token valid for 48 hours after submission
+
+# Session Settings
+session:
+  timeout_hours: 24                 # Session expires after 24 hours of inactivity
+  cookie_name: "nav_scoring_session"
+  cookie_secure: true               # Set to false for local testing
+  cookie_httponly: true
+
+# Application Settings
+app:
+  title: "SIU Salukis NAV Scoring"
+  version: "1.0.0"
+  debug: false                       # Set to true for development
+  
+# Database (relative to /app/data/)
+database:
+  path: "/app/data/navs.db"
+
+# File Storage
+storage:
+  gpx_uploads: "/app/data/gpx_uploads"
+  pdf_reports: "/app/data/pdf_reports"

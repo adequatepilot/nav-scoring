@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Airports - NAV Management{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Manage Airports</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/navs">NAV Management</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.airport-list {
+    margin-top: 2rem;
+}
+.airport-item {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.airport-item .code {
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+.airport-item .actions {
+    display: flex;
+    gap: 0.5rem;
+}
+.button-danger {
+    background-color: #dc3545;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.button-danger:hover {
+    background-color: #c82333;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Manage Airports</h2>
+
+{% if message %}
+<div class="success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width: 600px;">
+    <h3>Create New Airport</h3>
+    <form method="POST" action="/coach/navs/airports">
+        <div class="form-group">
+            <label for="code">Airport Code:</label>
+            <input type="text" id="code" name="code" placeholder="ORD, LAX, etc." 
+                   maxlength="10" required style="text-transform: uppercase;">
+            <small style="color: #666;">3-4 letter airport code (e.g., ORD, LAX, JFK)</small>
+        </div>
+        <button type="submit">Create Airport</button>
+    </form>
+</div>
+
+<div class="airport-list">
+    <h3>Existing Airports</h3>
+    {% if airports %}
+        {% for airport in airports %}
+        <div class="airport-item">
+            <div>
+                <span class="code">{{ airport.code }}</span>
+                <small style="color: #666; display: block; margin-top: 0.25rem;">
+                    ID: {{ airport.id }}
+                </small>
+            </div>
+            <div class="actions">
+                <a href="/coach/navs/gates/{{ airport.id }}" class="button" style="font-size: 0.85rem;">Gates</a>
+                <a href="/coach/navs/airports/{{ airport.id }}/delete" 
+                   class="button-danger" 
+                   onclick="return confirm('Delete airport {{ airport.code }}? This will cascade delete all gates and routes.')">
+                    Delete
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color: #999;">No airports yet. Create one above.</p>
+    {% endif %}
+</div>
+
+{% endblock %}

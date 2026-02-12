@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Scoring Config - Coach Dashboard{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Config</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/results">Results</a>
+        <a href="/coach/members">Members</a>
+        <a href="/coach/pairings">Pairings</a>
+        <a href="/coach/navs">NAVs</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.config-section {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+.config-section h3 {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 2px solid #0066cc;
+    padding-bottom: 0.5rem;
+}
+.config-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+.config-group.full {
+    grid-template-columns: 1fr;
+}
+.warning {
+    background: #fff3e0;
+    color: #e65100;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+}
+.info-box {
+    background: #e7f3ff;
+    color: #0066cc;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+}
+.button-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 2rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Scoring Configuration</h2>
+
+{% if message %}
+<div class="success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<div class="warning">
+    <strong>⚠️ Warning:</strong> Changes to scoring rules will affect all future score calculations.
+    Past results are NOT recalculated. Make sure you understand the impact before saving.
+</div>
+
+<form method="POST" action="/coach/config">
+    
+    <!-- Timing Penalties -->
+    <div class="config-section">
+        <h3>⏱️ Timing Penalties</h3>
+        <p style="color: #666; margin-bottom: 1rem;">Points deducted for timing deviations</p>
+        <div class="config-group full">
+            <div class="form-group">
+                <label for="timing_penalty_per_second">Points Per Second Off:</label>
+                <input type="number" id="timing_penalty_per_second" name="timing_penalty_per_second" 
+                       value="{{ config.timing_penalty_per_second }}" step="0.1" min="0" required>
+                <small style="color: #666;">Points deducted for each second deviation from planned time</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Off-Course Penalties -->
+    <div class="config-section">
+        <h3>🛫 Off-Course Penalties</h3>
+        <p style="color: #666; margin-bottom: 1rem;">Distance-based penalties for deviating from course</p>
+        <div class="config-group">
+            <div class="form-group">
+                <label for="off_course_max_no_penalty">Max No-Penalty Distance (NM):</label>
+                <input type="number" id="off_course_max_no_penalty" name="off_course_max_no_penalty" 
+                       value="{{ config.off_course.max_no_penalty_nm }}" step="0.01" min="0" required>
+                <small style="color: #666;">Distance allowed with zero penalty</small>
+            </div>
+            <div class="form-group">
+                <label for="off_course_max_penalty_distance">Max Penalty Distance (NM):</label>
+                <input type="number" id="off_course_max_penalty_distance" name="off_course_max_penalty_distance" 
+                       value="{{ config.off_course.max_penalty_distance_nm }}" step="0.1" min="0" required>
+                <small style="color: #666;">Distance at which max penalty applies</small>
+            </div>
+            <div class="form-group full">
+                <label for="off_course_max_penalty_points">Maximum Off-Course Points:</label>
+                <input type="number" id="off_course_max_penalty_points" name="off_course_max_penalty_points" 
+                       value="{{ config.off_course.max_penalty_points }}" step="1" min="0" required>
+                <small style="color: #666;">Maximum points for being off course</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Fuel Penalties -->
+    <div class="config-section">
+        <h3>⛽ Fuel Penalties</h3>
+        <p style="color: #666; margin-bottom: 1rem;">Penalties for fuel estimation errors</p>
+        <div class="config-group">
+            <div class="form-group">
+                <label for="fuel_over_estimate_multiplier">Over-Estimate Multiplier:</label>
+                <input type="number" id="fuel_over_estimate_multiplier" name="fuel_over_estimate_multiplier" 
+                       value="{{ config.fuel_burn.over_estimate_multiplier }}" step="1" min="0" required>
+                <small style="color: #666;">Points per gallon overestimated</small>
+            </div>
+            <div class="form-group">
+                <label for="fuel_under_estimate_threshold">Under-Estimate Threshold:</label>
+                <input type="number" id="fuel_under_estimate_threshold" name="fuel_under_estimate_threshold" 
+                       value="{{ config.fuel_burn.under_estimate_threshold }}" step="0.01" min="0" required>
+                <small style="color: #666;">Threshold for under-estimation penalty</small>
+            </div>
+            <div class="form-group full">
+                <label for="fuel_under_estimate_multiplier">Under-Estimate Multiplier:</label>
+                <input type="number" id="fuel_under_estimate_multiplier" name="fuel_under_estimate_multiplier" 
+                       value="{{ config.fuel_burn.under_estimate_multiplier }}" step="1" min="0" required>
+                <small style="color: #666;">Points per gallon underestimated</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Secrets Scoring -->
+    <div class="config-section">
+        <h3>🔐 Secrets Scoring</h3>
+        <p style="color: #666; margin-bottom: 1rem;">Penalties for missing secret locations</p>
+        <div class="config-group">
+            <div class="form-group">
+                <label for="secrets_checkpoint_penalty">Checkpoint Secret Points:</label>
+                <input type="number" id="secrets_checkpoint_penalty" name="secrets_checkpoint_penalty" 
+                       value="{{ config.secrets.checkpoint_penalty }}" step="1" min="0" required>
+                <small style="color: #666;">Points per missed checkpoint secret</small>
+            </div>
+            <div class="form-group">
+                <label for="secrets_enroute_penalty">En-Route Secret Points:</label>
+                <input type="number" id="secrets_enroute_penalty" name="secrets_enroute_penalty" 
+                       value="{{ config.secrets.enroute_penalty }}" step="1" min="0" required>
+                <small style="color: #666;">Points per missed en-route secret</small>
+            </div>
+            <div class="form-group full">
+                <label for="secrets_max_distance">Max Detection Distance (miles):</label>
+                <input type="number" id="secrets_max_distance" name="secrets_max_distance" 
+                       value="{{ config.secrets.max_distance_miles }}" step="0.1" min="0" required>
+                <small style="color: #666;">How close crew must be to find a secret</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="button-group">
+        <button type="submit">Save Configuration</button>
+        <button type="button" onclick="window.location.href='/coach'">Cancel</button>
+    </div>
+</form>
+
+<div class="info-box" style="margin-top: 2rem;">
+    <strong>ℹ️ How Scoring Works:</strong>
+    <ul style="margin: 0.5rem 0 0 1.5rem; line-height: 1.8;">
+        <li><strong>Timing:</strong> Each leg's deviation multiplied by timing penalty</li>
+        <li><strong>Off-Course:</strong> Distance penalties scale up to max at threshold</li>
+        <li><strong>Fuel:</strong> Separate penalties for over/under estimation</li>
+        <li><strong>Secrets:</strong> Fixed points for each missed location</li>
+    </ul>
+</div>
+
+{% endblock %}

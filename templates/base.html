@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NAV Scoring{% endblock %}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #E8E8E8 0%, #5A5A5A 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Navbar Styles */
+        .navbar {
+            background: #8B0015;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .navbar h1 {
+            font-size: 1.5rem;
+        }
+        
+        /* Hamburger Button */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-right: 1rem;
+        }
+        
+        .navbar-links {
+            display: flex;
+            gap: 0;
+        }
+        
+        .navbar-links a,
+        .navbar-links span {
+            color: white;
+            text-decoration: none;
+            padding: 0.75rem 1.5rem;
+            transition: all 0.3s;
+            font-size: 0.95rem;
+        }
+        
+        .navbar-links a:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        /* Mobile Navigation Sidebar */
+        .nav-sidebar {
+            display: none;
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 80%;
+            max-width: 300px;
+            height: 100vh;
+            background: #8B0015;
+            z-index: 1000;
+            overflow-y: auto;
+            padding-top: 4rem;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+        }
+        
+        .nav-sidebar.open {
+            display: block;
+        }
+        
+        .nav-sidebar a {
+            display: block;
+            color: white;
+            text-decoration: none;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            transition: background 0.2s;
+        }
+        
+        .nav-sidebar a:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        /* Sidebar Overlay */
+        .nav-overlay {
+            display: none;
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        
+        .nav-overlay.open {
+            display: block;
+        }
+        
+        /* SIU Logo Placeholder */
+        .siu-logo {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            color: #8B0015;
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+        
+        /* Navbar Logo */
+        .navbar-logo {
+            height: 50px;
+            width: auto;
+            margin-right: 1rem;
+            object-fit: contain;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hamburger {
+                display: block;
+            }
+            
+            .navbar-links {
+                display: none;
+            }
+            
+            .navbar {
+                padding: 1rem;
+            }
+            
+            .navbar h1 {
+                font-size: 1.2rem;
+            }
+            
+            .navbar-brand {
+                gap: 0.5rem;
+            }
+            
+            .navbar-logo {
+                height: 40px;
+                margin-right: 0.5rem;
+            }
+        }
+        
+        .container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 2rem;
+            max-width: 500px;
+            width: 100%;
+        }
+        .card h2 {
+            margin-bottom: 1.5rem;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-weight: 500;
+        }
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"],
+        input[type="file"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="password"]:focus,
+        input[type="number"]:focus,
+        input[type="file"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #8B0015;
+            box-shadow: 0 0 0 3px rgba(139, 0, 21, 0.1);
+        }
+        button {
+            background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+        .success {
+            color: #388e3c;
+            background: #e8f5e9;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+        .info {
+            color: #1976d2;
+            background: #e3f2fd;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #8B0015;
+        }
+        tr:hover {
+            background: #f9f9f9;
+        }
+        .time-input {
+            font-family: 'Courier New', monospace;
+        }
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .button-group button {
+            flex: 1;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% block navbar %}{% endblock %}
+    
+    <!-- Navigation Sidebar (Mobile) -->
+    <div class="nav-overlay" id="navOverlay"></div>
+    <div class="nav-sidebar" id="navSidebar"></div>
+    
+    <div class="container">
+        <div class="card">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    
+    <script>
+        // Hamburger Menu Logic
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const navOverlay = document.getElementById('navOverlay');
+        const navSidebar = document.getElementById('navSidebar');
+        const navbarLinks = document.getElementById('navbarLinks');
+        
+        if (hamburgerBtn) {
+            hamburgerBtn.addEventListener('click', toggleSidebar);
+        }
+        
+        if (navOverlay) {
+            navOverlay.addEventListener('click', closeSidebar);
+        }
+        
+        function toggleSidebar() {
+            navSidebar.classList.toggle('open');
+            navOverlay.classList.toggle('open');
+        }
+        
+        function closeSidebar() {
+            navSidebar.classList.remove('open');
+            navOverlay.classList.remove('open');
+        }
+        
+        // Populate sidebar with navbar links
+        function populateSidebar() {
+            if (navbarLinks && navSidebar) {
+                const links = navbarLinks.querySelectorAll('a');
+                navSidebar.innerHTML = '';
+                links.forEach(link => {
+                    const clonedLink = link.cloneNode(true);
+                    clonedLink.addEventListener('click', closeSidebar);
+                    navSidebar.appendChild(clonedLink);
+                });
+            }
+        }
+        
+        // Initialize sidebar on page load
+        populateSidebar();
+    </script>
+</body>
+</html>

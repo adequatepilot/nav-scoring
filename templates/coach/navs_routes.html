@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Manage NAV Routes - NAV Management{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Manage NAV Routes</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/navs">NAV Management</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.route-list {
+    margin-top: 2rem;
+}
+.route-item {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.route-item .route-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+.route-item .route-meta {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+.route-item .actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.button-secondary {
+    background-color: #6c757d;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.button-secondary:hover {
+    background-color: #5a6268;
+}
+.button-danger {
+    background-color: #dc3545;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.button-danger:hover {
+    background-color: #c82333;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Manage NAV Routes</h2>
+
+{% if message %}
+<div class="success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width: 600px;">
+    <h3>Create New NAV Route</h3>
+    <form method="POST" action="/coach/navs/routes">
+        <div class="form-group">
+            <label for="name">Route Name:</label>
+            <input type="text" id="name" name="name" placeholder="Chicago Downtown Tour, etc." required>
+        </div>
+        
+        <div class="form-group">
+            <label for="airport_id">Home Airport:</label>
+            <select id="airport_id" name="airport_id" required>
+                <option value="">-- Select Airport --</option>
+                {% for airport in airports %}
+                <option value="{{ airport.id }}">{{ airport.code }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button type="submit">Create Route</button>
+    </form>
+</div>
+
+<div class="route-list">
+    <h3>Existing Routes</h3>
+    {% if navs %}
+        {% for nav in navs %}
+        <div class="route-item">
+            <div class="route-name">{{ nav.name }}</div>
+            <div class="route-meta">
+                ✈️ {{ nav.airport_code }} | 📍 {{ nav.checkpoints_count }} checkpoints
+            </div>
+            <div class="actions">
+                <a href="/coach/navs/checkpoints/{{ nav.id }}" class="button button-secondary">
+                    Checkpoints
+                </a>
+                <a href="/coach/navs/secrets/{{ nav.id }}" class="button button-secondary">
+                    Secrets
+                </a>
+                <a href="/coach/navs/routes/{{ nav.id }}/delete" 
+                   class="button-danger" 
+                   onclick="return confirm('Delete route {{ nav.name }}? This will cascade delete checkpoints and secrets.')">
+                    Delete
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color: #999;">No routes yet. Create one above.</p>
+    {% endif %}
+</div>
+
+{% endblock %}

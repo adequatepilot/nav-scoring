@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Flight Results - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - Results</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <span>{{ member_name }}</span>
+        <a href="/team">Dashboard</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 900px;
+}
+.score-header {
+    background: linear-gradient(135deg, #B0B0B0 0%, #4A4A4A 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+.score-header h1 {
+    font-size: 3rem;
+    margin: 0;
+}
+.score-header p {
+    margin: 0.5rem 0 0 0;
+    opacity: 0.9;
+}
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.metric {
+    background: #f5f5f5;
+    padding: 1rem;
+    border-radius: 5px;
+}
+.metric-label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #333;
+}
+.checkpoint-table {
+    overflow-x: auto;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="score-header">
+    <h1>{{ result.overall_score|round(0) }} pts</h1>
+    <p>{{ nav.name }} - {{ result.scored_at }}</p>
+    <p style="font-size: 0.9rem;">Lower score is better</p>
+</div>
+
+<h3>Flight Summary</h3>
+<div class="metrics">
+    <div class="metric">
+        <div class="metric-label">Total Time Deviation</div>
+        <div class="metric-value">{{ result.total_deviation|round(0) }}s</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Time Score</div>
+        <div class="metric-value">{{ result.total_time_score|round(0) }} pts</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Fuel Penalty</div>
+        <div class="metric-value">{{ result.fuel_penalty|round(0) }} pts</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Secrets Penalty</div>
+        <div class="metric-value">{{ (result.checkpoint_secrets_penalty + result.enroute_secrets_penalty)|round(0) }} pts</div>
+    </div>
+</div>
+
+<h3>Checkpoint Details</h3>
+<div class="checkpoint-table">
+    <table>
+        <thead>
+            <tr>
+                <th>Checkpoint</th>
+                <th>Method</th>
+                <th>Distance (NM)</th>
+                <th>Time Dev (s)</th>
+                <th>Leg Score</th>
+                <th>Off-Course</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cp in result.checkpoint_results %}
+            <tr>
+                <td>{{ cp.name }}</td>
+                <td>
+                    {% if cp.within_0_25_nm %}
+                        <span style="color: green;">{{ cp.method }}</span>
+                    {% else %}
+                        <span style="color: orange;">{{ cp.method }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ cp.distance_nm|round(3) }}</td>
+                <td>{{ cp.deviation|round(0) }}</td>
+                <td>{{ cp.leg_score|round(0) }} pts</td>
+                <td>{{ cp.off_course_penalty|round(0) }} pts</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<h3>Fuel Summary</h3>
+<table>
+    <tr>
+        <td><strong>Estimated:</strong></td>
+        <td>{{ result.estimated_fuel_burn }} gal</td>
+    </tr>
+    <tr>
+        <td><strong>Actual:</strong></td>
+        <td>{{ result.actual_fuel_burn }} gal</td>
+    </tr>
+    <tr>
+        <td><strong>Difference:</strong></td>
+        <td>{{ (result.actual_fuel_burn - result.estimated_fuel_burn)|round(2) }} gal</td>
+    </tr>
+    <tr>
+        <td><strong>Penalty:</strong></td>
+        <td>{{ result.fuel_penalty|round(0) }} pts</td>
+    </tr>
+</table>
+
+{% if result.pdf_filename %}
+<div class="button-group" style="margin-top: 2rem;">
+    <button onclick="window.location.href='/results/{{ result.id }}/pdf'">Download PDF Report</button>
+    <button onclick="window.location.href='/results'">View All Results</button>
+</div>
+{% endif %}
+
+{% endblock %}

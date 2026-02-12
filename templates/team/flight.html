@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Post-Flight Submit - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - Post-Flight</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <span>{{ member_name }}</span>
+        <a href="/team">Dashboard</a>
+        <a href="/results">Results</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<h2>Submit Flight Results</h2>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<div class="info">
+    <strong>Instructions:</strong><br>
+    1. Paste your pre-flight token<br>
+    2. Select the start gate you used<br>
+    3. Upload your GPX file from the flight<br>
+    4. Enter actual fuel burn and secrets missed<br>
+    5. Get instant score!
+</div>
+
+<form method="POST" action="/flight" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="prenav_token">Pre-Flight Token:</label>
+        <input type="text" id="prenav_token" name="prenav_token" required 
+               placeholder="Paste your token here" style="font-family: monospace;">
+    </div>
+    
+    <div class="form-group">
+        <label for="start_gate_id">Start Gate:</label>
+        <select id="start_gate_id" name="start_gate_id" required>
+            <option value="">-- Select Start Gate --</option>
+            {% for gate in start_gates %}
+            <option value="{{ gate.id }}">{{ gate.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label for="gpx_file">GPX File:</label>
+        <input type="file" id="gpx_file" name="gpx_file" accept=".gpx" required>
+        <small style="color: #666;">Upload the GPX track file from your flight</small>
+    </div>
+    
+    <div class="form-group">
+        <label for="actual_fuel">Actual Fuel Burn (gallons):</label>
+        <input type="number" id="actual_fuel" name="actual_fuel" 
+               step="0.1" min="0" placeholder="8.5" required>
+    </div>
+    
+    <div class="form-group">
+        <label for="secrets_checkpoint">Checkpoint Secrets Missed:</label>
+        <input type="number" id="secrets_checkpoint" name="secrets_checkpoint" 
+               min="0" value="0" required>
+        <small style="color: #666;">Count of checkpoint secrets you missed</small>
+    </div>
+    
+    <div class="form-group">
+        <label for="secrets_enroute">Enroute Secrets Missed:</label>
+        <input type="number" id="secrets_enroute" name="secrets_enroute" 
+               min="0" value="0" required>
+        <small style="color: #666;">Count of enroute secrets you missed</small>
+    </div>
+    
+    <button type="submit">Submit & Score Flight</button>
+</form>
+{% endblock %}

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Pairings - Coach Dashboard{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Pairings</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/results">Results</a>
+        <a href="/coach/members">Members</a>
+        <a href="/coach/pairings">Pairings</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 1000px;
+}
+.section {
+    margin-bottom: 3rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Manage Pairings</h2>
+
+{% if message %}
+<div class="success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<div class="section">
+    <h3>Create New Pairing</h3>
+    <form method="POST" action="/coach/pairings">
+        <div class="form-group">
+            <label for="pilot_id">Pilot:</label>
+            <select id="pilot_id" name="pilot_id" required>
+                <option value="">-- Select Pilot --</option>
+                {% for member in members %}
+                <option value="{{ member.id }}">{{ member.name }} ({{ member.username }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="safety_observer_id">Safety Observer:</label>
+            <select id="safety_observer_id" name="safety_observer_id" required>
+                <option value="">-- Select Observer --</option>
+                {% for member in members %}
+                <option value="{{ member.id }}">{{ member.name }} ({{ member.username }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button type="submit">Create Pairing</button>
+    </form>
+</div>
+
+<div class="section">
+    <h3>Active Pairings</h3>
+    {% if active_pairings %}
+    <table>
+        <thead>
+            <tr>
+                <th>Pilot</th>
+                <th>Safety Observer</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pairing in active_pairings %}
+            <tr>
+                <td>{{ pairing.pilot_name }}</td>
+                <td>{{ pairing.observer_name }}</td>
+                <td>{{ pairing.created_at[:10] }}</td>
+                <td>
+                    <a href="/coach/pairings/{{ pairing.id }}/break" 
+                       onclick="return confirm('Break this pairing?')">Break</a> |
+                    <a href="/coach/pairings/{{ pairing.id }}/delete" 
+                       onclick="return confirm('Delete this pairing permanently?')"
+                       style="color: #d32f2f;">Delete</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="info">No active pairings. Create your first pairing above.</div>
+    {% endif %}
+</div>
+
+{% if inactive_pairings %}
+<div class="section">
+    <h3>Inactive Pairings</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Pilot</th>
+                <th>Safety Observer</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pairing in inactive_pairings %}
+            <tr style="opacity: 0.6;">
+                <td>{{ pairing.pilot_name }}</td>
+                <td>{{ pairing.observer_name }}</td>
+                <td>{{ pairing.created_at[:10] }}</td>
+                <td>
+                    <a href="/coach/pairings/{{ pairing.id }}/reactivate">Reactivate</a> |
+                    <a href="/coach/pairings/{{ pairing.id }}/delete" 
+                       onclick="return confirm('Delete this pairing permanently?')"
+                       style="color: #d32f2f;">Delete</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endblock %}

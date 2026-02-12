@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Login - NAV Scoring{% endblock %}
+
+{% block extra_css %}
+<style>
+.login-container {
+    text-align: center;
+}
+.siu-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 2rem;
+}
+.siu-logo img {
+    width: 180px;
+    height: auto;
+    max-width: 100%;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="siu-logo">
+        <img src="/static/images/siu_logo_stacked_full_color_black_text.png" alt="SIU Salukis Logo">
+    </div>
+    <h2>NAV Scoring System</h2>
+    <p style="color: #666; margin-bottom: 2rem;">Southern Illinois University Aviation</p>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/login">
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required autofocus>
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        
+        <button type="submit">Login</button>
+    </form>
+
+    <p style="color: #999; text-align: center; margin-top: 1.5rem; font-size: 0.9rem;">
+        Login with your team member or coach account
+    </p>
+</div>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Start Gates - NAV Management{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Manage Start Gates</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/navs">NAV Management</a>
+        <a href="/coach/navs/airports">Airports</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.gate-list {
+    margin-top: 2rem;
+}
+.gate-item {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.gate-item .gate-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+.gate-item .gate-coords {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+.gate-item .actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.button-danger {
+    background-color: #dc3545;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.button-danger:hover {
+    background-color: #c82333;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Manage Start Gates - {{ airport.code }}</h2>
+
+{% if message %}
+<div class="success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width: 600px;">
+    <h3>Create New Start Gate</h3>
+    <form method="POST" action="/coach/navs/gates">
+        <input type="hidden" name="airport_id" value="{{ airport.id }}">
+        
+        <div class="form-group">
+            <label for="name">Gate Name:</label>
+            <input type="text" id="name" name="name" placeholder="Main Gate, East Gate, etc." required>
+        </div>
+        
+        <div class="form-group">
+            <label for="lat">Latitude:</label>
+            <input type="number" id="lat" name="lat" placeholder="41.9742" step="0.00001" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="lon">Longitude:</label>
+            <input type="number" id="lon" name="lon" placeholder="-87.9073" step="0.00001" required>
+        </div>
+        
+        <button type="submit">Create Gate</button>
+    </form>
+</div>
+
+<div class="gate-list">
+    <h3>Existing Gates</h3>
+    {% if gates %}
+        {% for gate in gates %}
+        <div class="gate-item">
+            <div class="gate-name">{{ gate.name }}</div>
+            <div class="gate-coords">
+                📍 {{ "%.5f"|format(gate.lat) }}, {{ "%.5f"|format(gate.lon) }}
+            </div>
+            <div class="actions">
+                <a href="/coach/navs/gates/{{ gate.id }}/delete?airport_id={{ airport.id }}" 
+                   class="button-danger" 
+                   onclick="return confirm('Delete gate {{ gate.name }}?')">
+                    Delete
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <p style="color: #999;">No gates yet. Create one above.</p>
+    {% endif %}
+</div>
+
+{% endblock %}

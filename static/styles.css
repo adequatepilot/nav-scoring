@@ -1,0 +1,300 @@
+/* SIU NAV Scoring System - Main Stylesheet */
+/* Color Scheme: Maroon (#8B0015), White, Gold/Tan accents */
+
+:root {
+    --siu-maroon: #8B0015;
+    --siu-maroon-dark: #5D000F;
+    --siu-white: #FFFFFF;
+    --siu-gold: #DAA520;
+    --siu-gray-light: #F5F5F5;
+    --siu-gray-dark: #333333;
+    --siu-gray-medium: #666666;
+}
+
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, #E8E8E8 0%, #5A5A5A 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    color: var(--siu-gray-dark);
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--siu-gray-dark);
+}
+
+h1 {
+    font-weight: 600;
+}
+
+h2 {
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+}
+
+h3 {
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+
+p {
+    line-height: 1.6;
+    color: var(--siu-gray-medium);
+}
+
+/* Links */
+a {
+    color: var(--siu-maroon);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+a:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
+/* Buttons */
+button, .button {
+    background: linear-gradient(135deg, var(--siu-maroon) 0%, var(--siu-maroon-dark) 100%);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    font-weight: 500;
+}
+
+button:hover, .button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 0, 21, 0.3);
+}
+
+button:active, .button:active {
+    transform: translateY(0);
+}
+
+.button-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+}
+
+/* Form Elements */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="file"],
+input[type="date"],
+input[type="time"],
+select,
+textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--siu-maroon);
+    box-shadow: 0 0 0 3px rgba(139, 0, 21, 0.1);
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--siu-gray-dark);
+    font-weight: 500;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background: var(--siu-gray-light);
+    font-weight: 600;
+    color: var(--siu-maroon);
+}
+
+tr:hover {
+    background: #f9f9f9;
+}
+
+/* Cards and Containers */
+.card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    padding: 2rem;
+}
+
+.container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* Alerts and Messages */
+.error {
+    color: #d32f2f;
+    background: #ffebee;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+    border-left: 4px solid #d32f2f;
+}
+
+.success {
+    color: #388e3c;
+    background: #e8f5e9;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+    border-left: 4px solid #388e3c;
+}
+
+.info {
+    color: #1976d2;
+    background: #e3f2fd;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+    border-left: 4px solid #1976d2;
+}
+
+/* Utility Classes */
+.button-group {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.button-group button,
+.button-group .button {
+    flex: 1;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.text-muted {
+    color: var(--siu-gray-medium);
+    font-size: 0.9rem;
+}
+
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mt-4 { margin-top: 2rem; }
+
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.mb-3 { margin-bottom: 1.5rem; }
+.mb-4 { margin-bottom: 2rem; }
+
+.gap-1 { gap: 0.5rem; }
+.gap-2 { gap: 1rem; }
+.gap-3 { gap: 1.5rem; }
+
+/* Responsive Grid */
+.grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.grid-2 {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.grid-3 {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+/* Logo Styling */
+.siu-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.siu-logo img {
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+@media (max-width: 768px) {
+    .grid-2,
+    .grid-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .button-group {
+        flex-direction: column;
+    }
+    
+    .button-group button,
+    .button-group .button {
+        flex: 1;
+        width: 100%;
+    }
+    
+    .siu-logo img {
+        max-width: 90vw;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .navbar,
+    .button-group,
+    form {
+        display: none;
+    }
+    
+    .card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+}

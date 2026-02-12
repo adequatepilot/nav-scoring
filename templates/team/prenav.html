@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Pre-Flight Plan - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - Pre-Flight Plan</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <span>{{ member_name }}</span>
+        <a href="/team">Dashboard</a>
+        <a href="/flight">Post-Flight</a>
+        <a href="/results">Results</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<h2>Submit Pre-Flight Plan</h2>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+{% if not pairing %}
+<div class="error">
+    <strong>No Active Pairing!</strong><br>
+    You are not currently paired with another team member. Contact your coach to set up a pairing.
+</div>
+{% else %}
+
+<div class="info">
+    <strong>Your Pairing:</strong><br>
+    Pilot: {{ pairing.pilot_name }}<br>
+    Observer: {{ pairing.observer_name }}
+</div>
+
+<form method="POST" action="/prenav" id="prenavForm">
+    <div class="form-group">
+        <label for="nav_id">Select NAV Route:</label>
+        <select id="nav_id" name="nav_id" required onchange="updateCheckpointFields()">
+            <option value="">-- Select NAV --</option>
+            {% for nav in navs %}
+            <option value="{{ nav.id }}" data-checkpoints="{{ nav.checkpoints|length }}">{{ nav.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div id="leg_times_container" style="display: none;">
+        <h3>Leg Times (MM:SS format)</h3>
+        <div id="leg_times_fields"></div>
+    </div>
+    
+    <div class="form-group" style="display: none;" id="total_time_group">
+        <label for="total_time_str">Total Flight Time (MM:SS):</label>
+        <input type="text" id="total_time_str" name="total_time_str" 
+               placeholder="48:30" pattern="\d+:\d{2}" class="time-input" required>
+        <small style="color: #666;">Example: 48:30 (48 minutes, 30 seconds)</small>
+    </div>
+    
+    <div class="form-group" style="display: none;" id="fuel_group">
+        <label for="fuel_estimate">Estimated Fuel Burn (gallons):</label>
+        <input type="number" id="fuel_estimate" name="fuel_estimate" 
+               step="0.1" min="0" placeholder="8.5" required>
+    </div>
+    
+    <input type="hidden" id="leg_times_str" name="leg_times_str">
+    
+    <button type="submit">Submit Pre-Flight Plan</button>
+</form>
+
+<script>
+function updateCheckpointFields() {
+    const navSelect = document.getElementById('nav_id');
+    const selectedOption = navSelect.options[navSelect.selectedIndex];
+    const numCheckpoints = parseInt(selectedOption.dataset.checkpoints || 0);
+    
+    if (numCheckpoints === 0) {
+        document.getElementById('leg_times_container').style.display = 'none';
+        document.getElementById('total_time_group').style.display = 'none';
+        document.getElementById('fuel_group').style.display = 'none';
+        return;
+    }
+    
+    // Show containers
+    document.getElementById('leg_times_container').style.display = 'block';
+    document.getElementById('total_time_group').style.display = 'block';
+    document.getElementById('fuel_group').style.display = 'block';
+    
+    // Generate leg time input fields
+    const container = document.getElementById('leg_times_fields');
+    container.innerHTML = '';
+    
+    for (let i = 0; i < numCheckpoints; i++) {
+        const div = document.createElement('div');
+        div.className = 'form-group';
+        div.innerHTML = `
+            <label for="leg_${i}">Leg ${i + 1} Time (MM:SS):</label>
+            <input type="text" id="leg_${i}" name="leg_${i}" 
+                   placeholder="15:00" pattern="\\d+:\\d{2}" class="time-input" required>
+        `;
+        container.appendChild(div);
+    }
+}
+
+document.getElementById('prenavForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Validate nav selection
+    const navSelect = document.getElementById('nav_id');
+    const navId = navSelect.value;
+    if (!navId) {
+        alert('Please select a NAV route');
+        return;
+    }
+    
+    const selectedOption = navSelect.options[navSelect.selectedIndex];
+    const numCheckpoints = parseInt(selectedOption.dataset.checkpoints || 0);
+    
+    if (numCheckpoints === 0) {
+        alert('Selected NAV has no checkpoints');
+        return;
+    }
+    
+    // Validate leg times
+    const legTimes = [];
+    for (let i = 0; i < numCheckpoints; i++) {
+        const value = document.getElementById(`leg_${i}`).value;
+        if (!value) {
+            alert(`Please enter time for Leg ${i + 1}`);
+            return;
+        }
+        legTimes.push(value);
+    }
+    
+    // Validate total time
+    const totalTimeStr = document.getElementById('total_time_str').value;
+    if (!totalTimeStr) {
+        alert('Please enter total flight time');
+        return;
+    }
+    
+    // Validate fuel estimate
+    const fuelEstimate = document.getElementById('fuel_estimate').value;
+    if (!fuelEstimate || parseFloat(fuelEstimate) < 0) {
+        alert('Please enter valid fuel estimate');
+        return;
+    }
+    
+    // Store leg times as JSON
+    document.getElementById('leg_times_str').value = JSON.stringify(legTimes);
+    
+    // Submit form
+    this.submit();
+});
+</script>
+
+{% endif %}
+{% endblock %}

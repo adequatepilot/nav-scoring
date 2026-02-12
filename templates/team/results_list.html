@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}My Results - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - My Results</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <span>{{ member_name }}</span>
+        <a href="/team">Dashboard</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 1000px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>My Flight Results</h2>
+
+{% if results %}
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>NAV</th>
+            <th>Team</th>
+            <th>Score</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for result in results %}
+        <tr>
+            <td>{{ result.scored_at[:10] }}</td>
+            <td>{{ result.nav_name }}</td>
+            <td>{{ result.team_name }}</td>
+            <td><strong>{{ result.overall_score|round(0) }}</strong> pts</td>
+            <td>
+                <a href="/results/{{ result.id }}">View Details</a> |
+                <a href="/results/{{ result.id }}/pdf">Download PDF</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p style="color: #666; margin-top: 1rem;">{{ results|length }} result(s) found</p>
+{% else %}
+<div class="info">
+    No results yet. Complete a flight and submit your GPX file to see results here!
+</div>
+
+<div class="button-group" style="margin-top: 2rem;">
+    <button onclick="window.location.href='/prenav'">Submit Pre-Flight Plan</button>
+    <button onclick="window.location.href='/flight'">Submit Flight Results</button>
+</div>
+{% endif %}
+
+{% endblock %}

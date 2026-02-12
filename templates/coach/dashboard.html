@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Coach Dashboard - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <img src="/static/images/siu_logo_stacked_full_color_black_text.png" alt="SIU Salukis Logo" class="navbar-logo">
+        <h1>Coach Dashboard</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/results">Results</a>
+        <a href="/coach/members">Members</a>
+        <a href="/coach/pairings">Pairings</a>
+        <a href="/coach/config">Config</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 900px;
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+.stat-card {
+    background: linear-gradient(135deg, #B0B0B0 0%, #4A4A4A 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+}
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 0.5rem 0;
+}
+.stat-label {
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+.quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+.quick-link {
+    background: #f5f5f5;
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+.quick-link:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+}
+.quick-link h3 {
+    margin: 0 0 0.5rem 0;
+    color: #333;
+}
+.quick-link p {
+    color: #666;
+    margin: 0;
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Welcome, Coach</h2>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Members</div>
+        <div class="stat-number">{{ stats.total_members }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Active Pairings</div>
+        <div class="stat-number">{{ stats.active_pairings }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Recent Results</div>
+        <div class="stat-number">{{ stats.recent_results }}</div>
+    </div>
+</div>
+
+<h3>Quick Actions</h3>
+<div class="quick-links">
+    <div class="quick-link" onclick="window.location.href='/coach/results'">
+        <h3>📊 View Results</h3>
+        <p>Search and filter all flight results</p>
+    </div>
+    <div class="quick-link" onclick="window.location.href='/coach/members'">
+        <h3>👥 Manage Members</h3>
+        <p>Add, edit, or remove team members</p>
+    </div>
+    <div class="quick-link" onclick="window.location.href='/coach/pairings'">
+        <h3>🔗 Manage Pairings</h3>
+        <p>Create and break pilot-observer pairings</p>
+    </div>
+    <div class="quick-link" onclick="window.location.href='/coach/navs'">
+        <h3>🗺️ Manage NAVs</h3>
+        <p>Manage airports, routes, checkpoints, and secrets</p>
+    </div>
+    <div class="quick-link" onclick="window.location.href='/coach/config'">
+        <h3>⚙️ Scoring Config</h3>
+        <p>Adjust scoring rules and penalties</p>
+    </div>
+</div>
+
+{% if recent_results %}
+<h3 style="margin-top: 2rem;">Recent Results</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Team</th>
+            <th>NAV</th>
+            <th>Score</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for result in recent_results %}
+        <tr>
+            <td>{{ result.scored_at[:10] }}</td>
+            <td>{{ result.team_name }}</td>
+            <td>{{ result.nav_name }}</td>
+            <td><strong>{{ result.overall_score|round(0) }}</strong> pts</td>
+            <td>
+                <a href="/coach/results/{{ result.id }}">View</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% endblock %}

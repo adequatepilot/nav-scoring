@@ -1092,48 +1092,6 @@ async def coach_members(request: Request, user: dict = Depends(require_coach), f
         "current_filter": filter_type
     })
 
-@app.post("/coach/members")
-async def coach_create_member(
-    request: Request,
-    user: dict = Depends(require_coach),
-    username: str = Form(...),
-    email: str = Form(...),
-    name: str = Form(...),
-    password: Optional[str] = Form(None)
-):
-    """Create new member."""
-    try:
-        password_hash = auth.hash_password(password) if password else ""
-        member_id = db.create_member(username, password_hash, email, name)
-        return RedirectResponse(url="/coach/members?message=Member created", status_code=303)
-    except Exception as e:
-        logger.error(f"Error creating member: {e}")
-        return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
-
-@app.post("/coach/members/bulk")
-async def coach_bulk_members(
-    request: Request,
-    user: dict = Depends(require_coach),
-    csv_file: UploadFile = File(...)
-):
-    """Bulk import members."""
-    try:
-        content = await csv_file.read()
-        csv_text = content.decode('utf-8')
-        reader = csv.reader(io.StringIO(csv_text))
-        
-        members = []
-        for row in reader:
-            if len(row) >= 3:
-                username, email, name = row[0].strip(), row[1].strip(), row[2].strip()
-                members.append((username, email, name))
-        
-        count = db.bulk_create_members(members)
-        return RedirectResponse(url=f"/coach/members?message=Created {count} members", status_code=303)
-    except Exception as e:
-        logger.error(f"Error bulk creating members: {e}")
-        return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
-
 @app.post("/coach/members/update")
 async def update_user_role(
     request: Request,
@@ -1182,6 +1140,48 @@ async def delete_user_route(
             return RedirectResponse(url="/coach/members?error=User not found", status_code=303)
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
+        return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
+
+@app.post("/coach/members")
+async def coach_create_member(
+    request: Request,
+    user: dict = Depends(require_coach),
+    username: str = Form(...),
+    email: str = Form(...),
+    name: str = Form(...),
+    password: Optional[str] = Form(None)
+):
+    """Create new member."""
+    try:
+        password_hash = auth.hash_password(password) if password else ""
+        member_id = db.create_member(username, password_hash, email, name)
+        return RedirectResponse(url="/coach/members?message=Member created", status_code=303)
+    except Exception as e:
+        logger.error(f"Error creating member: {e}")
+        return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
+
+@app.post("/coach/members/bulk")
+async def coach_bulk_members(
+    request: Request,
+    user: dict = Depends(require_coach),
+    csv_file: UploadFile = File(...)
+):
+    """Bulk import members."""
+    try:
+        content = await csv_file.read()
+        csv_text = content.decode('utf-8')
+        reader = csv.reader(io.StringIO(csv_text))
+        
+        members = []
+        for row in reader:
+            if len(row) >= 3:
+                username, email, name = row[0].strip(), row[1].strip(), row[2].strip()
+                members.append((username, email, name))
+        
+        count = db.bulk_create_members(members)
+        return RedirectResponse(url=f"/coach/members?message=Created {count} members", status_code=303)
+    except Exception as e:
+        logger.error(f"Error bulk creating members: {e}")
         return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
 
 @app.get("/coach/members/{member_id}/deactivate")

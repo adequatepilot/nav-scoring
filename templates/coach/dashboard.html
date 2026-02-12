@@ -14,8 +14,8 @@
         <a href="/coach/results">Results</a>
         <a href="/coach/members">Members</a>
         <a href="/coach/pairings">Pairings</a>
-        <a href="/coach/config">Config</a>
-        <a href="/logout">Logout</a>
+        {% if is_admin %}<a href="/coach/config">Config</a>{% endif %}
+        <a href="/logout">Logout{% if is_admin %} (Admin){% endif %}</a>
     </div>
 </div>
 {% endblock %}
@@ -112,10 +112,12 @@
         <h3>🗺️ Manage NAVs</h3>
         <p>Manage airports, routes, checkpoints, and secrets</p>
     </div>
+    {% if is_admin %}
     <div class="quick-link" onclick="window.location.href='/coach/config'">
         <h3>⚙️ Scoring Config</h3>
-        <p>Adjust scoring rules and penalties</p>
+        <p>Adjust scoring rules and penalties (Admin only)</p>
     </div>
+    {% endif %}
 </div>
 
 {% if recent_results %}

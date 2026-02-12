@@ -36,20 +36,21 @@ class Database:
             conn.close()
 
     def _init_db(self):
-        """Initialize database with schema."""
+        """Initialize database with schema and run migrations."""
         # Check if already initialized
         try:
             conn = sqlite3.connect(str(self.db_path), timeout=5.0)
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM members")
             conn.close()
-            logger.info("Database already initialized")
+            logger.info("Database already initialized, running migrations...")
+            self._run_migrations()
             return
         except sqlite3.OperationalError:
             # Table doesn't exist, need to initialize
             pass
         
-        # Load and execute schema
+        # Load and execute initial schema
         migration_file = Path(__file__).parent.parent / "migrations" / "001_initial_schema.sql"
         if not migration_file.exists():
             raise FileNotFoundError(f"Migration file not found: {migration_file}")
@@ -86,6 +87,48 @@ class Database:
                             raise
             conn.commit()
             logger.info("Database schema initialized")
+        finally:
+            conn.close()
+        
+        # Run additional migrations
+        self._run_migrations()
+
+    def _run_migrations(self):
+        """Run any pending migrations."""
+        migrations_dir = Path(__file__).parent.parent / "migrations"
+        migration_files = sorted([f for f in migrations_dir.glob("*.sql") if f.name != "001_initial_schema.sql"])
+        
+        if not migration_files:
+            return
+        
+        conn = sqlite3.connect(str(self.db_path), timeout=30.0, check_same_thread=False)
+        try:
+            for migration_file in migration_files:
+                with open(migration_file, "r") as f:
+                    sql = f.read()
+                
+                # Remove comments
+                lines = []
+                for line in sql.split('\n'):
+                    if not line.strip().startswith('--'):
+                        lines.append(line)
+                
+                statements = '\n'.join(lines).split(';')
+                
+                for statement in statements:
+                    statement = statement.strip()
+                    if statement:
+                        try:
+                            conn.execute(statement)
+                            logger.debug(f"Executed migration: {migration_file.name}")
+                        except sqlite3.OperationalError as e:
+                            if "already exists" in str(e) or "duplicate column" in str(e):
+                                logger.debug(f"Skipped (already applied): {migration_file.name}")
+                            else:
+                                logger.error(f"Migration error in {migration_file.name}: {e}")
+                
+            conn.commit()
+            logger.info("Migrations completed")
         finally:
             conn.close()
 
@@ -220,6 +263,21 @@ class Database:
             cursor = conn.cursor()
             cursor.execute(
                 "UPDATE coach SET last_login = CURRENT_TIMESTAMP WHERE id = 1"
+            )
+            return cursor.rowcount > 0
+
+    def is_coach_admin(self) -> bool:
+        """Check if coach is admin."""
+        coach = self.get_coach()
+        return coach.get("is_admin", 0) == 1 if coach else False
+
+    def set_coach_admin(self, is_admin: bool) -> bool:
+        """Set admin status for coach."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE coach SET is_admin = ? WHERE id = 1",
+                (1 if is_admin else 0,)
             )
             return cursor.rowcount > 0
 

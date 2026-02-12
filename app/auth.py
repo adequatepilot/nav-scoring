@@ -180,6 +180,7 @@ class Auth:
                 "id": coach["id"],
                 "username": coach["username"],
                 "email": coach["email"],
+                "is_admin": coach.get("is_admin", 0) == 1,
             },
         }
 

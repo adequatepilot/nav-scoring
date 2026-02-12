@@ -25,10 +25,10 @@ def seed_database(db_path: str = "data/navs.db"):
             conn.execute('DELETE FROM coach')  # Clear existing
             coach_hash = auth.hash_password('coach123')
             conn.execute(
-                'INSERT INTO coach (username, password_hash, email) VALUES (?, ?, ?)',
-                ('coach', coach_hash, 'coach@siu.edu')
+                'INSERT INTO coach (username, password_hash, email, is_admin) VALUES (?, ?, ?, ?)',
+                ('coach', coach_hash, 'coach@siu.edu', 1)
             )
-            print("   ✅ Coach created: username=coach, password=coach123\n")
+            print("   ✅ Coach created: username=coach, password=coach123 (ADMIN)\n")
         except Exception as e:
             print(f"   ⚠️  Coach creation failed: {e}\n")
         

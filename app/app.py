@@ -143,6 +143,15 @@ def require_coach(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Not authenticated as coach")
     return user
 
+def require_admin(request: Request) -> dict:
+    """Require admin coach to be logged in."""
+    user = get_session_user(request)
+    if not user or user.get("user_type") != "coach":
+        raise HTTPException(status_code=401, detail="Not authenticated as coach")
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
 # ===== UTILITY FUNCTIONS =====
 
 def parse_mmss(time_str: str) -> float:
@@ -366,7 +375,8 @@ async def login(
         "user_id": user_data["id"],
         "username": user_data["username"],
         "name": user_data.get("name", user_data.get("username")),
-        "email": user_data.get("email", "")
+        "email": user_data.get("email", ""),
+        "is_admin": user_data.get("is_admin", False)  # For coach only
     }
     
     # Redirect
@@ -475,9 +485,13 @@ async def submit_prenav(
             raise HTTPException(status_code=403, detail="Only pilot can submit pre-flight plan")
         
         # Parse times
-        leg_times_list = json.loads(leg_times_str)
-        leg_times = [parse_mmss(t) for t in leg_times_list]
-        total_time = parse_mmss(total_time_str)
+        try:
+            leg_times_list = json.loads(leg_times_str)
+            leg_times = [parse_mmss(t) for t in leg_times_list]
+            total_time = parse_mmss(total_time_str)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Error parsing times: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid time format: {str(e)}")
         
         # Generate token
         token = Auth.generate_token()
@@ -504,33 +518,48 @@ async def submit_prenav(
         pilot_email = user["email"]
         observer_email = observer["email"] if observer else ""
         
-        # Combined team email (comma-separated)
-        team_emails = f"{pilot_email},{observer_email}" if observer_email else pilot_email
-        
-        await email_service.send_prenav_confirmation(
-            team_email=pilot_email,
-            team_name=user["name"],
-            nav_name=nav["name"],
-            token=token
-        )
-        
-        if observer_email:
+        try:
             await email_service.send_prenav_confirmation(
-                team_email=observer_email,
-                team_name=observer["name"],
+                team_email=pilot_email,
+                team_name=user["name"],
                 nav_name=nav["name"],
                 token=token
             )
+            
+            if observer_email:
+                await email_service.send_prenav_confirmation(
+                    team_email=observer_email,
+                    team_name=observer["name"],
+                    nav_name=nav["name"],
+                    token=token
+                )
+        except Exception as email_err:
+            logger.warning(f"Email send failed (non-critical): {email_err}")
         
-        return templates.TemplateResponse("team/prenav_confirmation.html", {
-            "request": request,
-            "token": token,
-            "expires_at": expires_at.strftime("%Y-%m-%d %H:%M UTC")
-        })
+        # Redirect to confirmation page instead of returning template
+        return RedirectResponse(url=f"/prenav_confirmation?token={token}", status_code=303)
     
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error submitting prenav: {e}")
+        logger.error(f"Error submitting prenav: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/prenav_confirmation", response_class=HTMLResponse)
+async def prenav_confirmation(request: Request, user: dict = Depends(require_member), token: str = None):
+    """Display pre-flight confirmation page."""
+    prenav = db.get_prenav_by_token(token) if token else None
+    if not prenav:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    
+    expires_at = datetime.fromisoformat(prenav["expires_at"])
+    
+    return templates.TemplateResponse("team/prenav_confirmation.html", {
+        "request": request,
+        "token": token,
+        "expires_at": expires_at.strftime("%Y-%m-%d %H:%M UTC"),
+        "member_name": user["name"]
+    })
 
 @app.get("/flight", response_class=HTMLResponse)
 async def flight_form(request: Request, user: dict = Depends(require_member)):
@@ -885,6 +914,7 @@ async def coach_dashboard(request: Request, user: dict = Depends(require_coach))
     
     return templates.TemplateResponse("coach/dashboard.html", {
         "request": request,
+        "is_admin": user.get("is_admin", False),
         "stats": {
             "total_members": len(members),
             "active_pairings": len(pairings),
@@ -1368,19 +1398,21 @@ async def coach_delete_secret(secret_id: int, user: dict = Depends(require_coach
         return RedirectResponse(url=f"/coach/navs/secrets/{nav_id}?error={str(e)}", status_code=303)
 
 @app.get("/coach/config", response_class=HTMLResponse)
-async def coach_config(request: Request, user: dict = Depends(require_coach)):
-    """View/edit config."""
+async def coach_config(request: Request, user: dict = Depends(require_admin)):
+    """View/edit config (admin only)."""
     config_data = config["scoring"]
+    email_config = config.get("email", {})
     
     return templates.TemplateResponse("coach/config.html", {
         "request": request,
-        "config": config_data
+        "config": config_data,
+        "email_config": email_config
     })
 
 @app.post("/coach/config")
 async def coach_update_config(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     timing_penalty_per_second: float = Form(...),
     off_course_max_no_penalty: float = Form(...),
     off_course_max_penalty_distance: float = Form(...),
@@ -1418,6 +1450,44 @@ async def coach_update_config(
         return RedirectResponse(url="/coach/config?message=Config updated successfully", status_code=303)
     except Exception as e:
         logger.error(f"Error updating config: {e}")
+        return RedirectResponse(url=f"/coach/config?error={str(e)}", status_code=303)
+
+@app.post("/coach/config/email")
+async def coach_update_email_config(
+    request: Request,
+    user: dict = Depends(require_admin),
+    smtp_host: str = Form(...),
+    smtp_port: int = Form(...),
+    from_email: str = Form(...),
+    from_name: str = Form(...),
+    smtp_username: str = Form(...),
+    smtp_password: str = Form(...)
+):
+    """Update email/SMTP configuration (admin only)."""
+    try:
+        # Update email config
+        config["email"]["smtp_host"] = smtp_host
+        config["email"]["smtp_port"] = smtp_port
+        config["email"]["sender_email"] = from_email
+        config["email"]["sender_name"] = from_name
+        config["email"]["smtp_username"] = smtp_username
+        
+        # Only update password if provided (not empty/placeholder)
+        if smtp_password and smtp_password not in ["••••••••", ""]:
+            config["email"]["sender_password"] = smtp_password
+        
+        # Save to file
+        config_path = Path("config/config.yaml")
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(yaml.dump(config, default_flow_style=False))
+        
+        # Reload email service with new config
+        global email_service
+        email_service = EmailService(config["email"])
+        
+        return RedirectResponse(url="/coach/config?message=Email config updated successfully", status_code=303)
+    except Exception as e:
+        logger.error(f"Error updating email config: {e}")
         return RedirectResponse(url=f"/coach/config?error={str(e)}", status_code=303)
 
 # ===== STARTUP/SHUTDOWN =====

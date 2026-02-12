@@ -6,7 +6,7 @@
 <div class="navbar">
     <div class="navbar-brand">
         <button class="hamburger" id="hamburgerBtn">☰</button>
-        <h1>Coach Dashboard - Config</h1>
+        <h1>Coach Dashboard - Config <span style="background: #0066cc; color: white; padding: 0.25rem 0.5rem; border-radius: 5px; font-size: 0.8rem;">ADMIN</span></h1>
     </div>
     <div class="navbar-links" id="navbarLinks">
         <a href="/coach">Dashboard</a>
@@ -177,6 +177,55 @@
     <div class="button-group">
         <button type="submit">Save Configuration</button>
         <button type="button" onclick="window.location.href='/coach'">Cancel</button>
+    </div>
+</form>
+
+<!-- Email Configuration Section -->
+<form method="POST" action="/coach/config/email">
+    <div class="config-section">
+        <h3>📧 Email Configuration (SMTP)</h3>
+        <p style="color: #666; margin-bottom: 1rem;">Settings for sending pre-flight and results emails</p>
+        <div class="config-group">
+            <div class="form-group">
+                <label for="smtp_host">SMTP Host:</label>
+                <input type="text" id="smtp_host" name="smtp_host" 
+                       value="{{ email_config.get('smtp_host', 'smtp.zoho.com') }}" required>
+                <small style="color: #666;">e.g., smtp.zoho.com, smtp.gmail.com</small>
+            </div>
+            <div class="form-group">
+                <label for="smtp_port">SMTP Port:</label>
+                <input type="number" id="smtp_port" name="smtp_port" 
+                       value="{{ email_config.get('smtp_port', 587) }}" min="1" max="65535" required>
+                <small style="color: #666;">Common: 587 (TLS), 465 (SSL)</small>
+            </div>
+            <div class="form-group">
+                <label for="from_email">From Email Address:</label>
+                <input type="email" id="from_email" name="from_email" 
+                       value="{{ email_config.get('sender_email', '') }}" required>
+                <small style="color: #666;">Email address emails will be sent from</small>
+            </div>
+            <div class="form-group">
+                <label for="from_name">From Name:</label>
+                <input type="text" id="from_name" name="from_name" 
+                       value="{{ email_config.get('sender_name', 'NAV Scoring') }}" required>
+                <small style="color: #666;">Display name in email "From" field</small>
+            </div>
+            <div class="form-group full">
+                <label for="smtp_username">SMTP Username:</label>
+                <input type="text" id="smtp_username" name="smtp_username" 
+                       value="{{ email_config.get('smtp_username', '') }}" required>
+                <small style="color: #666;">Usually your email address</small>
+            </div>
+            <div class="form-group full">
+                <label for="smtp_password">SMTP Password:</label>
+                <input type="password" id="smtp_password" name="smtp_password" 
+                       placeholder="••••••••" value="">
+                <small style="color: #666;">Leave blank to keep existing password. Use app-specific password if 2FA is enabled.</small>
+            </div>
+        </div>
+        <div class="button-group" style="margin-top: 1rem;">
+            <button type="submit">Save Email Configuration</button>
+        </div>
     </div>
 </form>
 

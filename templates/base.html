@@ -6,7 +6,7 @@
     <title>{% block title %}NAV Scoring{% endblock %}</title>
     <link rel="stylesheet" href="/static/styles.css">
     <!-- ISSUE 11: Standard navbar links for all pages -->
-    {% if is_coach %}
+    {% if user and user.is_coach or is_coach %}
         {% set nav_title = "Coach Dashboard" %}
         {% set navbar_links = [
             ("Dashboard", "/coach"),
@@ -15,7 +15,7 @@
             ("Pairings", "/coach/pairings"),
             ("NAVs", "/coach/navs")
         ] %}
-        {% if is_admin %}
+        {% if (user and user.is_admin) or is_admin %}
             {% set navbar_links = navbar_links + [("Config", "/coach/config")] %}
         {% endif %}
         {% set navbar_links = navbar_links + [("Logout", "/logout")] %}

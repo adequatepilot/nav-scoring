@@ -2,7 +2,12 @@
 
 All notable changes to the NAV Scoring application.
 
-## [0.3.2] - Batch 2 Cleanup - 2026-02-13
+## [0.3.4] - 2026-02-13
+
+### Fixed
+- Migration 004 SQLite UNIQUE constraint error - Changed from inline UNIQUE to separate index creation
+
+## [0.3.3] - Batch 2 Cleanup - 2026-02-13
 
 ### Fixed
 - **Issue 13.1:** Removed "(Issue 13)" text from edit user form label
@@ -32,41 +37,7 @@ All notable changes to the NAV Scoring application.
 - No syntax errors in Python files
 - Template changes preserve existing functionality
 
-## [0.3.2] - 2026-02-12
-
-### Fixed
-- **Issue 10:** Checkpoint display precision - Shows full 7+ decimal places instead of rounded 5 decimals
-- **Issue 11:** Standardized navbar across all pages - Consistent links on every page (no conditional hiding)
-- **Issue 12:** Prevent users from being in multiple active pairings - Added database validation
-- **Issue 13:** Force password reset on next login - Added checkbox in user edit, new /reset-password workflow
-- **Issue 14:** Clarify delete vs break pairing - Updated button labels and added tooltips
-- **Issue 15:** Pairing shows correct pilot/observer names - Fixed database JOIN query to include names
-- **Issue 16:** Prenav time input changed to HH:MM:SS individual boxes - Prevents errors from MM:SS format
-- **Issue 17:** Prenav fuel input accepts 0.1 gallon precision - Updated input step attribute
-- **Issue 18:** View results page internal error - Added comprehensive error handling and logging
-
-### Changed
-- Checkpoint/Gate/Secret coordinate display now shows 7 decimal places
-- All coach pages use consistent standardized navbar
-- All team pages use consistent standardized navbar
-- Prenav form now accepts hours, minutes, seconds as separate inputs
-- Pairing list displays pilot and observer names directly
-- Results page has better error reporting
-
-### Added
-- Database migration 005 for password reset flag (must_reset_password column)
-- New /reset-password GET/POST routes for password reset workflow
-- New reset_password.html template
-- Better error logging in results routes
-- Database validation for pairing creation
-
-### Database
-- Migration 005: Added `must_reset_password` column to users table
-
 ## [0.3.1] - 2026-02-12
-
-
-All notable changes to the NAV Scoring application.
 
 ## [0.3.0] - 2026-02-12
 

@@ -582,7 +582,11 @@ async def team_dashboard(request: Request, user: dict = Depends(require_competit
         pairing_data = {
             "id": pairing["id"],
             "pilot_name": pilot["name"] if pilot else "Unknown",
-            "observer_name": observer["name"] if observer else "Unknown"
+            "pilot_picture": pilot["profile_picture_path"] if pilot and pilot.get("profile_picture_path") else None,
+            "pilot_initials": pilot["name"][0] if pilot and pilot.get("name") else "?",
+            "observer_name": observer["name"] if observer else "Unknown",
+            "observer_picture": observer["profile_picture_path"] if observer and observer.get("profile_picture_path") else None,
+            "observer_initials": observer["name"][0] if observer and observer.get("name") else "?"
         }
     
     # Get recent results for this user's pairings
@@ -609,6 +613,89 @@ async def team_dashboard(request: Request, user: dict = Depends(require_competit
         "recent_results": recent_results,
         "member_name": user["name"]
     })
+
+@app.get("/profile", response_class=HTMLResponse)
+async def user_profile(request: Request, user: dict = Depends(require_member)):
+    """User profile editing page. Issue 21: NEW FEATURE."""
+    return templates.TemplateResponse("team/profile.html", {
+        "request": request,
+        "user": user,
+        "member_name": user["name"]
+    })
+
+@app.post("/profile/password")
+async def change_password(
+    request: Request,
+    user: dict = Depends(require_member),
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...)
+):
+    """Change user password. Issue 21."""
+    try:
+        # Validate new password matches confirmation
+        if new_password != confirm_password:
+            return RedirectResponse(url="/profile?error=New passwords don't match", status_code=303)
+        
+        # Validate new password is not empty
+        if not new_password or len(new_password) < 6:
+            return RedirectResponse(url="/profile?error=New password must be at least 6 characters", status_code=303)
+        
+        # Verify current password
+        if not auth.verify_password(current_password, user["password_hash"]):
+            return RedirectResponse(url="/profile?error=Current password is incorrect", status_code=303)
+        
+        # Update password
+        new_hash = auth.hash_password(new_password)
+        db.update_user(user["user_id"], password_hash=new_hash)
+        logger.info(f"User {user['email']} changed their password")
+        
+        return RedirectResponse(url="/profile?message=Password changed successfully", status_code=303)
+    except Exception as e:
+        logger.error(f"Error changing password: {e}")
+        return RedirectResponse(url=f"/profile?error={str(e)}", status_code=303)
+
+@app.post("/profile/picture")
+async def upload_profile_picture(
+    request: Request,
+    user: dict = Depends(require_member),
+    picture: UploadFile = File(...)
+):
+    """Upload profile picture. Issue 21."""
+    try:
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/png", "image/gif"]
+        if picture.content_type not in allowed_types:
+            return RedirectResponse(url="/profile?error=Only JPG, PNG, and GIF images are allowed", status_code=303)
+        
+        # Validate file size (max 5MB)
+        contents = await picture.read()
+        if len(contents) > 5 * 1024 * 1024:
+            return RedirectResponse(url="/profile?error=File size must be less than 5MB", status_code=303)
+        
+        # Save file
+        import hashlib
+        import os
+        file_hash = hashlib.md5(contents).hexdigest()
+        ext = picture.filename.split('.')[-1]
+        filename = f"{user['user_id']}_{file_hash}.{ext}"
+        
+        upload_dir = Path(config["storage"]["gpx_uploads"]).parent / "profile_pictures"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        filepath = upload_dir / filename
+        with open(filepath, "wb") as f:
+            f.write(contents)
+        
+        # Update user record
+        picture_path = f"/static/profile_pictures/{filename}"
+        db.update_user(user["user_id"], profile_picture_path=picture_path)
+        logger.info(f"User {user['email']} uploaded profile picture: {filename}")
+        
+        return RedirectResponse(url="/profile?message=Profile picture updated", status_code=303)
+    except Exception as e:
+        logger.error(f"Error uploading profile picture: {e}")
+        return RedirectResponse(url=f"/profile?error={str(e)}", status_code=303)
 
 # ===== MEMBER ROUTES =====
 
@@ -1381,12 +1468,16 @@ async def coach_create_member(
     user: dict = Depends(require_admin),
     email: str = Form(...),
     name: str = Form(...),
-    password: str = Form(...)
+    password: str = Form(...),
+    must_reset_password: str = Form(default=None)
 ):
     """Create new user (unified users table). Admin-created users are pre-approved."""
     try:
         if not password:
             return RedirectResponse(url="/coach/members?error=Password is required", status_code=303)
+        
+        # Convert checkbox value to boolean (1 if checked, 0 if not)
+        force_reset = 1 if must_reset_password else 0
         
         # Create user in unified users table - admin-created users are pre-approved
         password_hash = auth.hash_password(password)
@@ -1398,9 +1489,10 @@ async def coach_create_member(
             is_coach=False,
             is_admin=False,
             is_approved=1,  # Admin-created users are pre-approved
-            email_verified=True  # Coach-created accounts have verified email
+            email_verified=True,  # Coach-created accounts have verified email
+            must_reset_password=force_reset  # Force password reset on next login
         )
-        logger.info(f"New user created (pre-approved): {email} (ID: {user_id})")
+        logger.info(f"New user created (pre-approved): {email} (ID: {user_id}), must_reset={force_reset}")
         return RedirectResponse(url="/coach/members?message=User created and approved", status_code=303)
     except Exception as e:
         logger.error(f"Error creating user: {e}")
@@ -1520,14 +1612,27 @@ async def coach_create_pairing(
     pilot_id: int = Form(...),
     safety_observer_id: int = Form(...)
 ):
-    """Create pairing. Issue 20: Returns JSON for AJAX with proper error codes."""
+    """Create pairing. Issue 20: Returns JSON for AJAX with proper error codes and names."""
     try:
         pairing_id = db.create_pairing(pilot_id, safety_observer_id)
+        
+        # Get pilot and observer names for success message (Issue 20.3)
+        pilot = db.get_user_by_id(pilot_id)
+        observer = db.get_user_by_id(safety_observer_id)
+        pilot_name = pilot["name"] if pilot else f"User {pilot_id}"
+        observer_name = observer["name"] if observer else f"User {safety_observer_id}"
+        
         # Check if it's an AJAX request
         if request.headers.get('x-requested-with') == 'XMLHttpRequest' or 'application/json' in request.headers.get('accept', ''):
-            return {"success": True, "pairing_id": pairing_id}
+            return {
+                "success": True,
+                "pairing_id": pairing_id,
+                "message": f"Pairing created successfully: {pilot_name} paired with {observer_name}"
+            }
         else:
-            return RedirectResponse(url="/coach/pairings?message=Pairing created", status_code=303)
+            message = f"Pairing created: {pilot_name} paired with {observer_name}"
+            from urllib.parse import quote
+            return RedirectResponse(url=f"/coach/pairings?message={quote(message)}", status_code=303)
     except ValueError as e:
         # Validation/conflict error (e.g., user already paired)
         logger.warning(f"Pairing creation validation error: {e}")
@@ -1904,9 +2009,12 @@ async def coach_update_email_config(
 async def startup_event():
     """App startup."""
     logger.info("NAV Scoring app starting up")
-    deleted = db.delete_expired_prenavs()
-    if deleted:
-        logger.info(f"Deleted {deleted} expired pre-NAV submissions")
+    try:
+        deleted = db.delete_expired_prenavs()
+        if deleted:
+            logger.info(f"Deleted {deleted} expired pre-NAV submissions")
+    except Exception as e:
+        logger.warning(f"Could not delete expired prenavs on startup (likely first run): {e}")
     
     # Ensure storage directories exist
     Path(config["storage"]["gpx_uploads"]).mkdir(parents=True, exist_ok=True)

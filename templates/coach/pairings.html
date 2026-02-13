@@ -213,17 +213,19 @@ function createPairing(event) {
         const responseText = await r.text();
         if (!r.ok) {
             // Try to parse error JSON response
+            let errorMessage = `Error ${r.status}: ${r.statusText}`;
             try {
                 const err = JSON.parse(responseText);
-                throw new Error(err.detail || `Error ${r.status}: ${r.statusText}`);
+                if (err.detail) {
+                    errorMessage = err.detail;
+                }
             } catch (parseErr) {
                 // If JSON parsing fails, use the raw response text if available
-                if (responseText && responseText.length > 0) {
-                    throw new Error(responseText);
-                } else {
-                    throw new Error(`Error ${r.status}: ${r.statusText}`);
+                if (responseText && responseText.length > 0 && !responseText.startsWith('{')) {
+                    errorMessage = responseText;
                 }
             }
+            throw new Error(errorMessage);
         }
         return JSON.parse(responseText);
     })

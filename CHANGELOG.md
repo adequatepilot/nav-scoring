@@ -2,6 +2,15 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.3] - 2026-02-13
+
+### Fixed
+- **Issue 20.5:** Pairing error message displaying raw JSON instead of plain text
+  - Problem: Error showed `{"detail":"Cannot create pairing: Alex Johnson is already in an active pairing"}` 
+  - Root cause: JavaScript throw statement in try block was being caught by catch block for JSON parse errors
+  - Fix: Restructured error handling to extract `err.detail` into variable before throwing
+  - Result: Error now displays clean text: `Cannot create pairing: Alex Johnson is already in an active pairing`
+
 ## [0.4.2] - Laundry List Batch 6 - 2026-02-13
 
 ### Fixed

@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -483,7 +483,8 @@ async def login(
         "email": user_data["email"],
         "name": user_data["name"],
         "is_coach": user_data["is_coach"],
-        "is_admin": user_data["is_admin"]
+        "is_admin": user_data["is_admin"],
+        "is_approved": user_data.get("is_approved", False)
     }
     
     # Issue 13: Check if user must reset password
@@ -635,25 +636,56 @@ async def change_password(
     try:
         # Validate new password matches confirmation
         if new_password != confirm_password:
-            return RedirectResponse(url="/profile?error=New passwords don't match", status_code=303)
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "New passwords do not match"}
+            )
         
         # Validate new password is not empty
         if not new_password or len(new_password) < 6:
-            return RedirectResponse(url="/profile?error=New password must be at least 6 characters", status_code=303)
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Password must be at least 6 characters"}
+            )
         
-        # Verify current password
-        if not auth.verify_password(current_password, user["password_hash"]):
-            return RedirectResponse(url="/profile?error=Current password is incorrect", status_code=303)
+        # Fetch current user from database to get password_hash
+        # (not stored in session for security)
+        db_user = db.get_user_by_id(user["user_id"])
+        if not db_user:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "User not found"}
+            )
         
-        # Update password
+        # Verify current password against the database password_hash
+        if not auth.verify_password(current_password, db_user["password_hash"]):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "Current password is incorrect"}
+            )
+        
+        # Update password in database
         new_hash = auth.hash_password(new_password)
-        db.update_user(user["user_id"], password_hash=new_hash)
-        logger.info(f"User {user['email']} changed their password")
+        success = db.update_user(user["user_id"], password_hash=new_hash)
         
-        return RedirectResponse(url="/profile?message=Password changed successfully", status_code=303)
+        if success:
+            logger.info(f"User {user['email']} changed their password")
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "message": "Password updated successfully"}
+            )
+        else:
+            logger.error(f"Failed to update password for user {user['user_id']}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": "Failed to update password. Please try again."}
+            )
     except Exception as e:
         logger.error(f"Error changing password: {e}")
-        return RedirectResponse(url=f"/profile?error={str(e)}", status_code=303)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": f"An error occurred: {str(e)}"}
+        )
 
 @app.post("/profile/picture")
 async def upload_profile_picture(

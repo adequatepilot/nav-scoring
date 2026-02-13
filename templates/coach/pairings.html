@@ -210,20 +210,41 @@ function createPairing(event) {
         }
     })
     .then(async r => {
+        const responseText = await r.text();
         if (!r.ok) {
             // Try to parse error JSON response
             try {
-                const err = await r.json();
+                const err = JSON.parse(responseText);
                 throw new Error(err.detail || `Error ${r.status}: ${r.statusText}`);
             } catch (parseErr) {
-                throw new Error(`Error ${r.status}: ${r.statusText}`);
+                // If JSON parsing fails, use the raw response text if available
+                if (responseText && responseText.length > 0) {
+                    throw new Error(responseText);
+                } else {
+                    throw new Error(`Error ${r.status}: ${r.statusText}`);
+                }
             }
         }
-        return r.json();
+        return JSON.parse(responseText);
     })
     .then(data => {
-        // Success - reload page to show new pairing
-        location.reload();
+        // Success - show message then reload page
+        if (data.message) {
+            errorDiv.innerHTML = '✅ <strong>' + data.message + '</strong>';
+            errorDiv.style.background = '#d4edda';
+            errorDiv.style.color = '#155724';
+            errorDiv.style.borderColor = '#c3e6cb';
+            errorDiv.style.display = 'block';
+            window.scrollTo(0, 0);
+            
+            // Reload page after short delay to show success message
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            // Fallback - just reload
+            location.reload();
+        }
     })
     .catch(err => {
         // Display error message and keep it visible

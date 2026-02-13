@@ -160,6 +160,7 @@ class Auth:
                 "name": user["name"],
                 "is_coach": user.get("is_coach", 0) == 1,
                 "is_admin": user.get("is_admin", 0) == 1,
+                "is_approved": user.get("is_approved", 0) == 1,
                 "must_reset_password": user.get("must_reset_password", 0) == 1,
             },
         }

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - My Profile</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <span>{{ member_name }}</span>
+        <a href="/team">Dashboard</a>
+        <a href="/profile">Profile</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 800px;
+}
+.section {
+    margin-bottom: 3rem;
+}
+.profile-picture {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 1rem;
+    display: block;
+}
+.profile-initials {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+}
+.picture-upload-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>My Profile</h2>
+
+{% if message %}
+<div class="success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<div class="section">
+    <h3>Profile Picture</h3>
+    <div class="picture-upload-group">
+        {% if user.profile_picture_path %}
+            <img src="{{ user.profile_picture_path }}" alt="Profile Picture" class="profile-picture">
+        {% else %}
+            <div class="profile-initials">
+                {{ user.name[0] if user.name else '?' }}
+            </div>
+        {% endif %}
+        
+        <form method="POST" action="/profile/picture" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="picture">Upload New Picture:</label>
+                <input type="file" id="picture" name="picture" accept="image/*" required>
+                <small style="color: #666;">JPG, PNG, or GIF (max 5MB)</small>
+            </div>
+            <button type="submit">Upload Picture</button>
+        </form>
+    </div>
+</div>
+
+<div class="section">
+    <h3>Account Information</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 0.5rem; border-bottom: 1px solid #ddd; width: 150px; font-weight: bold;">Name:</td>
+            <td style="padding: 0.5rem; border-bottom: 1px solid #ddd;">{{ user.name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 0.5rem; border-bottom: 1px solid #ddd; font-weight: bold;">Email:</td>
+            <td style="padding: 0.5rem; border-bottom: 1px solid #ddd;">{{ user.email }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 0.5rem; border-bottom: 1px solid #ddd; font-weight: bold;">Account Status:</td>
+            <td style="padding: 0.5rem; border-bottom: 1px solid #ddd;">
+                {% if user.is_approved %}
+                    <span style="color: green;">✓ Approved</span>
+                {% else %}
+                    <span style="color: orange;">⏱ Pending Approval</span>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div class="section">
+    <h3>Change Password</h3>
+    <div id="passwordMessage" style="display: none; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;"></div>
+    <form id="passwordForm" method="POST" action="/profile/password">
+        <div class="form-group">
+            <label for="current_password">Current Password:</label>
+            <input type="password" id="current_password" name="current_password" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="new_password">New Password:</label>
+            <input type="password" id="new_password" name="new_password" required>
+            <small style="color: #666;">Must be at least 6 characters</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="confirm_password">Confirm New Password:</label>
+            <input type="password" id="confirm_password" name="confirm_password" required>
+        </div>
+        
+        <button type="submit" id="passwordSubmitBtn">Change Password</button>
+    </form>
+</div>
+
+<script>
+document.getElementById('passwordForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const messageDiv = document.getElementById('passwordMessage');
+    const submitBtn = document.getElementById('passwordSubmitBtn');
+    const formData = new FormData(this);
+    
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Updating...';
+        
+        const response = await fetch('/profile/password', {
+            method: 'POST',
+            body: formData
+        });
+        
+        // Parse response (may be JSON or redirect)
+        let data;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            // If it's a redirect/HTML response, the password was likely updated
+            // Check the status code
+            if (response.ok || response.status === 303) {
+                data = { success: true, message: 'Password updated successfully' };
+            } else {
+                data = { success: false, message: await response.text() };
+            }
+        }
+        
+        // Show message
+        messageDiv.style.display = 'block';
+        
+        if (data.success || response.ok || response.status === 303) {
+            // Success
+            messageDiv.textContent = data.message || 'Password updated successfully';
+            messageDiv.style.background = '#d4edda';
+            messageDiv.style.color = '#155724';
+            messageDiv.style.border = '1px solid #c3e6cb';
+            
+            // Clear form
+            document.getElementById('passwordForm').reset();
+            
+            // Auto-hide success message after 3 seconds
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        } else {
+            // Error
+            messageDiv.textContent = data.message || 'Failed to update password';
+            messageDiv.style.background = '#f8d7da';
+            messageDiv.style.color = '#721c24';
+            messageDiv.style.border = '1px solid #f5c6cb';
+        }
+    } catch (error) {
+        messageDiv.style.display = 'block';
+        messageDiv.textContent = error.message || 'An error occurred';
+        messageDiv.style.background = '#f8d7da';
+        messageDiv.style.color = '#721c24';
+        messageDiv.style.border = '1px solid #f5c6cb';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Change Password';
+    }
+});
+</script>
+
+<div class="section" style="text-align: center;">
+    <a href="/team" style="display: inline-block; padding: 0.5rem 1rem; color: #667eea; text-decoration: none;">← Back to Dashboard</a>
+</div>
+
+{% endblock %}

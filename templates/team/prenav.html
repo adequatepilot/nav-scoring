@@ -11,6 +11,7 @@
     <div class="navbar-links" id="navbarLinks">
         <span>{{ member_name }}</span>
         <a href="/team">Dashboard</a>
+        <a href="/profile">Profile</a>
         <a href="/flight">Post-Flight</a>
         <a href="/results">Results</a>
         <a href="/logout">Logout</a>
@@ -109,13 +110,13 @@ function updateCheckpointFields() {
             <label for="leg_${i}_hh" style="min-width: 80px;">Leg ${i + 1}:</label>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
                 <input type="number" id="leg_${i}_hh" name="leg_${i}_hh" 
-                       min="0" max="23" placeholder="HH" style="width: 60px;" required>
+                       min="0" max="23" placeholder="HH" style="width: 75px;">
                 <span>:</span>
                 <input type="number" id="leg_${i}_mm" name="leg_${i}_mm" 
-                       min="0" max="59" placeholder="MM" style="width: 60px;" required>
+                       min="0" max="59" placeholder="MM" style="width: 75px;">
                 <span>:</span>
                 <input type="number" id="leg_${i}_ss" name="leg_${i}_ss" 
-                       min="0" max="59" placeholder="SS" style="width: 60px;" required>
+                       min="0" max="59" placeholder="SS" style="width: 75px;">
             </div>
         `;
         container.appendChild(div);
@@ -124,6 +125,7 @@ function updateCheckpointFields() {
 
 document.getElementById('prenavForm').addEventListener('submit', async function(e) {
     e.preventDefault();
+    console.log('Prenav form submitted');
     
     const submitBtn = document.getElementById('submitBtn');
     const errorDiv = document.getElementById('submissionError');
@@ -134,16 +136,19 @@ document.getElementById('prenavForm').addEventListener('submit', async function(
         errorDiv.textContent = '';
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting...';
+        console.log('Form validation started');
         
         // Validate nav selection
         const navSelect = document.getElementById('nav_id');
         const navId = navSelect.value;
+        console.log('NAV ID selected:', navId);
         if (!navId) {
             throw new Error('Please select a NAV route');
         }
         
         const selectedOption = navSelect.options[navSelect.selectedIndex];
         const numCheckpoints = parseInt(selectedOption.dataset.checkpoints || 0);
+        console.log('Number of checkpoints:', numCheckpoints);
         
         if (numCheckpoints === 0) {
             throw new Error('Selected NAV has no checkpoints');
@@ -152,20 +157,32 @@ document.getElementById('prenavForm').addEventListener('submit', async function(
         // Validate leg times and convert HH:MM:SS to seconds
         const legTimes = [];
         for (let i = 0; i < numCheckpoints; i++) {
-            const hh = parseInt(document.getElementById(`leg_${i}_hh`).value || 0);
-            const mm = parseInt(document.getElementById(`leg_${i}_mm`).value || 0);
-            const ss = parseInt(document.getElementById(`leg_${i}_ss`).value || 0);
+            const hhInput = document.getElementById(`leg_${i}_hh`).value;
+            const mmInput = document.getElementById(`leg_${i}_mm`).value;
+            const ssInput = document.getElementById(`leg_${i}_ss`).value;
             
-            if (isNaN(hh) || isNaN(mm) || isNaN(ss)) {
-                throw new Error(`Please enter valid time for Leg ${i + 1}`);
+            // Check if all fields are filled (required)
+            if (!hhInput && !mmInput && !ssInput) {
+                throw new Error(`Please enter time for Leg ${i + 1}`);
             }
             
-            if (mm < 0 || mm > 59 || ss < 0 || ss > 59) {
-                throw new Error(`Invalid minutes or seconds for Leg ${i + 1}`);
+            const hh = parseInt(hhInput || 0);
+            const mm = parseInt(mmInput || 0);
+            const ss = parseInt(ssInput || 0);
+            
+            if (isNaN(hh) || isNaN(mm) || isNaN(ss)) {
+                throw new Error(`Please enter valid numbers for Leg ${i + 1}`);
+            }
+            
+            if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) {
+                throw new Error(`Invalid time values for Leg ${i + 1}. Hours (0-23), Minutes (0-59), Seconds (0-59)`);
             }
             
             // Convert to total seconds
             const totalSeconds = hh * 3600 + mm * 60 + ss;
+            if (totalSeconds === 0) {
+                throw new Error(`Leg ${i + 1} cannot be 0 seconds`);
+            }
             legTimes.push(totalSeconds);
         }
         
@@ -202,11 +219,19 @@ document.getElementById('prenavForm').addEventListener('submit', async function(
         formData.append('total_time_str', totalTimeInSeconds.toString());
         formData.append('fuel_estimate', fuelEstimate);
         
+        console.log('Submitting prenav with:', {
+            nav_id: navId,
+            leg_times: legTimes,
+            total_time_seconds: totalTimeInSeconds,
+            fuel_estimate: fuelEstimate
+        });
+        
         // Submit via AJAX
         const response = await fetch('/prenav', {
             method: 'POST',
             body: formData
         });
+        console.log('Fetch response status:', response.status, 'redirected:', response.redirected);
         
         if (!response.ok) {
             const contentType = response.headers.get('content-type');

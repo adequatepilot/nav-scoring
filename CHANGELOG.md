@@ -2,6 +2,131 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.2] - Laundry List Batch 6 - 2026-02-13
+
+### Fixed
+- **Issue 19.3 (2nd report):** Profile status showing "pending approval" for approved users
+  - Root cause: `auth.login()` method was not returning `is_approved` field in user dict
+  - Fix: Added `is_approved` conversion to auth.login() return value (convert DB int to bool)
+  - Now correctly passes `is_approved` through session to profile template
+  - Approved users now see "✓ Approved" instead of "⏱ Pending Approval"
+  - Verified in running container: pilot1@siu.edu (approved) now shows correct status
+
+- **Issue 20.4 (2nd report):** Pairing error showing generic "Error 409: Conflict" instead of user name
+  - Root cause: JavaScript error handling in pairings.html was not properly extracting error details
+  - Fix: Improved error response parsing to handle both JSON parse success and failure cases
+  - Now displays descriptive error messages from backend: "Cannot create pairing: [Name] is already in an active pairing"
+  - Changed response handling to read full response text before JSON parsing
+  - Error messages now include user names instead of generic HTTP status codes
+
+- **Issue 21.2:** Password reset needs success/failure confirmation messages
+  - Added AJAX form submission to password change form
+  - Backend now returns JSON responses with status codes instead of redirects
+  - Success message (green): "Password updated successfully" - auto-hides after 3 seconds
+  - Error messages (red) display specific reasons:
+    - "Current password is incorrect" (401)
+    - "New passwords do not match" (400)
+    - "Password must be at least 6 characters" (400)
+  - Error messages persist until user action instead of auto-hiding
+  - Form clears on successful password change
+
+- **Issue 16.4:** HH/MM/SS input boxes too small, placeholder text cut off
+  - Increased input width from 60px to 75px
+  - Placeholder text ("HH", "MM", "SS") now fully visible
+  - Applies to all leg time input fields in prenav form
+
+### Changed
+- `/profile/password` endpoint now returns JSON (Content-Type: application/json) instead of HTML redirects
+- Password reset response codes: 200 (success), 400 (validation), 401 (auth), 404/500 (server errors)
+- Auth.login() method now includes `is_approved` field in returned user dict
+- Pairing error handling improved with better response text extraction
+
+### Technical Details
+- Modified: `app/auth.py` - Added is_approved to login() return value
+- Modified: `app/app.py` - Updated password reset endpoint to return JSON, added JSONResponse import
+- Modified: `templates/team/profile.html` - Added AJAX password form with message display
+- Modified: `templates/coach/pairings.html` - Improved error response parsing
+- Modified: `templates/team/prenav.html` - Increased time input box width to 75px
+
+### Tested
+- ✓ Approved users see correct profile status (pilot1@siu.edu tested)
+- ✓ Pairing errors include user names (Taylor Brown test case)
+- ✓ Password reset shows success message with auto-hide
+- ✓ Password reset shows specific error messages (persisting)
+- ✓ HH/MM/SS placeholders fully visible in prenav form
+- ✓ All changes verified in running container before deployment
+
+### Critical Notes
+- **Issues 19.3 and 20.4** were previously reported as fixed in v0.4.0/v0.4.1 but root causes were different
+- Issue 19.3: Previous fix added is_approved to session but didn't fix auth.login() return value
+- Issue 20.4: Previous fix assumed error messages were working but frontend wasn't extracting them correctly
+- This batch addresses the actual root causes, not just symptoms
+
+---
+
+## [0.4.0] - Laundry List Batch 4 - 2026-02-13
+
+### Fixed
+- **Issue 16.2/17.2:** Prenav submission form HTML5 validation blocking - CRITICAL
+  - Removed `required` attributes from dynamically generated leg time input fields
+  - HTML5 validation was preventing form submission before JavaScript validation could run
+  - Improved validation to explicitly check for non-empty leg times
+  - Added console logging for debugging form submission workflow
+  - Form now properly validates and rejects zero-second legs
+
+- **Issue 13.3:** New users auto-require password reset
+  - Added "Force password reset on next login" checkbox to create user form (default: checked)
+  - Updated database.create_user() to accept must_reset_password parameter
+  - New admin-created users now automatically flagged for password reset on first login
+
+- **Issue 20.2:** Descriptive pairing error messages with user names
+  - Database function already includes user names in error messages
+  - Error message format: "Cannot create pairing: [User Name] is already in an active pairing"
+
+- **Issue 20.3:** Success message when pairing created
+  - AJAX pairing creation now returns success message with both user names
+  - Success message displays briefly before page reload: "Pairing created successfully: [Pilot] paired with [Observer]"
+  - Success notification styled in green with auto-hide after 2 seconds
+
+- **Issue 18.3:** Single "Return to Dashboard" button on results page
+  - Replaced two buttons (Pre-Flight/Post-Flight submit) with single "Return to Dashboard" button
+  - Simplifies navigation when no results exist
+
+### Added
+- **Issue 21 (NEW FEATURE):** User profile page (/profile)
+  - Password change form with current password verification
+  - Profile picture upload (JPG/PNG/GIF, max 5MB)
+  - Profile information display (name, email, account status)
+  - Picture upload validation and server-side file storage
+  - Initials fallback when no picture uploaded
+  - Profile link added to all member navigation bars
+
+- **Issue 22 (NEW FEATURE):** Display profile pictures on dashboard
+  - Circular profile pictures displayed for pilot and observer in pairing info
+  - Initials fallback in colored circles when no picture uploaded
+  - Responsive design with proper scaling on mobile
+  - Profile pictures stored in `/static/profile_pictures/` directory
+
+### Changed
+- Migration system updated with 006_user_profile.sql
+- Database schema includes new profile_picture_path column
+- Team dashboard redesigned to show pairing with visual profile elements
+- Navigation bars now include "Profile" link for all member pages
+
+### Technical Details
+- New routes: GET /profile, POST /profile/password, POST /profile/picture
+- Profile pictures stored server-side with hash-based filenames
+- Database update_user() extended to support profile_picture_path field
+- Bootstrap_db.py updated with profile_picture_path column for fresh installs
+- Form upload handling with file type and size validation
+
+### Tested
+- Prenav form submission validation and error handling
+- User creation with force password reset checkbox
+- Pairing creation with success/error messaging
+- Profile picture upload and display with fallback initials
+- Results page navigation with single button
+
 ## [0.3.5] - Laundry List Batch 3 - 2026-02-13
 
 ### Fixed

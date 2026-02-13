@@ -467,7 +467,7 @@ async def login(
     email: str = Form(...),
     password: str = Form(...)
 ):
-    """Handle unified login for all users (email-based)."""
+    """Handle unified login for all users (email-based). Issue 13: Check for password reset flag."""
     result = auth.login(email, password)
     
     if not result["success"]:
@@ -486,6 +486,12 @@ async def login(
         "is_admin": user_data["is_admin"]
     }
     
+    # Issue 13: Check if user must reset password
+    if user_data.get("must_reset_password", 0) == 1:
+        request.session["must_reset_password"] = True
+        logger.info(f"User {user_data['email']} must reset password on login")
+        return RedirectResponse(url="/reset-password", status_code=303)
+    
     # Redirect based on role
     if user_data["is_coach"]:
         return RedirectResponse(url="/coach", status_code=303)
@@ -497,6 +503,71 @@ async def logout(request: Request):
     """Logout user."""
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+@app.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    """Show password reset page. Issue 13."""
+    must_reset = request.session.get("must_reset_password", False)
+    user = request.session.get("user")
+    
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    return templates.TemplateResponse("reset_password.html", {
+        "request": request,
+        "user": user,
+        "must_reset": must_reset
+    })
+
+@app.post("/reset-password")
+async def reset_password(
+    request: Request,
+    password: str = Form(...),
+    password_confirm: str = Form(...)
+):
+    """Handle password reset. Issue 13."""
+    user = request.session.get("user")
+    
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    if password != password_confirm:
+        return templates.TemplateResponse("reset_password.html", {
+            "request": request,
+            "user": user,
+            "error": "Passwords do not match"
+        })
+    
+    if len(password) < 8:
+        return templates.TemplateResponse("reset_password.html", {
+            "request": request,
+            "user": user,
+            "error": "Password must be at least 8 characters"
+        })
+    
+    try:
+        # Update password
+        password_hash = auth.hash_password(password)
+        db.update_user(user["user_id"], password_hash=password_hash, must_reset_password=0)
+        
+        # Clear the must_reset flag
+        request.session.pop("must_reset_password", None)
+        
+        logger.info(f"User {user['email']} successfully reset their password")
+        
+        # Show success and redirect
+        request.session["message"] = "Password reset successfully!"
+        if user["is_coach"]:
+            return RedirectResponse(url="/coach", status_code=303)
+        else:
+            return RedirectResponse(url="/team", status_code=303)
+    except Exception as e:
+        logger.error(f"Error resetting password for user {user['email']}: {e}")
+        return templates.TemplateResponse("reset_password.html", {
+            "request": request,
+            "user": user,
+            "error": f"Error resetting password: {str(e)}"
+        })
 
 @app.get("/team", response_class=HTMLResponse)
 async def team_dashboard(request: Request, user: dict = Depends(require_competitor)):
@@ -595,11 +666,12 @@ async def submit_prenav(
             logger.error(f"User {user['user_id']} is not the pilot (pilot_id={pairing['pilot_id']})")
             raise HTTPException(status_code=403, detail="Only pilot can submit pre-flight plan")
         
-        # Parse times
+        # Parse times - Issue 16: leg_times_str is now JSON array of seconds, total_time_str is seconds
         try:
             leg_times_list = json.loads(leg_times_str)
-            leg_times = [parse_mmss(t) for t in leg_times_list]
-            total_time = parse_mmss(total_time_str)
+            # leg_times_list is already in seconds (from HH:MM:SS conversion in frontend)
+            leg_times = [int(t) for t in leg_times_list]
+            total_time = int(total_time_str)
             logger.info(f"Parsed times: {leg_times} (total={total_time}s)")
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Error parsing times: {e}")
@@ -907,50 +979,65 @@ async def submit_flight(
 
 @app.get("/results/{result_id}", response_class=HTMLResponse)
 async def view_result(request: Request, result_id: int, user: dict = Depends(require_member)):
-    """View specific result."""
-    result = db.get_flight_result(result_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Result not found")
-    
-    # Verify user is part of pairing
-    pairing = db.get_pairing(result["pairing_id"])
-    if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
-        raise HTTPException(status_code=403, detail="Not authorized to view this result")
-    
-    # Get NAV
-    nav = db.get_nav(result["nav_id"])
-    
-    # Get prenav
-    prenav = db.get_prenav(result["prenav_id"])
-    
-    # Build result display
-    result_display = {
-        "id": result["id"],
-        "overall_score": result["overall_score"],
-        "checkpoint_results": result["checkpoint_results"],
-        "total_time_score": sum(cp["leg_score"] for cp in result["checkpoint_results"]),
-        "total_deviation": sum(abs(cp["deviation"]) for cp in result["checkpoint_results"]),
-        "fuel_penalty": 0,  # Calculate from prenav and actual
-        "checkpoint_secrets_penalty": result["secrets_missed_checkpoint"] * config["scoring"]["secrets"]["checkpoint_penalty"],
-        "enroute_secrets_penalty": result["secrets_missed_enroute"] * config["scoring"]["secrets"]["enroute_penalty"],
-        "estimated_fuel_burn": prenav["fuel_estimate"],
-        "actual_fuel_burn": result["actual_fuel"],
-        "pdf_filename": result.get("pdf_filename"),
-        "scored_at": result["scored_at"]
-    }
-    
-    # Recalculate fuel penalty
-    fuel_penalty = scoring_engine.calculate_fuel_penalty(
-        prenav["fuel_estimate"], result["actual_fuel"]
-    )
-    result_display["fuel_penalty"] = fuel_penalty
-    
-    return templates.TemplateResponse("team/results.html", {
-        "request": request,
-        "result": result_display,
-        "nav": nav,
-        "member_name": user["name"]
-    })
+    """View specific result. Issue 18: Better error handling and logging."""
+    try:
+        logger.info(f"Fetching result {result_id} for user {user['user_id']}")
+        
+        result = db.get_flight_result(result_id)
+        if not result:
+            logger.warning(f"Result {result_id} not found")
+            raise HTTPException(status_code=404, detail="Result not found")
+        
+        # Verify user is part of pairing
+        pairing = db.get_pairing(result["pairing_id"])
+        if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
+            logger.warning(f"User {user['user_id']} not authorized to view result {result_id}")
+            raise HTTPException(status_code=403, detail="Not authorized to view this result")
+        
+        # Get NAV
+        nav = db.get_nav(result["nav_id"])
+        
+        # Get prenav
+        prenav = db.get_prenav(result["prenav_id"])
+        if not prenav:
+            logger.error(f"Prenav {result['prenav_id']} not found for result {result_id}")
+            raise HTTPException(status_code=500, detail="Prenav data not found")
+        
+        # Build result display
+        result_display = {
+            "id": result["id"],
+            "overall_score": result["overall_score"],
+            "checkpoint_results": result["checkpoint_results"],
+            "total_time_score": sum(cp["leg_score"] for cp in result["checkpoint_results"]),
+            "total_deviation": sum(abs(cp["deviation"]) for cp in result["checkpoint_results"]),
+            "fuel_penalty": 0,  # Calculate from prenav and actual
+            "checkpoint_secrets_penalty": result["secrets_missed_checkpoint"] * config["scoring"]["secrets"]["checkpoint_penalty"],
+            "enroute_secrets_penalty": result["secrets_missed_enroute"] * config["scoring"]["secrets"]["enroute_penalty"],
+            "estimated_fuel_burn": prenav["fuel_estimate"],
+            "actual_fuel_burn": result["actual_fuel"],
+            "pdf_filename": result.get("pdf_filename"),
+            "scored_at": result["scored_at"]
+        }
+        
+        # Recalculate fuel penalty
+        fuel_penalty = scoring_engine.calculate_fuel_penalty(
+            prenav["fuel_estimate"], result["actual_fuel"]
+        )
+        result_display["fuel_penalty"] = fuel_penalty
+        
+        logger.debug(f"Successfully loaded result {result_id} for user {user['user_id']}")
+        
+        return templates.TemplateResponse("team/results.html", {
+            "request": request,
+            "result": result_display,
+            "nav": nav,
+            "member_name": user["name"]
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error viewing result {result_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error loading result: {str(e)}")
 
 @app.get("/results/{result_id}/pdf")
 async def download_pdf(result_id: int, user: dict = Depends(require_member)):
@@ -975,34 +1062,44 @@ async def download_pdf(result_id: int, user: dict = Depends(require_member)):
 
 @app.get("/results", response_class=HTMLResponse)
 async def list_results(request: Request, user: dict = Depends(require_member)):
-    """List all results for user's pairings."""
-    pairings = db.list_pairings_for_member(user["user_id"], active_only=False)
-    pairing_ids = [p["id"] for p in pairings]
-    
-    results = []
-    for pairing_id in pairing_ids:
-        pairing_results = db.list_flight_results(pairing_id=pairing_id)
-        results.extend(pairing_results)
-    
-    # Sort by date descending
-    results.sort(key=lambda r: r["scored_at"], reverse=True)
-    
-    # Enhance with NAV and pairing names
-    for result in results:
-        nav = db.get_nav(result["nav_id"])
-        result["nav_name"] = nav["name"] if nav else "Unknown"
+    """List all results for user's pairings. Issue 18: Better error handling."""
+    try:
+        logger.info(f"Fetching results for user {user['user_id']}")
         
-        pairing = db.get_pairing(result["pairing_id"])
-        if pairing:
-            pilot = db.get_member_by_id(pairing["pilot_id"])
-            observer = db.get_member_by_id(pairing["safety_observer_id"])
-            result["team_name"] = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Unknown"
-    
-    return templates.TemplateResponse("team/results.html", {
-        "request": request,
-        "results": results,
-        "member_name": user["name"]
-    })
+        pairings = db.list_pairings_for_member(user["user_id"], active_only=False)
+        pairing_ids = [p["id"] for p in pairings]
+        
+        results = []
+        for pairing_id in pairing_ids:
+            pairing_results = db.list_flight_results(pairing_id=pairing_id)
+            results.extend(pairing_results)
+        
+        logger.info(f"Found {len(results)} results for user {user['user_id']}")
+        
+        # Sort by date descending
+        results.sort(key=lambda r: r["scored_at"], reverse=True)
+        
+        # Enhance with NAV and pairing names
+        for result in results:
+            nav = db.get_nav(result["nav_id"])
+            result["nav_name"] = nav["name"] if nav else "Unknown"
+            
+            pairing = db.get_pairing(result["pairing_id"])
+            if pairing:
+                pilot = db.get_user_by_id(pairing["pilot_id"])
+                observer = db.get_user_by_id(pairing["safety_observer_id"])
+                result["team_name"] = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Unknown"
+        
+        logger.debug(f"Successfully loaded results page for user {user['user_id']}")
+        
+        return templates.TemplateResponse("team/results.html", {
+            "request": request,
+            "results": results,
+            "member_name": user["name"]
+        })
+    except Exception as e:
+        logger.error(f"Results page error for user {user['user_id']}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error loading results: {str(e)}")
 
 # ===== COACH ROUTES =====
 
@@ -1206,13 +1303,14 @@ async def edit_user(
     request: Request,
     user: dict = Depends(require_admin)
 ):
-    """Edit user details (name, email, password). Admin only."""
+    """Edit user details (name, email, password). Admin only. Issue 13: Support force_reset flag."""
     try:
         form_data = await request.form()
         user_id = form_data.get("user_id")
         name = form_data.get("name")
         email = form_data.get("email")
         password = form_data.get("password")
+        force_reset = form_data.get("force_reset") == "1"  # Issue 13
         
         if not user_id or not name or not email:
             return {"success": False, "message": "Missing required fields"}
@@ -1228,11 +1326,18 @@ async def edit_user(
         if password:
             updates["password_hash"] = auth.hash_password(password)
         
+        # Issue 13: Handle force_reset flag
+        if force_reset:
+            updates["must_reset_password"] = 1
+        
         # Update user
         success = db.update_user(int(user_id), **updates)
         
         if success:
-            logger.info(f"User {user_id} edited: name={name}, email={email}")
+            log_msg = f"User {user_id} edited: name={name}, email={email}"
+            if force_reset:
+                log_msg += ", force_reset=true"
+            logger.info(log_msg)
             return {"success": True, "message": "User updated successfully"}
         else:
             return {"success": False, "message": "User not found"}

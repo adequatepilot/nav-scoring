@@ -2,22 +2,6 @@
 
 {% block title %}Manage Pairings - Coach Dashboard{% endblock %}
 
-{% block navbar %}
-<div class="navbar">
-    <div class="navbar-brand">
-        <button class="hamburger" id="hamburgerBtn">☰</button>
-        <h1>Coach Dashboard - Pairings</h1>
-    </div>
-    <div class="navbar-links" id="navbarLinks">
-        <a href="/coach">Dashboard</a>
-        <a href="/coach/results">Results</a>
-        <a href="/coach/members">Users</a>
-        <a href="/coach/pairings">Pairings</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-{% endblock %}
-
 {% block extra_css %}
 <style>
 .card {
@@ -87,10 +71,12 @@
                 <td>{{ pairing.created_at[:10] }}</td>
                 <td>
                     <a href="/coach/pairings/{{ pairing.id }}/break" 
-                       onclick="return confirm('Break this pairing?')">Break</a> |
+                       title="Marks pairing as inactive but preserves flight history"
+                       onclick="return confirm('Break Pairing (Keeps history, marks inactive)?')">Break Pairing</a> |
                     <a href="/coach/pairings/{{ pairing.id }}/delete" 
-                       onclick="return confirm('Delete this pairing permanently?')"
-                       style="color: #d32f2f;">Delete</a>
+                       title="Permanently deletes pairing and all associated data"
+                       onclick="return confirm('Delete Pairing (Removes all history - cannot undo)?')"
+                       style="color: #d32f2f;">Delete Pairing</a>
                 </td>
             </tr>
             {% endfor %}
@@ -120,10 +106,12 @@
                 <td>{{ pairing.observer_name }}</td>
                 <td>{{ pairing.created_at[:10] }}</td>
                 <td>
-                    <a href="/coach/pairings/{{ pairing.id }}/reactivate">Reactivate</a> |
+                    <a href="/coach/pairings/{{ pairing.id }}/reactivate"
+                       title="Marks pairing as active again">Reactivate</a> |
                     <a href="/coach/pairings/{{ pairing.id }}/delete" 
-                       onclick="return confirm('Delete this pairing permanently?')"
-                       style="color: #d32f2f;">Delete</a>
+                       title="Permanently deletes pairing and all associated data"
+                       onclick="return confirm('Delete Pairing (Removes all history - cannot undo)?')"
+                       style="color: #d32f2f;">Delete Pairing</a>
                 </td>
             </tr>
             {% endfor %}

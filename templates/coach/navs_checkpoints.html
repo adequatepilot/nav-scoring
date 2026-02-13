@@ -2,21 +2,6 @@
 
 {% block title %}Manage Checkpoints - NAV Management{% endblock %}
 
-{% block navbar %}
-<div class="navbar">
-    <div class="navbar-brand">
-        <button class="hamburger" id="hamburgerBtn">☰</button>
-        <h1>Coach Dashboard - Manage Checkpoints</h1>
-    </div>
-    <div class="navbar-links" id="navbarLinks">
-        <a href="/coach">Dashboard</a>
-        <a href="/coach/navs">NAV Management</a>
-        <a href="/coach/navs/routes">Routes</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-{% endblock %}
-
 {% block extra_css %}
 <style>
 .checkpoint-list {
@@ -118,7 +103,7 @@
             <span class="checkpoint-seq">#{{ checkpoint.sequence }}</span>
             <span class="checkpoint-name">{{ checkpoint.name }}</span>
             <div class="checkpoint-coords">
-                📍 {{ "%.5f"|format(checkpoint.lat) }}, {{ "%.5f"|format(checkpoint.lon) }}
+                📍 {{ "%.7f"|format(checkpoint.lat) }}, {{ "%.7f"|format(checkpoint.lon) }}
             </div>
             <div class="actions">
                 <a href="/coach/navs/checkpoints/{{ checkpoint.id }}/delete?nav_id={{ nav.id }}" 

@@ -2,21 +2,6 @@
 
 {% block title %}Manage Start Gates - NAV Management{% endblock %}
 
-{% block navbar %}
-<div class="navbar">
-    <div class="navbar-brand">
-        <button class="hamburger" id="hamburgerBtn">☰</button>
-        <h1>Coach Dashboard - Manage Start Gates</h1>
-    </div>
-    <div class="navbar-links" id="navbarLinks">
-        <a href="/coach">Dashboard</a>
-        <a href="/coach/navs">NAV Management</a>
-        <a href="/coach/navs/airports">Airports</a>
-        <a href="/logout">Logout</a>
-    </div>
-</div>
-{% endblock %}
-
 {% block extra_css %}
 <style>
 .gate-list {
@@ -101,7 +86,7 @@
         <div class="gate-item">
             <div class="gate-name">{{ gate.name }}</div>
             <div class="gate-coords">
-                📍 {{ "%.5f"|format(gate.lat) }}, {{ "%.5f"|format(gate.lon) }}
+                📍 {{ "%.7f"|format(gate.lat) }}, {{ "%.7f"|format(gate.lon) }}
             </div>
             <div class="actions">
                 <a href="/coach/navs/gates/{{ gate.id }}/delete?airport_id={{ airport.id }}" 

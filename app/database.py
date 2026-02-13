@@ -413,6 +413,16 @@ class Database:
         if pilot_id == safety_observer_id:
             raise ValueError("Pilot and safety observer must be different members")
         
+        # Check if pilot is already in an active pairing (issue 12)
+        existing_pilot = self.get_user_active_pairing(pilot_id)
+        if existing_pilot:
+            raise ValueError(f"Pilot is already in an active pairing")
+        
+        # Check if observer is already in an active pairing (issue 12)
+        existing_observer = self.get_user_active_pairing(safety_observer_id)
+        if existing_observer:
+            raise ValueError(f"Observer is already in an active pairing")
+        
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -434,14 +444,43 @@ class Database:
             row = cursor.fetchone()
             return dict(row) if row else None
 
+    def get_user_active_pairing(self, user_id: int) -> Optional[Dict]:
+        """Check if user is in any active pairing (as pilot or observer). Issue 12."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM pairings
+                WHERE (pilot_id = ? OR safety_observer_id = ?)
+                AND is_active = 1
+            """, (user_id, user_id))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
     def list_pairings(self, active_only: bool = False) -> List[Dict]:
-        """List all pairings."""
+        """List all pairings with pilot and observer names (issue 15)."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             if active_only:
-                cursor.execute("SELECT * FROM pairings WHERE is_active = 1 ORDER BY id")
+                cursor.execute("""
+                    SELECT p.id, p.pilot_id, p.safety_observer_id, p.is_active, p.created_at,
+                           pilot.name as pilot_name, pilot.email as pilot_email,
+                           observer.name as observer_name, observer.email as observer_email
+                    FROM pairings p
+                    JOIN users pilot ON p.pilot_id = pilot.id
+                    JOIN users observer ON p.safety_observer_id = observer.id
+                    WHERE p.is_active = 1
+                    ORDER BY p.created_at DESC
+                """)
             else:
-                cursor.execute("SELECT * FROM pairings ORDER BY id")
+                cursor.execute("""
+                    SELECT p.id, p.pilot_id, p.safety_observer_id, p.is_active, p.created_at,
+                           pilot.name as pilot_name, pilot.email as pilot_email,
+                           observer.name as observer_name, observer.email as observer_email
+                    FROM pairings p
+                    JOIN users pilot ON p.pilot_id = pilot.id
+                    JOIN users observer ON p.safety_observer_id = observer.id
+                    ORDER BY p.is_active DESC, p.created_at DESC
+                """)
             return [dict(row) for row in cursor.fetchall()]
 
     def list_pairings_for_member(self, member_id: int, active_only: bool = True) -> List[Dict]:

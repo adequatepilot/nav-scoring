@@ -2,6 +2,43 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.4] - Laundry List Batch 7 - 2026-02-13
+
+### Fixed
+- **Issue 23 (CRITICAL):** Post-flight submission returns black page with empty error `{"detail":""}`
+  - Root cause: Unhandled exceptions in flight scoring had empty or missing error messages
+  - Fix: Added comprehensive error handling throughout `/flight` POST endpoint:
+    - Validate NAV exists in database before accessing checkpoints
+    - Validate checkpoints exist for the NAV
+    - Wrap GPX file reading/parsing in try-except with descriptive errors
+    - Wrap start gate detection in try-except with helpful messages
+    - Wrap checkpoint crossing detection in try-except with checkpoint info
+    - Wrap PDF generation and database save in try-except with specific error context
+    - Improved final exception handler to ensure error message is never empty
+  - Result: Users now get meaningful error messages explaining what went wrong
+  - Examples: "No track points found in GPX file", "Could not detect start gate crossing", etc.
+
+- **Issue 16.5:** Total flight time input uses wrong format (MM:SS text instead of HH:MM:SS boxes)
+  - Problem: Total time was a single text input expecting MM:SS format, while leg times used HH:MM:SS boxes
+  - Fix: Replaced single text input with three separate number inputs (HH, MM, SS)
+  - Now consistent with leg time input format
+  - JavaScript updated to parse three boxes into total seconds for submission
+
+- **Issue 16.6:** HH/MM/SS input boxes don't default to 0 and accept decimal/non-numeric input
+  - Problem: Inputs were empty by default and accepted decimals
+  - Fix: Updated all time input boxes (leg times + total time) with:
+    - `value="0"` - shows 0 instead of empty placeholder
+    - `type="number"` - enforces numeric-only input at browser level
+    - `step="1"` - prevents decimal input
+    - `min="0"` - enforces minimum value
+    - Appropriate `max` values (23 for hours, 59 for minutes/seconds)
+  - Applies to both leg time inputs and total time inputs
+
+### Changed
+- Prenav form leg time inputs now have default value="0" and step="1"
+- Total flight time input changed from text to HH:MM:SS boxes matching leg time format
+- Error handling in `/flight` endpoint provides context-specific error messages instead of generic messages
+
 ## [0.4.3] - 2026-02-13
 
 ### Fixed

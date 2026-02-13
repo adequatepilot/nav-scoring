@@ -128,6 +128,7 @@ def create_database():
             is_approved INTEGER DEFAULT 0,
             email_verified INTEGER DEFAULT 0,
             must_reset_password INTEGER DEFAULT 0,
+            profile_picture_path TEXT DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_login TIMESTAMP
         )

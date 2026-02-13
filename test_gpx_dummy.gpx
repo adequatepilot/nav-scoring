@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Test" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Dummy Flight Track for Testing</name>
+  </metadata>
+  <trk>
+    <name>Flight Track</name>
+    <trkseg>
+      <!-- Start point near start gate (37.8, -88.9) -->
+      <trkpt lat="37.800" lon="-88.900">
+        <ele>400</ele>
+        <time>2026-02-13T10:00:00Z</time>
+        <speed>0</speed>
+      </trkpt>
+      <!-- Takeoff point -->
+      <trkpt lat="37.8005" lon="-88.8995">
+        <ele>400</ele>
+        <time>2026-02-13T10:00:10Z</time>
+        <speed>10</speed>
+      </trkpt>
+      <!-- Checkpoint 1 area (37.81, -88.89) -->
+      <trkpt lat="37.8100" lon="-88.8900">
+        <ele>400</ele>
+        <time>2026-02-13T10:05:00Z</time>
+        <speed>80</speed>
+      </trkpt>
+      <!-- Checkpoint 2 area (37.82, -88.88) -->
+      <trkpt lat="37.8200" lon="-88.8800">
+        <ele>400</ele>
+        <time>2026-02-13T10:10:00Z</time>
+        <speed>80</speed>
+      </trkpt>
+      <!-- Checkpoint 3 area (37.83, -88.87) -->
+      <trkpt lat="37.8300" lon="-88.8700">
+        <ele>400</ele>
+        <time>2026-02-13T10:15:00Z</time>
+        <speed>80</speed>
+      </trkpt>
+      <!-- Return to start gate -->
+      <trkpt lat="37.8000" lon="-88.9000">
+        <ele>400</ele>
+        <time>2026-02-13T10:45:00Z</time>
+        <speed>80</speed>
+      </trkpt>
+      <!-- Landing -->
+      <trkpt lat="37.8000" lon="-88.9000">
+        <ele>400</ele>
+        <time>2026-02-13T10:45:30Z</time>
+        <speed>0</speed>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

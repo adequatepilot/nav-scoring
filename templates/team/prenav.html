@@ -59,10 +59,27 @@
     </div>
     
     <div class="form-group" style="display: none;" id="total_time_group">
-        <label for="total_time_str">Total Flight Time (MM:SS):</label>
-        <input type="text" id="total_time_str" name="total_time_str" 
-               placeholder="48:30" pattern="\d+:\d{2}" class="time-input" required>
-        <small style="color: #666;">Example: 48:30 (48 minutes, 30 seconds)</small>
+        <label>Total Flight Time:</label>
+        <p style="color: #666; font-size: 0.9rem;">Enter hours, minutes, and seconds separately.</p>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <input type="number" id="total_time_hh" name="total_time_hh" 
+                       min="0" max="23" step="1" value="0" placeholder="HH" style="width: 75px;">
+                <small style="color: #666; font-size: 0.8rem;">Hours</small>
+            </div>
+            <span style="font-weight: bold;">:</span>
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <input type="number" id="total_time_mm" name="total_time_mm" 
+                       min="0" max="59" step="1" value="0" placeholder="MM" style="width: 75px;">
+                <small style="color: #666; font-size: 0.8rem;">Minutes</small>
+            </div>
+            <span style="font-weight: bold;">:</span>
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <input type="number" id="total_time_ss" name="total_time_ss" 
+                       min="0" max="59" step="1" value="0" placeholder="SS" style="width: 75px;">
+                <small style="color: #666; font-size: 0.8rem;">Seconds</small>
+            </div>
+        </div>
     </div>
     
     <div class="form-group" style="display: none;" id="fuel_group">
@@ -110,13 +127,13 @@ function updateCheckpointFields() {
             <label for="leg_${i}_hh" style="min-width: 80px;">Leg ${i + 1}:</label>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
                 <input type="number" id="leg_${i}_hh" name="leg_${i}_hh" 
-                       min="0" max="23" placeholder="HH" style="width: 75px;">
+                       min="0" max="23" step="1" value="0" placeholder="HH" style="width: 75px;">
                 <span>:</span>
                 <input type="number" id="leg_${i}_mm" name="leg_${i}_mm" 
-                       min="0" max="59" placeholder="MM" style="width: 75px;">
+                       min="0" max="59" step="1" value="0" placeholder="MM" style="width: 75px;">
                 <span>:</span>
                 <input type="number" id="leg_${i}_ss" name="leg_${i}_ss" 
-                       min="0" max="59" placeholder="SS" style="width: 75px;">
+                       min="0" max="59" step="1" value="0" placeholder="SS" style="width: 75px;">
             </div>
         `;
         container.appendChild(div);
@@ -161,7 +178,7 @@ document.getElementById('prenavForm').addEventListener('submit', async function(
             const mmInput = document.getElementById(`leg_${i}_mm`).value;
             const ssInput = document.getElementById(`leg_${i}_ss`).value;
             
-            // Check if all fields are filled (required)
+            // Check if at least one field is filled (required)
             if (!hhInput && !mmInput && !ssInput) {
                 throw new Error(`Please enter time for Leg ${i + 1}`);
             }
@@ -186,25 +203,23 @@ document.getElementById('prenavForm').addEventListener('submit', async function(
             legTimes.push(totalSeconds);
         }
         
-        // Validate and parse total time (MM:SS format)
-        const totalTimeStr = document.getElementById('total_time_str').value;
-        if (!totalTimeStr) {
-            throw new Error('Please enter total flight time');
+        // Validate and parse total time (HH:MM:SS format)
+        const totalHH = parseInt(document.getElementById('total_time_hh').value || 0);
+        const totalMM = parseInt(document.getElementById('total_time_mm').value || 0);
+        const totalSS = parseInt(document.getElementById('total_time_ss').value || 0);
+        
+        if (isNaN(totalHH) || isNaN(totalMM) || isNaN(totalSS)) {
+            throw new Error('Please enter valid numbers for total flight time');
         }
         
-        // Parse MM:SS to seconds
-        const timeParts = totalTimeStr.split(':');
-        if (timeParts.length !== 2) {
-            throw new Error('Total flight time must be in MM:SS format (e.g., 48:30)');
+        if (totalHH < 0 || totalHH > 23 || totalMM < 0 || totalMM > 59 || totalSS < 0 || totalSS > 59) {
+            throw new Error('Invalid total flight time values. Hours (0-23), Minutes (0-59), Seconds (0-59)');
         }
         
-        const totalMinutes = parseInt(timeParts[0]);
-        const totalSeconds = parseInt(timeParts[1]);
-        if (isNaN(totalMinutes) || isNaN(totalSeconds) || totalSeconds < 0 || totalSeconds > 59) {
-            throw new Error('Invalid total flight time format');
+        const totalTimeInSeconds = totalHH * 3600 + totalMM * 60 + totalSS;
+        if (totalTimeInSeconds === 0) {
+            throw new Error('Total flight time cannot be 0 seconds');
         }
-        
-        const totalTimeInSeconds = totalMinutes * 60 + totalSeconds;
         
         // Validate fuel estimate
         const fuelEstimate = document.getElementById('fuel_estimate').value;

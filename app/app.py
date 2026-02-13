@@ -918,6 +918,10 @@ async def submit_flight(
         if expires_at < datetime.utcnow():
             raise HTTPException(status_code=400, detail="Token has expired")
         
+        # Validate GPX file
+        if not gpx_file or not gpx_file.filename:
+            raise HTTPException(status_code=400, detail="GPX file is required")
+        
         # Save GPX file
         gpx_storage = Path(config["storage"]["gpx_uploads"])
         gpx_storage.mkdir(parents=True, exist_ok=True)
@@ -925,30 +929,61 @@ async def submit_flight(
         gpx_filename = f"gpx_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.gpx"
         gpx_path = gpx_storage / gpx_filename
         
-        gpx_content = await gpx_file.read()
-        gpx_path.write_bytes(gpx_content)
+        try:
+            gpx_content = await gpx_file.read()
+            if not gpx_content:
+                raise HTTPException(status_code=400, detail="GPX file is empty")
+            gpx_path.write_bytes(gpx_content)
+        except HTTPException:
+            raise
+        except Exception as file_err:
+            logger.error(f"Error reading GPX file: {file_err}")
+            raise HTTPException(status_code=400, detail=f"Error reading GPX file: {str(file_err)}")
         
         # Parse GPX
-        track_points = parse_gpx(gpx_content)
-        if not track_points:
-            raise HTTPException(status_code=400, detail="No track points found in GPX file")
+        try:
+            track_points = parse_gpx(gpx_content)
+            if not track_points:
+                raise HTTPException(status_code=400, detail="No track points found in GPX file. Please check your GPX file is valid.")
+        except HTTPException:
+            raise
+        except Exception as parse_err:
+            logger.error(f"GPX parsing error: {parse_err}")
+            raise HTTPException(status_code=400, detail=f"Invalid GPX file: {str(parse_err)}")
         
         # Get NAV and checkpoints
         nav = db.get_nav(prenav["nav_id"])
-        checkpoints = nav["checkpoints"]
+        if not nav:
+            logger.error(f"NAV {prenav['nav_id']} not found in database")
+            raise HTTPException(status_code=400, detail=f"NAV not found in database")
+        
+        checkpoints = nav.get("checkpoints", [])
+        if not checkpoints:
+            logger.error(f"No checkpoints found for NAV {prenav['nav_id']}")
+            raise HTTPException(status_code=400, detail=f"No checkpoints defined for this NAV")
         
         # Get start gate
-        start_gate = db.get_start_gate(start_gate_id)
-        if not start_gate:
-            raise HTTPException(status_code=400, detail="Invalid start gate")
+        try:
+            start_gate = db.get_start_gate(start_gate_id)
+            if not start_gate:
+                raise HTTPException(status_code=400, detail=f"Start gate {start_gate_id} not found")
+        except HTTPException:
+            raise
+        except Exception as gate_err:
+            logger.error(f"Error loading start gate: {gate_err}")
+            raise HTTPException(status_code=400, detail=f"Error loading start gate: {str(gate_err)}")
         
         # Detect start gate crossing
-        start_crossing, start_distance = scoring_engine.detect_start_gate_crossing(
-            track_points, start_gate
-        )
+        try:
+            start_crossing, start_distance = scoring_engine.detect_start_gate_crossing(
+                track_points, start_gate
+            )
+        except Exception as sg_err:
+            logger.error(f"Error detecting start gate crossing: {sg_err}")
+            raise HTTPException(status_code=400, detail=f"Error detecting start gate crossing: {str(sg_err)}")
         
         if not start_crossing:
-            raise HTTPException(status_code=400, detail="Could not detect start gate crossing")
+            raise HTTPException(status_code=400, detail="Could not detect start gate crossing. Check that your GPX file includes the start gate location.")
         
         # Score checkpoints
         checkpoint_results = []
@@ -956,13 +991,17 @@ async def submit_flight(
         previous_time = start_crossing["time"].timestamp()
         
         for i, checkpoint in enumerate(checkpoints):
-            timing_point, distance_nm, method, within_025 = scoring_engine.find_checkpoint_crossing(
-                track_points, checkpoint, previous_point, previous_time
-            )
+            try:
+                timing_point, distance_nm, method, within_025 = scoring_engine.find_checkpoint_crossing(
+                    track_points, checkpoint, previous_point, previous_time
+                )
+            except Exception as cp_err:
+                logger.error(f"Error finding checkpoint crossing for {checkpoint.get('name', f'checkpoint {i}')}: {cp_err}")
+                raise HTTPException(status_code=400, detail=f"Error processing checkpoint {i+1}: {str(cp_err)}")
             
             if not timing_point:
                 logger.error(f"Could not find crossing for checkpoint {checkpoint['name']}")
-                continue
+                raise HTTPException(status_code=400, detail=f"Could not detect crossing for checkpoint {i+1} ({checkpoint.get('name', 'Unknown')}). Check your GPX file covers the route.")
             
             # Calculate leg score
             estimated_time = prenav["leg_times"][i]
@@ -1041,29 +1080,38 @@ async def submit_flight(
             "scored_at": datetime.utcnow().isoformat()
         }
         
-        generate_pdf_report(result_data_for_pdf, nav, pairing_display, plot_path, pdf_path)
+        # Generate PDF report
+        try:
+            generate_pdf_report(result_data_for_pdf, nav, pairing_display, plot_path, pdf_path)
+        except Exception as pdf_err:
+            logger.error(f"Error generating PDF report: {pdf_err}")
+            raise HTTPException(status_code=500, detail=f"Error generating PDF report: {str(pdf_err)}")
         
         # Save result to database
-        result_id = db.create_flight_result(
-            prenav_id=prenav["id"],
-            pairing_id=pairing["id"],
-            nav_id=prenav["nav_id"],
-            gpx_filename=gpx_filename,
-            actual_fuel=actual_fuel,
-            secrets_checkpoint=secrets_checkpoint,
-            secrets_enroute=secrets_enroute,
-            start_gate_id=start_gate_id,
-            overall_score=overall_score,
-            checkpoint_results=checkpoint_results
-        )
-        
-        # Update with PDF filename
-        from app.database import Database as DB
-        with db.get_connection() as conn:
-            conn.execute(
-                "UPDATE flight_results SET pdf_filename = ? WHERE id = ?",
-                (pdf_filename, result_id)
+        try:
+            result_id = db.create_flight_result(
+                prenav_id=prenav["id"],
+                pairing_id=pairing["id"],
+                nav_id=prenav["nav_id"],
+                gpx_filename=gpx_filename,
+                actual_fuel=actual_fuel,
+                secrets_checkpoint=secrets_checkpoint,
+                secrets_enroute=secrets_enroute,
+                start_gate_id=start_gate_id,
+                overall_score=overall_score,
+                checkpoint_results=checkpoint_results
             )
+            
+            # Update with PDF filename
+            from app.database import Database as DB
+            with db.get_connection() as conn:
+                conn.execute(
+                    "UPDATE flight_results SET pdf_filename = ? WHERE id = ?",
+                    (pdf_filename, result_id)
+                )
+        except Exception as db_err:
+            logger.error(f"Error saving flight result to database: {db_err}")
+            raise HTTPException(status_code=500, detail=f"Error saving flight result: {str(db_err)}")
         
         # Send emails
         pilot_email = pilot["email"] if pilot else ""
@@ -1092,9 +1140,17 @@ async def submit_flight(
         # Redirect to results page
         return RedirectResponse(url=f"/results/{result_id}", status_code=303)
     
+    except HTTPException:
+        # Re-raise HTTPException to preserve status codes and details
+        raise
     except Exception as e:
+        # Log full error with stack trace
         logger.error(f"Error processing flight: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        # Provide meaningful error message
+        error_msg = str(e).strip() if str(e) else "Unknown error processing flight"
+        if not error_msg:
+            error_msg = type(e).__name__ + " occurred while processing flight"
+        raise HTTPException(status_code=400, detail=error_msg)
 
 @app.get("/results/{result_id}", response_class=HTMLResponse)
 async def view_result(request: Request, result_id: int, user: dict = Depends(require_member)):

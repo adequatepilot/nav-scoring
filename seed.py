@@ -111,7 +111,7 @@ def seed_database(db_path: str = "data/navs.db"):
             existing_navs = conn.execute('SELECT COUNT(*) FROM navs').fetchone()[0]
             
             if existing_navs > 0:
-                print(f"   ℹ️  Found {existing_navs} existing NAVs (keeping them)\n")
+                print(f"   ℹ️  Found {existing_navs} existing NAVs (keeping them)")
             else:
                 # Create sample NAVs
                 sample_navs = [
@@ -126,8 +126,33 @@ def seed_database(db_path: str = "data/navs.db"):
                         (nav_name, airport)
                     )
                     print(f"   ✅ Created NAV: {nav_name}")
+            
+            # Ensure all NAVs have checkpoints (add if missing)
+            print("\n   Adding checkpoints to NAVs...")
+            cursor = conn.execute('SELECT id, name FROM navs')
+            navs = cursor.fetchall()
+            
+            checkpoints_added = 0
+            for nav_id, nav_name in navs:
+                # Count existing checkpoints
+                cursor = conn.execute('SELECT COUNT(*) FROM checkpoints WHERE nav_id = ?', (nav_id,))
+                cp_count = cursor.fetchone()[0]
                 
-                print(f"\n   📝 Note: NAVs need checkpoints/secrets added via coach admin\n")
+                if cp_count == 0:
+                    # Add 3 sample checkpoints
+                    for seq in range(1, 4):
+                        lat = 37.7749 + (seq * 0.005)
+                        lon = -122.4194 + (seq * 0.005)
+                        conn.execute(
+                            'INSERT INTO checkpoints (nav_id, sequence, name, lat, lon) VALUES (?, ?, ?, ?, ?)',
+                            (nav_id, seq, f'Checkpoint {seq}', lat, lon)
+                        )
+                        checkpoints_added += 1
+                    print(f"   ✅ Added 3 checkpoints to {nav_name}")
+                else:
+                    print(f"   ℹ️  {nav_name} already has {cp_count} checkpoints")
+            
+            print()
         except Exception as e:
             print(f"   ⚠️  NAV creation failed: {e}\n")
         

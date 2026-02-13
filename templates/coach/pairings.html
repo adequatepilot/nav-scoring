@@ -194,7 +194,12 @@
 <script>
 function createPairing(event) {
     event.preventDefault();
+    const errorDiv = document.getElementById('error-message');
     const formData = new FormData(event.target);
+    
+    // Clear previous error
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
     
     fetch('/coach/pairings', {
         method: 'POST',
@@ -204,22 +209,28 @@ function createPairing(event) {
             'accept': 'application/json'
         }
     })
-    .then(r => {
+    .then(async r => {
         if (!r.ok) {
-            return r.json().then(err => {
-                throw new Error(err.detail || 'Unknown error');
-            });
+            // Try to parse error JSON response
+            try {
+                const err = await r.json();
+                throw new Error(err.detail || `Error ${r.status}: ${r.statusText}`);
+            } catch (parseErr) {
+                throw new Error(`Error ${r.status}: ${r.statusText}`);
+            }
         }
         return r.json();
     })
     .then(data => {
-        location.reload();  // Success
+        // Success - reload page to show new pairing
+        location.reload();
     })
     .catch(err => {
-        const errorDiv = document.getElementById('error-message');
-        errorDiv.textContent = err.message;
+        // Display error message and keep it visible
+        errorDiv.innerHTML = '❌ <strong>Cannot create pairing:</strong> ' + err.message;
         errorDiv.style.display = 'block';
-        setTimeout(() => errorDiv.style.display = 'none', 5000);
+        // Do NOT auto-hide - let user see and manually dismiss if needed
+        window.scrollTo(0, 0);  // Scroll to top so error is visible
     });
 }
 </script>

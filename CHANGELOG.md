@@ -2,6 +2,54 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.5] - Laundry List Batch 3 - 2026-02-13
+
+### Fixed
+- **Issue 16.1/17.1:** CRITICAL - Prenav form submission was broken due to JavaScript/backend data format mismatch
+  - JavaScript was sending MM:SS strings but backend expected integer seconds
+  - Converted form submission to AJAX with proper error handling
+  - Added visible error messages when validation fails
+  - Fixed leg time conversion from HH:MM:SS to seconds (multiply by 3600+60+1 to get total seconds)
+  - Fixed total time conversion from MM:SS to seconds
+  - Added loading state indicator during submission
+  - Added error div that persists until explicitly dismissed
+  
+- **Issue 18.2:** Results page now shows friendly "no results" message instead of error
+  - Fixed route to use correct template (`team/results_list.html` instead of `team/results.html`)
+  - Added safe error handling for result enrichment (nav/pairing lookups won't crash page if data missing)
+  - Wrapped enhancement logic in try-catch to prevent errors from breaking result display
+  - Template already has helpful call-to-action buttons
+  
+- **Issue 20.1:** Pairing creation error messages now properly display
+  - Backend now returns proper HTTP status codes (409 for conflicts, 400 for other errors) instead of 200 with success=false
+  - Frontend error display no longer auto-hides after 5 seconds
+  - Error messages are persistent and prominent with ❌ icon
+  - Page scrolls to top when error occurs so user sees message
+  - Error includes which user is causing the conflict (e.g., "Jordan Smith is already in an active pairing")
+
+### Changed
+- `/prenav` route now receives leg_times as JSON array of integer seconds (not MM:SS strings)
+- `/prenav` route now receives total_time as integer seconds (not MM:SS string)
+- Form submission via AJAX instead of traditional POST for better error handling
+- Error messages use HTTP status codes instead of 200-with-error responses
+- Results page enhancement errors are logged as warnings instead of crashing page
+- Pairing form submission improved with better feedback
+
+### Technical Details
+- JavaScript form validation enhanced to handle HH/MM/SS input conversion
+- Added AJAX error handling with async/await pattern
+- Backend distinguishes between ValueError (validation/conflict) and other exceptions
+- Improved logging for pairing creation and results loading
+
+### Tested
+- Prenav form submission with valid data
+- Prenav form submission with invalid time formats
+- Prenav form submission with validation errors
+- Results page with no results (shows friendly message)
+- Pairing creation with conflicting user (shows error message)
+- Error messages persist and are visible to user
+- Mobile-friendly error display with scroll-to-top
+
 ## [0.3.4] - 2026-02-13
 
 ### Fixed

@@ -1079,20 +1079,31 @@ async def list_results(request: Request, user: dict = Depends(require_member)):
         # Sort by date descending
         results.sort(key=lambda r: r["scored_at"], reverse=True)
         
-        # Enhance with NAV and pairing names
+        # Enhance with NAV and pairing names (with safe error handling)
         for result in results:
-            nav = db.get_nav(result["nav_id"])
-            result["nav_name"] = nav["name"] if nav else "Unknown"
+            try:
+                nav = db.get_nav(result["nav_id"])
+                result["nav_name"] = nav["name"] if nav else "Unknown"
+            except Exception as nav_err:
+                logger.warning(f"Failed to get NAV {result['nav_id']}: {nav_err}")
+                result["nav_name"] = "Unknown"
             
-            pairing = db.get_pairing(result["pairing_id"])
-            if pairing:
-                pilot = db.get_user_by_id(pairing["pilot_id"])
-                observer = db.get_user_by_id(pairing["safety_observer_id"])
-                result["team_name"] = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Unknown"
+            try:
+                pairing = db.get_pairing(result["pairing_id"])
+                if pairing:
+                    pilot = db.get_user_by_id(pairing["pilot_id"])
+                    observer = db.get_user_by_id(pairing["safety_observer_id"])
+                    result["team_name"] = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Unknown"
+                else:
+                    result["team_name"] = "Unknown"
+            except Exception as pairing_err:
+                logger.warning(f"Failed to get pairing {result['pairing_id']}: {pairing_err}")
+                result["team_name"] = "Unknown"
         
         logger.debug(f"Successfully loaded results page for user {user['user_id']}")
         
-        return templates.TemplateResponse("team/results.html", {
+        # Use correct template for results list view
+        return templates.TemplateResponse("team/results_list.html", {
             "request": request,
             "results": results,
             "member_name": user["name"]
@@ -1509,7 +1520,7 @@ async def coach_create_pairing(
     pilot_id: int = Form(...),
     safety_observer_id: int = Form(...)
 ):
-    """Create pairing. Issue 20: Returns JSON for AJAX, redirect for form submission."""
+    """Create pairing. Issue 20: Returns JSON for AJAX with proper error codes."""
     try:
         pairing_id = db.create_pairing(pilot_id, safety_observer_id)
         # Check if it's an AJAX request
@@ -1517,12 +1528,21 @@ async def coach_create_pairing(
             return {"success": True, "pairing_id": pairing_id}
         else:
             return RedirectResponse(url="/coach/pairings?message=Pairing created", status_code=303)
-    except Exception as e:
-        logger.error(f"Error creating pairing: {e}")
+    except ValueError as e:
+        # Validation/conflict error (e.g., user already paired)
+        logger.warning(f"Pairing creation validation error: {e}")
         error_msg = str(e)
         # Check if it's an AJAX request
         if request.headers.get('x-requested-with') == 'XMLHttpRequest' or 'application/json' in request.headers.get('accept', ''):
-            return {"success": False, "detail": error_msg}
+            raise HTTPException(status_code=409, detail=error_msg)
+        else:
+            return RedirectResponse(url=f"/coach/pairings?error={error_msg}", status_code=303)
+    except Exception as e:
+        logger.error(f"Error creating pairing: {e}", exc_info=True)
+        error_msg = str(e)
+        # Check if it's an AJAX request
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or 'application/json' in request.headers.get('accept', ''):
+            raise HTTPException(status_code=400, detail=error_msg)
         else:
             return RedirectResponse(url=f"/coach/pairings?error={error_msg}", status_code=303)
 

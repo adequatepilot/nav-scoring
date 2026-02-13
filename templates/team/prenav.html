@@ -38,7 +38,9 @@
     Observer: {{ pairing.observer_name }}
 </div>
 
-<form method="POST" action="/prenav" id="prenavForm">
+<div id="submissionError" style="display: none; color: #d32f2f; background: #ffebee; padding: 15px; border-radius: 4px; margin-bottom: 20px;"></div>
+
+<form method="POST" id="prenavForm">
     <div class="form-group">
         <label for="nav_id">Select NAV Route:</label>
         <select id="nav_id" name="nav_id" required onchange="updateCheckpointFields()">
@@ -70,8 +72,9 @@
     </div>
     
     <input type="hidden" id="leg_times_str" name="leg_times_str">
+    <input type="hidden" id="nav_id_hidden" name="nav_id">
     
-    <button type="submit">Submit Pre-Flight Plan</button>
+    <button type="submit" id="submitBtn">Submit Pre-Flight Plan</button>
 </form>
 
 <script>
@@ -119,69 +122,131 @@ function updateCheckpointFields() {
     }
 }
 
-document.getElementById('prenavForm').addEventListener('submit', function(e) {
+document.getElementById('prenavForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    // Validate nav selection
-    const navSelect = document.getElementById('nav_id');
-    const navId = navSelect.value;
-    if (!navId) {
-        alert('Please select a NAV route');
-        return;
-    }
+    const submitBtn = document.getElementById('submitBtn');
+    const errorDiv = document.getElementById('submissionError');
     
-    const selectedOption = navSelect.options[navSelect.selectedIndex];
-    const numCheckpoints = parseInt(selectedOption.dataset.checkpoints || 0);
-    
-    if (numCheckpoints === 0) {
-        alert('Selected NAV has no checkpoints');
-        return;
-    }
-    
-    // Validate leg times and convert HH:MM:SS to MM:SS
-    const legTimes = [];
-    for (let i = 0; i < numCheckpoints; i++) {
-        const hh = parseInt(document.getElementById(`leg_${i}_hh`).value || 0);
-        const mm = parseInt(document.getElementById(`leg_${i}_mm`).value || 0);
-        const ss = parseInt(document.getElementById(`leg_${i}_ss`).value || 0);
+    try {
+        // Clear previous errors
+        errorDiv.style.display = 'none';
+        errorDiv.textContent = '';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
         
-        if (isNaN(hh) || isNaN(mm) || isNaN(ss)) {
-            alert(`Please enter valid time for Leg ${i + 1}`);
-            return;
+        // Validate nav selection
+        const navSelect = document.getElementById('nav_id');
+        const navId = navSelect.value;
+        if (!navId) {
+            throw new Error('Please select a NAV route');
         }
         
-        if (mm < 0 || mm > 59 || ss < 0 || ss > 59) {
-            alert(`Invalid minutes or seconds for Leg ${i + 1}`);
-            return;
+        const selectedOption = navSelect.options[navSelect.selectedIndex];
+        const numCheckpoints = parseInt(selectedOption.dataset.checkpoints || 0);
+        
+        if (numCheckpoints === 0) {
+            throw new Error('Selected NAV has no checkpoints');
         }
         
-        // Convert to total minutes and seconds (MM:SS format for backend)
-        const totalSeconds = hh * 3600 + mm * 60 + ss;
-        const totalMinutes = Math.floor(totalSeconds / 60);
-        const remainingSeconds = totalSeconds % 60;
-        const mmssValue = `${totalMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-        legTimes.push(mmssValue);
+        // Validate leg times and convert HH:MM:SS to seconds
+        const legTimes = [];
+        for (let i = 0; i < numCheckpoints; i++) {
+            const hh = parseInt(document.getElementById(`leg_${i}_hh`).value || 0);
+            const mm = parseInt(document.getElementById(`leg_${i}_mm`).value || 0);
+            const ss = parseInt(document.getElementById(`leg_${i}_ss`).value || 0);
+            
+            if (isNaN(hh) || isNaN(mm) || isNaN(ss)) {
+                throw new Error(`Please enter valid time for Leg ${i + 1}`);
+            }
+            
+            if (mm < 0 || mm > 59 || ss < 0 || ss > 59) {
+                throw new Error(`Invalid minutes or seconds for Leg ${i + 1}`);
+            }
+            
+            // Convert to total seconds
+            const totalSeconds = hh * 3600 + mm * 60 + ss;
+            legTimes.push(totalSeconds);
+        }
+        
+        // Validate and parse total time (MM:SS format)
+        const totalTimeStr = document.getElementById('total_time_str').value;
+        if (!totalTimeStr) {
+            throw new Error('Please enter total flight time');
+        }
+        
+        // Parse MM:SS to seconds
+        const timeParts = totalTimeStr.split(':');
+        if (timeParts.length !== 2) {
+            throw new Error('Total flight time must be in MM:SS format (e.g., 48:30)');
+        }
+        
+        const totalMinutes = parseInt(timeParts[0]);
+        const totalSeconds = parseInt(timeParts[1]);
+        if (isNaN(totalMinutes) || isNaN(totalSeconds) || totalSeconds < 0 || totalSeconds > 59) {
+            throw new Error('Invalid total flight time format');
+        }
+        
+        const totalTimeInSeconds = totalMinutes * 60 + totalSeconds;
+        
+        // Validate fuel estimate
+        const fuelEstimate = document.getElementById('fuel_estimate').value;
+        if (!fuelEstimate || parseFloat(fuelEstimate) < 0) {
+            throw new Error('Please enter valid fuel estimate');
+        }
+        
+        // Prepare form data
+        const formData = new FormData();
+        formData.append('nav_id', navId);
+        formData.append('leg_times_str', JSON.stringify(legTimes));
+        formData.append('total_time_str', totalTimeInSeconds.toString());
+        formData.append('fuel_estimate', fuelEstimate);
+        
+        // Submit via AJAX
+        const response = await fetch('/prenav', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type');
+            let errorMessage = `Submission failed: ${response.statusText}`;
+            
+            if (contentType && contentType.includes('application/json')) {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorMessage;
+            }
+            
+            throw new Error(errorMessage);
+        }
+        
+        // Redirect to confirmation page
+        const redirectUrl = response.url || '/prenav_confirmation?token=' + new URLSearchParams(response.headers.get('Location')).get('token');
+        if (response.redirected) {
+            window.location.href = response.url;
+        } else {
+            // Fallback - check if response has Location header
+            const location = response.headers.get('Location');
+            if (location) {
+                window.location.href = location;
+            } else {
+                // If response is successful but no redirect, assume success and show message
+                errorDiv.style.backgroundColor = '#e8f5e9';
+                errorDiv.style.color = '#2e7d32';
+                errorDiv.textContent = 'Pre-flight plan submitted successfully! Redirecting...';
+                errorDiv.style.display = 'block';
+                setTimeout(() => {
+                    window.location.href = '/team';
+                }, 2000);
+            }
+        }
+    } catch (error) {
+        // Show error message to user
+        errorDiv.textContent = '❌ ' + error.message;
+        errorDiv.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Pre-Flight Plan';
     }
-    
-    // Validate total time
-    const totalTimeStr = document.getElementById('total_time_str').value;
-    if (!totalTimeStr) {
-        alert('Please enter total flight time');
-        return;
-    }
-    
-    // Validate fuel estimate
-    const fuelEstimate = document.getElementById('fuel_estimate').value;
-    if (!fuelEstimate || parseFloat(fuelEstimate) < 0) {
-        alert('Please enter valid fuel estimate');
-        return;
-    }
-    
-    // Store leg times as JSON
-    document.getElementById('leg_times_str').value = JSON.stringify(legTimes);
-    
-    // Submit form
-    this.submit();
 });
 </script>
 

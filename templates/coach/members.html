@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Manage Members - Coach Dashboard{% endblock %}
+{% block title %}Manage Users - Coach Dashboard{% endblock %}
 
 {% block navbar %}
 <div class="navbar">
     <div class="navbar-brand">
         <button class="hamburger" id="hamburgerBtn">☰</button>
-        <h1>Coach Dashboard - Members</h1>
+        <h1>Coach Dashboard - Users</h1>
     </div>
     <div class="navbar-links" id="navbarLinks">
         <a href="/coach">Dashboard</a>
@@ -35,6 +35,10 @@
 .filter-group select {
     flex: 0 0 auto;
     min-width: 200px;
+    max-width: 250px;
+}
+.filter-dropdown {
+    max-width: 250px;
 }
 .user-row.pending {
     background: #fff3e0;
@@ -111,11 +115,87 @@ table {
 th, td {
     padding: 0.6rem;
 }
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.3s;
+}
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.modal-content {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: slideIn 0.3s;
+}
+@keyframes slideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.modal-header h2 {
+    margin: 0;
+}
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+}
+.close-btn:hover {
+    color: #333;
+}
+.modal-footer {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 2rem;
+}
+.modal-footer button {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+}
+.btn-cancel {
+    background: #ccc;
+    color: #333;
+}
+.btn-cancel:hover {
+    background: #bbb;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<h2>Manage Members</h2>
+<h2>Manage Users</h2>
 
 {% if message %}
 <div class="success">{{ message }}</div>
@@ -140,9 +220,9 @@ th, td {
         </div>
         
         <div class="form-group">
-            <label for="password">Password (optional - can set later):</label>
-            <input type="password" id="password" name="password">
-            <small style="color: #666;">Leave blank to let member set on first login</small>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <small style="color: #666;">Must set initial password for the user</small>
         </div>
         
         <button type="submit">Add Member</button>
@@ -232,6 +312,7 @@ th, td {
                 </td>
                 <td>
                     <div class="action-buttons">
+                        <button onclick="openEditModal({{ member.id }}, '{{ member.name }}', '{{ member.email }}')" style="background: #2196f3;">Edit</button>
                         <a href="/coach/members/{{ member.id }}/delete" onclick="return confirm('Delete this user? This cannot be undone.');">Delete</a>
                     </div>
                 </td>
@@ -242,6 +323,40 @@ th, td {
     {% else %}
     <div class="info">No members yet. Add your first member above.</div>
     {% endif %}
+</div>
+
+<!-- Edit User Modal -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Edit User</h2>
+            <button class="close-btn" onclick="closeEditModal()">×</button>
+        </div>
+        <form id="editForm" onsubmit="submitEditForm(event)">
+            <input type="hidden" id="editUserId" name="user_id">
+            
+            <div class="form-group">
+                <label for="editName">Full Name:</label>
+                <input type="text" id="editName" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="editEmail">Email:</label>
+                <input type="email" id="editEmail" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="editPassword">New Password (leave blank to keep current):</label>
+                <input type="password" id="editPassword" name="password">
+                <small style="color: #666;">Only enter if you want to change the password</small>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" style="background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);">Save Changes</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -367,6 +482,61 @@ function deleteUser(userId) {
         });
     }
 }
+
+function openEditModal(userId, name, email) {
+    document.getElementById('editUserId').value = userId;
+    document.getElementById('editName').value = name;
+    document.getElementById('editEmail').value = email;
+    document.getElementById('editPassword').value = '';
+    document.getElementById('editModal').classList.add('show');
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.remove('show');
+}
+
+function submitEditForm(event) {
+    event.preventDefault();
+    const userId = document.getElementById('editUserId').value;
+    const name = document.getElementById('editName').value;
+    const email = document.getElementById('editEmail').value;
+    const password = document.getElementById('editPassword').value;
+    
+    const formData = new FormData();
+    formData.append('user_id', userId);
+    formData.append('name', name);
+    formData.append('email', email);
+    if (password) {
+        formData.append('password', password);
+    }
+    
+    fetch('/coach/members/edit', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeEditModal();
+            showNotification('User updated successfully', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showNotification('Failed to update user: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error updating user', 'error');
+    });
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('editModal');
+    if (event.target === modal) {
+        closeEditModal();
+    }
+});
 </script>
 
 {% endblock %}

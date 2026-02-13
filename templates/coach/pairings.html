@@ -11,7 +11,7 @@
     <div class="navbar-links" id="navbarLinks">
         <a href="/coach">Dashboard</a>
         <a href="/coach/results">Results</a>
-        <a href="/coach/members">Members</a>
+        <a href="/coach/members">Users</a>
         <a href="/coach/pairings">Pairings</a>
         <a href="/logout">Logout</a>
     </div>
@@ -48,7 +48,7 @@
             <select id="pilot_id" name="pilot_id" required>
                 <option value="">-- Select Pilot --</option>
                 {% for member in members %}
-                <option value="{{ member.id }}">{{ member.name }} ({{ member.username }})</option>
+                <option value="{{ member.id }}">{{ member.name }} ({{ member.email }})</option>
                 {% endfor %}
             </select>
         </div>
@@ -58,7 +58,7 @@
             <select id="safety_observer_id" name="safety_observer_id" required>
                 <option value="">-- Select Observer --</option>
                 {% for member in members %}
-                <option value="{{ member.id }}">{{ member.name }} ({{ member.username }})</option>
+                <option value="{{ member.id }}">{{ member.name }} ({{ member.email }})</option>
                 {% endfor %}
             </select>
         </div>

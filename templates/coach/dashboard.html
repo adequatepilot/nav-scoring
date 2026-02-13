@@ -12,7 +12,7 @@
     <div class="navbar-links" id="navbarLinks">
         <a href="/coach">Dashboard</a>
         <a href="/coach/results">Results</a>
-        <a href="/coach/members">Members</a>
+        <a href="/coach/members">Users</a>
         <a href="/coach/pairings">Pairings</a>
         {% if is_admin %}<a href="/coach/config">Config</a>{% endif %}
         <a href="/logout">Logout{% if is_admin %} (Admin){% endif %}</a>
@@ -107,7 +107,7 @@
         <p>Search and filter all flight results</p>
     </div>
     <div class="quick-link" onclick="window.location.href='/coach/members'">
-        <h3>👥 Manage Members</h3>
+        <h3>👥 Manage Users</h3>
         <p>Add, edit, or remove team members</p>
     </div>
     <div class="quick-link" onclick="window.location.href='/coach/pairings'">

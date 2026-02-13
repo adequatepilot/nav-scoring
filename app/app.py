@@ -1201,6 +1201,46 @@ async def update_user_role(
         logger.error(f"Error updating user role: {e}")
         return {"success": False, "message": str(e)}
 
+@app.post("/coach/members/edit")
+async def edit_user(
+    request: Request,
+    user: dict = Depends(require_admin)
+):
+    """Edit user details (name, email, password). Admin only."""
+    try:
+        form_data = await request.form()
+        user_id = form_data.get("user_id")
+        name = form_data.get("name")
+        email = form_data.get("email")
+        password = form_data.get("password")
+        
+        if not user_id or not name or not email:
+            return {"success": False, "message": "Missing required fields"}
+        
+        # Build update dict
+        updates = {
+            "name": name,
+            "email": email,
+            "username": email  # Update username to match email
+        }
+        
+        # Only update password if provided
+        if password:
+            updates["password_hash"] = auth.hash_password(password)
+        
+        # Update user
+        success = db.update_user(int(user_id), **updates)
+        
+        if success:
+            logger.info(f"User {user_id} edited: name={name}, email={email}")
+            return {"success": True, "message": "User updated successfully"}
+        else:
+            return {"success": False, "message": "User not found"}
+    
+    except Exception as e:
+        logger.error(f"Error editing user: {e}")
+        return {"success": False, "message": str(e)}
+
 @app.post("/coach/members/{user_id}/delete")
 async def delete_user_route(
     user_id: int,
@@ -1222,16 +1262,18 @@ async def delete_user_route(
 @app.post("/coach/members")
 async def coach_create_member(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     email: str = Form(...),
     name: str = Form(...),
-    password: Optional[str] = Form(None)
+    password: str = Form(...)
 ):
-    """Create new user (unified users table). New users are created as pending approval."""
+    """Create new user (unified users table). Admin-created users are pre-approved."""
     try:
-        # Create user in unified users table with is_approved=False (pending)
-        # For coach-created accounts, email is already verified
-        password_hash = auth.hash_password(password) if password else ""
+        if not password:
+            return RedirectResponse(url="/coach/members?error=Password is required", status_code=303)
+        
+        # Create user in unified users table - admin-created users are pre-approved
+        password_hash = auth.hash_password(password)
         user_id = db.create_user(
             username=email,  # Email is now the login credential
             password_hash=password_hash,
@@ -1239,11 +1281,11 @@ async def coach_create_member(
             name=name,
             is_coach=False,
             is_admin=False,
-            is_approved=False,  # Pending admin approval
+            is_approved=1,  # Admin-created users are pre-approved
             email_verified=True  # Coach-created accounts have verified email
         )
-        logger.info(f"New user created (pending approval): {email} (ID: {user_id})")
-        return RedirectResponse(url="/coach/members?message=User created (pending approval)", status_code=303)
+        logger.info(f"New user created (pre-approved): {email} (ID: {user_id})")
+        return RedirectResponse(url="/coach/members?message=User created and approved", status_code=303)
     except Exception as e:
         logger.error(f"Error creating user: {e}")
         return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
@@ -1307,20 +1349,21 @@ async def coach_activate_member(member_id: int, user: dict = Depends(require_coa
 @app.get("/coach/pairings", response_class=HTMLResponse)
 async def coach_pairings(request: Request, user: dict = Depends(require_coach)):
     """Pairing management."""
-    members = db.list_active_members()
+    # Get all approved users for dropdown population
+    users = db.list_users(filter_type="all")  # Get all approved/active users
     active_pairings = db.list_pairings(active_only=True)
     inactive_pairings = [p for p in db.list_pairings(active_only=False) if not p["is_active"]]
     
     # Enhance pairings
     for pairing in active_pairings + inactive_pairings:
-        pilot = db.get_member_by_id(pairing["pilot_id"])
-        observer = db.get_member_by_id(pairing["safety_observer_id"])
+        pilot = db.get_user_by_id(pairing["pilot_id"]) if hasattr(db, 'get_user_by_id') else None
+        observer = db.get_user_by_id(pairing["safety_observer_id"]) if hasattr(db, 'get_user_by_id') else None
         pairing["pilot_name"] = pilot["name"] if pilot else "Unknown"
         pairing["observer_name"] = observer["name"] if observer else "Unknown"
     
     return templates.TemplateResponse("coach/pairings.html", {
         "request": request,
-        "members": members,
+        "members": users,
         "active_pairings": active_pairings,
         "inactive_pairings": inactive_pairings
     })

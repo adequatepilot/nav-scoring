@@ -2,6 +2,22 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.5] - 2026-02-13
+
+### Fixed
+- **Issue 23.1:** Post-flight checkpoint processing datetime comparison error
+  - Error: `'>' not supported between instances of 'datetime.datetime' and 'float'`
+  - Root cause: `previous_time` was converted to Unix timestamp (float) but scoring engine compared it with datetime objects
+  - Fix: Keep `previous_time` as datetime object throughout checkpoint processing workflow
+  - Updated app.py (lines 992, 1011, 1027) and scoring_engine.py function signature
+  
+- **Issue 23.2:** Error messages displaying as raw JSON instead of themed pages
+  - Problem: HTTPException returned JSON like `{"detail":"..."}` instead of user-friendly error page
+  - Fix: Added custom exception handler for HTTPException that renders clean HTML error page
+  - Created `templates/error.html` with SIU branding and context-appropriate messages
+  - Handler detects AJAX requests (returns JSON) vs browser requests (returns HTML)
+  - Error pages now show status code, plain language message, and navigation options
+
 ## [0.4.4] - Laundry List Batch 7 - 2026-02-13
 
 ### Fixed

@@ -93,8 +93,8 @@ def seed_database(db_path: str = "data/navs.db"):
         except Exception as e:
             print(f"   ⚠️  Pending user creation failed: {e}\n")
         
-        # ===== CREATE TEST AIRPORT & NAV =====
-        print("🗺️  Creating sample NAV routes...")
+        # ===== CREATE AIRPORT, START GATES & NAV ROUTES =====
+        print("🗺️  Creating KMDH airport and NAV routes...")
         try:
             # Create airport if needed
             cursor = conn.execute('SELECT id FROM airports WHERE code = ?', ('KMDH',))
@@ -107,51 +107,47 @@ def seed_database(db_path: str = "data/navs.db"):
                 airport_id = cursor.lastrowid
                 print(f"   ✅ Created airport KMDH (id={airport_id})")
             
-            # Check if NAVs exist
-            existing_navs = conn.execute('SELECT COUNT(*) FROM navs').fetchone()[0]
+            # Clear and recreate start gates (from nav_route.txt)
+            conn.execute('DELETE FROM start_gates WHERE airport_id = ?', (airport_id,))
+            start_gates = [
+                ('18L/36R and 6/24', 37.7804409, -89.2482244),
+                ('18R/36L and 6/24', 37.7756208, -89.2585710),
+            ]
+            for gate_name, lat, lon in start_gates:
+                conn.execute(
+                    'INSERT INTO start_gates (airport_id, name, lat, lon) VALUES (?, ?, ?, ?)',
+                    (airport_id, gate_name, lat, lon)
+                )
+                print(f"   ✅ Created start gate: {gate_name}")
             
-            if existing_navs > 0:
-                print(f"   ℹ️  Found {existing_navs} existing NAVs (keeping them)")
-            else:
-                # Create sample NAVs
-                sample_navs = [
-                    ('NAV-1', airport_id),
-                    ('NAV-2', airport_id),
-                    ('NAV-3', airport_id),
-                ]
-                
-                for nav_name, airport in sample_navs:
-                    conn.execute(
-                        'INSERT INTO navs (name, airport_id) VALUES (?, ?)',
-                        (nav_name, airport)
-                    )
-                    print(f"   ✅ Created NAV: {nav_name}")
+            # Clear and recreate NAV routes
+            conn.execute('DELETE FROM checkpoints')  # Clear checkpoints first (FK constraint)
+            conn.execute('DELETE FROM secrets')  # Clear secrets (FK constraint)
+            conn.execute('DELETE FROM navs WHERE airport_id = ?', (airport_id,))
             
-            # Ensure all NAVs have checkpoints (add if missing)
-            print("\n   Adding checkpoints to NAVs...")
-            cursor = conn.execute('SELECT id, name FROM navs')
-            navs = cursor.fetchall()
+            # Create MDH 20 NAV route (from nav_route.txt)
+            cursor = conn.execute(
+                'INSERT INTO navs (name, airport_id) VALUES (?, ?)',
+                ('MDH 20', airport_id)
+            )
+            nav_id = cursor.lastrowid
+            print(f"   ✅ Created NAV: MDH 20 (id={nav_id})")
             
-            checkpoints_added = 0
-            for nav_id, nav_name in navs:
-                # Count existing checkpoints
-                cursor = conn.execute('SELECT COUNT(*) FROM checkpoints WHERE nav_id = ?', (nav_id,))
-                cp_count = cursor.fetchone()[0]
-                
-                if cp_count == 0:
-                    # Add 3 sample checkpoints
-                    for seq in range(1, 4):
-                        lat = 37.7749 + (seq * 0.005)
-                        lon = -122.4194 + (seq * 0.005)
-                        conn.execute(
-                            'INSERT INTO checkpoints (nav_id, sequence, name, lat, lon) VALUES (?, ?, ?, ?, ?)',
-                            (nav_id, seq, f'Checkpoint {seq}', lat, lon)
-                        )
-                        checkpoints_added += 1
-                    print(f"   ✅ Added 3 checkpoints to {nav_name}")
-                else:
-                    print(f"   ℹ️  {nav_name} already has {cp_count} checkpoints")
+            # Add checkpoints for MDH 20
+            checkpoints = [
+                (1, 'Baseball Field', 37.4719349, -88.9773922),
+                (2, 'Railroad Crossing', 37.3431168, -88.7181987),
+                (3, 'Covered Boat Parking', 37.3708942, -88.4822528),  # Fixed typo
+                (4, 'Long Rectangle Pond', 37.6803795, -88.642212),
+                (5, 'Truck Stop', 37.6193232, -88.9861208),
+            ]
             
+            for seq, name, lat, lon in checkpoints:
+                conn.execute(
+                    'INSERT INTO checkpoints (nav_id, sequence, name, lat, lon) VALUES (?, ?, ?, ?, ?)',
+                    (nav_id, seq, name, lat, lon)
+                )
+            print(f"   ✅ Added {len(checkpoints)} checkpoints to MDH 20")
             print()
         except Exception as e:
             print(f"   ⚠️  NAV creation failed: {e}\n")

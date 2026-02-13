@@ -50,7 +50,8 @@
     </div>
     
     <div id="leg_times_container" style="display: none;">
-        <h3>Leg Times (MM:SS format)</h3>
+        <h3>Leg Times</h3>
+        <p style="color: #666; font-size: 0.9rem;">Enter hours, minutes, and seconds separately for each leg.</p>
         <div id="leg_times_fields"></div>
     </div>
     
@@ -64,7 +65,8 @@
     <div class="form-group" style="display: none;" id="fuel_group">
         <label for="fuel_estimate">Estimated Fuel Burn (gallons):</label>
         <input type="number" id="fuel_estimate" name="fuel_estimate" 
-               step="0.1" min="0" placeholder="8.5" required>
+               step="0.1" min="0" max="9999.9" placeholder="8.5" required>
+        <small style="color: #666;">Enter to nearest 0.1 gallon (e.g., 8.5)</small>
     </div>
     
     <input type="hidden" id="leg_times_str" name="leg_times_str">
@@ -90,17 +92,28 @@ function updateCheckpointFields() {
     document.getElementById('total_time_group').style.display = 'block';
     document.getElementById('fuel_group').style.display = 'block';
     
-    // Generate leg time input fields
+    // Generate leg time input fields with separate HH/MM/SS
     const container = document.getElementById('leg_times_fields');
     container.innerHTML = '';
     
     for (let i = 0; i < numCheckpoints; i++) {
         const div = document.createElement('div');
         div.className = 'form-group';
+        div.style.display = 'flex';
+        div.style.gap = '1rem';
+        div.style.alignItems = 'center';
         div.innerHTML = `
-            <label for="leg_${i}">Leg ${i + 1} Time (MM:SS):</label>
-            <input type="text" id="leg_${i}" name="leg_${i}" 
-                   placeholder="15:00" pattern="\\d+:\\d{2}" class="time-input" required>
+            <label for="leg_${i}_hh" style="min-width: 80px;">Leg ${i + 1}:</label>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="number" id="leg_${i}_hh" name="leg_${i}_hh" 
+                       min="0" max="23" placeholder="HH" style="width: 60px;" required>
+                <span>:</span>
+                <input type="number" id="leg_${i}_mm" name="leg_${i}_mm" 
+                       min="0" max="59" placeholder="MM" style="width: 60px;" required>
+                <span>:</span>
+                <input type="number" id="leg_${i}_ss" name="leg_${i}_ss" 
+                       min="0" max="59" placeholder="SS" style="width: 60px;" required>
+            </div>
         `;
         container.appendChild(div);
     }
@@ -125,15 +138,29 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
         return;
     }
     
-    // Validate leg times
+    // Validate leg times and convert HH:MM:SS to MM:SS
     const legTimes = [];
     for (let i = 0; i < numCheckpoints; i++) {
-        const value = document.getElementById(`leg_${i}`).value;
-        if (!value) {
-            alert(`Please enter time for Leg ${i + 1}`);
+        const hh = parseInt(document.getElementById(`leg_${i}_hh`).value || 0);
+        const mm = parseInt(document.getElementById(`leg_${i}_mm`).value || 0);
+        const ss = parseInt(document.getElementById(`leg_${i}_ss`).value || 0);
+        
+        if (isNaN(hh) || isNaN(mm) || isNaN(ss)) {
+            alert(`Please enter valid time for Leg ${i + 1}`);
             return;
         }
-        legTimes.push(value);
+        
+        if (mm < 0 || mm > 59 || ss < 0 || ss > 59) {
+            alert(`Invalid minutes or seconds for Leg ${i + 1}`);
+            return;
+        }
+        
+        // Convert to total minutes and seconds (MM:SS format for backend)
+        const totalSeconds = hh * 3600 + mm * 60 + ss;
+        const totalMinutes = Math.floor(totalSeconds / 60);
+        const remainingSeconds = totalSeconds % 60;
+        const mmssValue = `${totalMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        legTimes.push(mmssValue);
     }
     
     // Validate total time

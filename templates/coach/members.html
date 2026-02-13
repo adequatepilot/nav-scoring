@@ -295,7 +295,6 @@ th, td {
                 <th>Email</th>
                 <th>Name</th>
                 <th>Status</th>
-                <th>Approved</th>
                 <th>Coach</th>
                 <th>Admin</th>
                 <th>Actions</th>
@@ -306,19 +305,13 @@ th, td {
             <tr class="user-row {% if not member.is_approved %}pending{% endif %}" data-member-id="{{ member.id }}" data-approved="{{ member.is_approved }}" data-coach="{{ member.is_coach }}" data-admin="{{ member.is_admin }}">
                 <td>{{ member.email }}</td>
                 <td>{{ member.name }}</td>
-                <td>
+                <td id="approval-{{ member.id }}">
                     {% if member.is_approved %}
                         <span class="badge badge-approved">✅ Approved</span>
                     {% else %}
                         <span class="badge badge-pending">⏳ Pending</span>
-                    {% endif %}
-                </td>
-                <td id="approval-{{ member.id }}">
-                    {% if not member.is_approved %}
-                        <button class="btn-approve" onclick="approveUser({{ member.id }})">✓ Approve</button>
-                        <button class="btn-deny" onclick="denyUser({{ member.id }})">✗ Deny</button>
-                    {% else %}
-                        <span class="status-approved">✓ Approved</span>
+                        <button class="btn-approve" onclick="approveUser({{ member.id }})">Approve</button>
+                        <button class="btn-deny" onclick="denyUser({{ member.id }})">Deny</button>
                     {% endif %}
                 </td>
                 <td>
@@ -385,7 +378,7 @@ th, td {
             <div class="form-group">
                 <label for="forceReset">
                     <input type="checkbox" id="forceReset" name="force_reset" value="1">
-                    Force user to reset password on next login (Issue 13)
+                    Force user to reset password on next login
                 </label>
                 <small style="color: #666;">If checked, user must reset password before accessing the system</small>
             </div>
@@ -586,7 +579,7 @@ function approveUser(userId) {
         if (data.success) {
             // Update UI without refresh
             const cell = document.getElementById('approval-' + userId);
-            cell.innerHTML = '<span class="status-approved">✓ Approved</span>';
+            cell.innerHTML = '<span class="badge badge-approved">✅ Approved</span>';
             // Update row styling
             const row = document.querySelector(`tr[data-member-id="${userId}"]`);
             if (row) {

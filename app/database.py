@@ -314,7 +314,7 @@ class Database:
 
     def update_user(self, user_id: int, **kwargs) -> bool:
         """Update user fields. Returns success."""
-        allowed_fields = {"password_hash", "email", "name", "is_coach", "is_admin", "is_approved"}
+        allowed_fields = {"password_hash", "email", "name", "is_coach", "is_admin", "is_approved", "must_reset_password"}
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
         if not updates:
             return False
@@ -409,19 +409,23 @@ class Database:
     # ===== PAIRING MANAGEMENT =====
 
     def create_pairing(self, pilot_id: int, safety_observer_id: int) -> int:
-        """Create a new pairing. Returns pairing ID."""
+        """Create a new pairing. Returns pairing ID. Issue 20: Detailed error messages."""
         if pilot_id == safety_observer_id:
             raise ValueError("Pilot and safety observer must be different members")
         
         # Check if pilot is already in an active pairing (issue 12)
         existing_pilot = self.get_user_active_pairing(pilot_id)
         if existing_pilot:
-            raise ValueError(f"Pilot is already in an active pairing")
+            pilot_user = self.get_user_by_id(pilot_id)
+            pilot_name = pilot_user["name"] if pilot_user else f"User {pilot_id}"
+            raise ValueError(f"Cannot create pairing: {pilot_name} is already in an active pairing")
         
         # Check if observer is already in an active pairing (issue 12)
         existing_observer = self.get_user_active_pairing(safety_observer_id)
         if existing_observer:
-            raise ValueError(f"Observer is already in an active pairing")
+            observer_user = self.get_user_by_id(safety_observer_id)
+            observer_name = observer_user["name"] if observer_user else f"User {safety_observer_id}"
+            raise ValueError(f"Cannot create pairing: {observer_name} is already in an active pairing")
         
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -860,7 +864,15 @@ class Database:
             if not row:
                 return None
             result = dict(row)
-            result["checkpoint_results"] = json.loads(result["checkpoint_results"])
+            # Parse checkpoint_results JSON, with fallback for invalid data
+            try:
+                if result["checkpoint_results"]:
+                    result["checkpoint_results"] = json.loads(result["checkpoint_results"])
+                else:
+                    result["checkpoint_results"] = []
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.error(f"Error parsing checkpoint_results for result {result_id}: {e}")
+                result["checkpoint_results"] = []
             return result
 
     def list_flight_results(
@@ -895,7 +907,14 @@ class Database:
             results = []
             for row in cursor.fetchall():
                 result = dict(row)
-                result["checkpoint_results"] = json.loads(result["checkpoint_results"])
+                try:
+                    if result["checkpoint_results"]:
+                        result["checkpoint_results"] = json.loads(result["checkpoint_results"])
+                    else:
+                        result["checkpoint_results"] = []
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"Error parsing checkpoint_results for result {result['id']}: {e}")
+                    result["checkpoint_results"] = []
                 results.append(result)
             return results
 

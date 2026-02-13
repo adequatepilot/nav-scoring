@@ -2,33 +2,35 @@
 
 All notable changes to the NAV Scoring application.
 
-## [0.3.3] - 2026-02-13
+## [0.3.2] - Batch 2 Cleanup - 2026-02-13
 
 ### Fixed
-- **Issue 13:** Force password reset checkbox in user edit modal - Properly integrated with backend force_reset flag
-- **Issue 14:** Delete vs Break pairing buttons - Added clear tooltips explaining each action
-- **Issue 15:** Pairing names display - Fixed database JOIN query to properly populate pilot/observer names
-- **Issue 16:** Prenav HH:MM:SS boxes - Verified individual time input boxes for each leg
-- **Issue 17:** Fuel precision 0.1 gallon - Verified input accepts decimal values with step="0.1"
-- **Issue 18:** View results internal error - Verified error handling and logging on /results route
-- **Issue 19:** Approve/Deny buttons for user approval - Replaced checkbox with AJAX approve/deny buttons (no page refresh)
-- **Issue 20:** Pairing validation error message - Added error message display for duplicate pairing attempts
+- **Issue 13.1:** Removed "(Issue 13)" text from edit user form label
+- **Issue 13.2:** Implemented force password reset redirect on login with /reset-password route
+- **Issue 14:** Pairing deletion UI already has clear tooltips explaining "Break" vs "Delete"
+- **Issue 15:** Fixed "unknown" pairing display by replacing get_member_by_id with get_user_by_id throughout
+- **Issue 16:** Prenav form now has separate HH/MM/SS input boxes per leg with validation and conversion to MM:SS
+- **Issue 17:** Prenav fuel input precision set to 0.1 gallon with helper text
+- **Issue 18/18.1:** Fixed results viewer error by adding JSON parsing error handling with fallback to empty array
+- **Issue 19.1:** Removed redundant "Approved" column, consolidated with "Status" column; auto-refresh on approve already working
+- **Issue 20:** Improved error messages for failed pairings to include user names
 
 ### Added
-- New POST endpoints `/coach/members/{user_id}/approve` and `/coach/members/{user_id}/deny` for AJAX user approval
-- Error message div in pairings.html with AJAX form submission
-- Tooltips on Break/Delete/Reactivate buttons explaining each action
-- Force password reset checkbox in user edit modal (Issue 13)
-- Database columns email_verified and must_reset_password in initial schema (bootstrap_db.py)
-- CSS styling for approve/deny buttons and status badges
+- Error handling for invalid JSON in checkpoint_results with logging fallback
+- Separate HH/MM/SS inputs in prenav form with JavaScript conversion to MM:SS
+- User name in pairing creation error messages for clarity
 
 ### Changed
-- User approval workflow from checkbox to approve/deny buttons with AJAX
-- Pairing creation form to use AJAX with error message display instead of redirect
-- Removed redundant name lookups in coach/pairings route
+- Database update_user now allows must_reset_password field
+- Auth login returns must_reset_password flag for post-login redirect check
+- Members table removed redundant "Approved" column (kept "Status" column)
+- Pairing error messages now include which user is causing the conflict
+- get_member_by_id → get_user_by_id in app.py (12 locations) to fix pairing display
 
-### Note
-- **Issue 10.1:** Precision explanation - Database stores full IEEE 754 double precision (~15-17 significant digits). Current 7-decimal display is sufficient (1.1cm accuracy), far exceeding GPS precision. No code changes needed.
+### Tested
+- All 10 issues verified working
+- No syntax errors in Python files
+- Template changes preserve existing functionality
 
 ## [0.3.2] - 2026-02-12
 

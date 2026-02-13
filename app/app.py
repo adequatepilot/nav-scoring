@@ -124,6 +124,29 @@ static_path = Path("static")
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
+# Exception handlers
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Custom error page for HTTPException instead of JSON."""
+    # If request expects JSON (AJAX), return JSON
+    if "application/json" in request.headers.get("accept", ""):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail}
+        )
+    
+    # Otherwise render error page
+    return templates.TemplateResponse(
+        "error.html",
+        {
+            "request": request,
+            "status_code": exc.status_code,
+            "message": exc.detail,
+            "user": request.session.get("user")
+        },
+        status_code=exc.status_code
+    )
+
 # Cleanup on startup
 @app.on_event("startup")
 async def startup_event():
@@ -988,7 +1011,7 @@ async def submit_flight(
         # Score checkpoints
         checkpoint_results = []
         previous_point = start_crossing
-        previous_time = start_crossing["time"].timestamp()
+        previous_time = start_crossing["time"]  # Keep as datetime object, not timestamp
         
         for i, checkpoint in enumerate(checkpoints):
             try:
@@ -1005,7 +1028,7 @@ async def submit_flight(
             
             # Calculate leg score
             estimated_time = prenav["leg_times"][i]
-            actual_time = timing_point["time"].timestamp() - previous_time
+            actual_time = (timing_point["time"] - previous_time).total_seconds()
             
             leg_score, off_course_penalty = scoring_engine.calculate_leg_score(
                 actual_time, estimated_time, distance_nm, within_025
@@ -1024,7 +1047,7 @@ async def submit_flight(
             })
             
             previous_point = timing_point
-            previous_time = timing_point["time"].timestamp()
+            previous_time = timing_point["time"]  # Keep as datetime object
         
         # Calculate total scores
         total_time_deviation = sum(abs(cp["deviation"]) for cp in checkpoint_results)

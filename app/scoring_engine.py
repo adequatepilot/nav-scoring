@@ -128,7 +128,7 @@ class NavScoringEngine:
         track_points: List[Dict],
         checkpoint: Dict,
         previous_point: Dict,
-        previous_time: float,
+        previous_time,  # datetime object
     ) -> Tuple[Optional[Dict], float, str, bool]:
         """
         Find how aircraft approached checkpoint.

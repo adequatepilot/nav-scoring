@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Error - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        {% if user %}
+            {% if user.is_admin or user.is_coach %}
+            <a href="/coach">Dashboard</a>
+            {% else %}
+            <a href="/team">Dashboard</a>
+            {% endif %}
+        {% else %}
+            <a href="/login">Login</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 2rem;">
+    <div style="font-size: 4rem; color: #d32f2f; margin-bottom: 1rem;">⚠️</div>
+    
+    <h2 style="color: #d32f2f; margin-bottom: 1rem;">
+        {% if status_code == 400 %}
+        Request Error
+        {% elif status_code == 401 %}
+        Unauthorized
+        {% elif status_code == 403 %}
+        Access Denied
+        {% elif status_code == 404 %}
+        Not Found
+        {% elif status_code == 409 %}
+        Conflict
+        {% elif status_code == 500 %}
+        Server Error
+        {% else %}
+        Error {{ status_code }}
+        {% endif %}
+    </h2>
+    
+    <div class="error" style="max-width: 600px; margin: 0 auto 2rem; text-align: left;">
+        <strong>What happened:</strong><br>
+        {{ message }}
+    </div>
+    
+    {% if status_code == 400 %}
+    <p style="color: #666; margin-bottom: 2rem;">
+        There was a problem with your submission. Please check the error message above and try again.
+    </p>
+    {% elif status_code == 404 %}
+    <p style="color: #666; margin-bottom: 2rem;">
+        The page or resource you're looking for doesn't exist.
+    </p>
+    {% elif status_code == 500 %}
+    <p style="color: #666; margin-bottom: 2rem;">
+        Something went wrong on our end. The error has been logged and we'll look into it.
+    </p>
+    {% endif %}
+    
+    <div style="margin-top: 2rem;">
+        {% if user %}
+            {% if user.is_admin or user.is_coach %}
+            <a href="/coach" class="button">Return to Coach Dashboard</a>
+            {% else %}
+            <a href="/team" class="button">Return to Team Dashboard</a>
+            {% endif %}
+        {% else %}
+            <a href="/login" class="button">Go to Login</a>
+        {% endif %}
+        
+        <button onclick="history.back()" class="button" style="margin-left: 1rem; background: #666;">Go Back</button>
+    </div>
+</div>
+{% endblock %}

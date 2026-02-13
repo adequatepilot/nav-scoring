@@ -2,6 +2,34 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.3] - 2026-02-13
+
+### Fixed
+- **Issue 13:** Force password reset checkbox in user edit modal - Properly integrated with backend force_reset flag
+- **Issue 14:** Delete vs Break pairing buttons - Added clear tooltips explaining each action
+- **Issue 15:** Pairing names display - Fixed database JOIN query to properly populate pilot/observer names
+- **Issue 16:** Prenav HH:MM:SS boxes - Verified individual time input boxes for each leg
+- **Issue 17:** Fuel precision 0.1 gallon - Verified input accepts decimal values with step="0.1"
+- **Issue 18:** View results internal error - Verified error handling and logging on /results route
+- **Issue 19:** Approve/Deny buttons for user approval - Replaced checkbox with AJAX approve/deny buttons (no page refresh)
+- **Issue 20:** Pairing validation error message - Added error message display for duplicate pairing attempts
+
+### Added
+- New POST endpoints `/coach/members/{user_id}/approve` and `/coach/members/{user_id}/deny` for AJAX user approval
+- Error message div in pairings.html with AJAX form submission
+- Tooltips on Break/Delete/Reactivate buttons explaining each action
+- Force password reset checkbox in user edit modal (Issue 13)
+- Database columns email_verified and must_reset_password in initial schema (bootstrap_db.py)
+- CSS styling for approve/deny buttons and status badges
+
+### Changed
+- User approval workflow from checkbox to approve/deny buttons with AJAX
+- Pairing creation form to use AJAX with error message display instead of redirect
+- Removed redundant name lookups in coach/pairings route
+
+### Note
+- **Issue 10.1:** Precision explanation - Database stores full IEEE 754 double precision (~15-17 significant digits). Current 7-decimal display is sufficient (1.1cm accuracy), far exceeding GPS precision. No code changes needed.
+
 ## [0.3.2] - 2026-02-12
 
 ### Fixed

@@ -26,6 +26,50 @@
 .section {
     margin-bottom: 3rem;
 }
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 1rem;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+.tooltip {
+    position: relative;
+    display: inline-block;
+    border-bottom: 1px dotted black;
+}
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 200px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -100px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.8rem;
+}
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+}
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
 </style>
 {% endblock %}
 
@@ -42,7 +86,8 @@
 
 <div class="section">
     <h3>Create New Pairing</h3>
-    <form method="POST" action="/coach/pairings">
+    <div id="error-message" class="error-message" style="display:none;"></div>
+    <form id="pairing-form" onsubmit="createPairing(event)">
         <div class="form-group">
             <label for="pilot_id">Pilot:</label>
             <select id="pilot_id" name="pilot_id" required>
@@ -86,11 +131,18 @@
                 <td>{{ pairing.observer_name }}</td>
                 <td>{{ pairing.created_at[:10] }}</td>
                 <td>
-                    <a href="/coach/pairings/{{ pairing.id }}/break" 
-                       onclick="return confirm('Break this pairing?')">Break</a> |
-                    <a href="/coach/pairings/{{ pairing.id }}/delete" 
-                       onclick="return confirm('Delete this pairing permanently?')"
-                       style="color: #d32f2f;">Delete</a>
+                    <div class="tooltip">
+                        <a href="/coach/pairings/{{ pairing.id }}/break" 
+                           onclick="return confirm('Break this pairing?')">Break</a>
+                        <span class="tooltiptext">Temporarily break the pairing. Can be reactivated later.</span>
+                    </div>
+                    |
+                    <div class="tooltip" style="display: inline-block;">
+                        <a href="/coach/pairings/{{ pairing.id }}/delete" 
+                           onclick="return confirm('Delete this pairing permanently?')"
+                           style="color: #d32f2f;">Delete</a>
+                        <span class="tooltiptext">Permanently delete the pairing. This cannot be undone.</span>
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -120,10 +172,17 @@
                 <td>{{ pairing.observer_name }}</td>
                 <td>{{ pairing.created_at[:10] }}</td>
                 <td>
-                    <a href="/coach/pairings/{{ pairing.id }}/reactivate">Reactivate</a> |
-                    <a href="/coach/pairings/{{ pairing.id }}/delete" 
-                       onclick="return confirm('Delete this pairing permanently?')"
-                       style="color: #d32f2f;">Delete</a>
+                    <div class="tooltip">
+                        <a href="/coach/pairings/{{ pairing.id }}/reactivate">Reactivate</a>
+                        <span class="tooltiptext">Restore this pairing to active status.</span>
+                    </div>
+                    |
+                    <div class="tooltip" style="display: inline-block;">
+                        <a href="/coach/pairings/{{ pairing.id }}/delete" 
+                           onclick="return confirm('Delete this pairing permanently?')"
+                           style="color: #d32f2f;">Delete</a>
+                        <span class="tooltiptext">Permanently delete the pairing. This cannot be undone.</span>
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -131,5 +190,38 @@
     </table>
 </div>
 {% endif %}
+
+<script>
+function createPairing(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    
+    fetch('/coach/pairings', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'x-requested-with': 'XMLHttpRequest',
+            'accept': 'application/json'
+        }
+    })
+    .then(r => {
+        if (!r.ok) {
+            return r.json().then(err => {
+                throw new Error(err.detail || 'Unknown error');
+            });
+        }
+        return r.json();
+    })
+    .then(data => {
+        location.reload();  // Success
+    })
+    .catch(err => {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = err.message;
+        errorDiv.style.display = 'block';
+        setTimeout(() => errorDiv.style.display = 'none', 5000);
+    });
+}
+</script>
 
 {% endblock %}

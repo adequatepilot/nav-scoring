@@ -126,6 +126,8 @@ def create_database():
             is_coach INTEGER DEFAULT 0,
             is_admin INTEGER DEFAULT 0,
             is_approved INTEGER DEFAULT 0,
+            email_verified INTEGER DEFAULT 0,
+            must_reset_password INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_login TIMESTAMP
         )

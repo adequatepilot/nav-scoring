@@ -1451,20 +1451,49 @@ async def coach_activate_member(member_id: int, user: dict = Depends(require_coa
     db.update_member(member_id, is_active=1)
     return RedirectResponse(url="/coach/members", status_code=303)
 
+@app.post("/coach/members/{user_id}/approve")
+async def approve_user_ajax(
+    user_id: int,
+    user: dict = Depends(require_admin)
+):
+    """Approve a user via AJAX. Admin only. Issue 19."""
+    try:
+        success = db.update_user(user_id, **{"is_approved": 1})
+        if success:
+            logger.info(f"User {user_id} approved by admin {user.get('user_id')}")
+            return {"success": True, "message": "User approved"}
+        else:
+            return {"success": False, "message": "User not found"}
+    except Exception as e:
+        logger.error(f"Error approving user: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/coach/members/{user_id}/deny")
+async def deny_user_ajax(
+    user_id: int,
+    user: dict = Depends(require_admin)
+):
+    """Deny a user via AJAX. Admin only. Issue 19."""
+    try:
+        success = db.update_user(user_id, **{"is_approved": 0})
+        if success:
+            logger.info(f"User {user_id} denied by admin {user.get('user_id')}")
+            return {"success": True, "message": "User denied"}
+        else:
+            return {"success": False, "message": "User not found"}
+    except Exception as e:
+        logger.error(f"Error denying user: {e}")
+        return {"success": False, "message": str(e)}
+
 @app.get("/coach/pairings", response_class=HTMLResponse)
 async def coach_pairings(request: Request, user: dict = Depends(require_coach)):
-    """Pairing management."""
+    """Pairing management. Issue 15: Names populated from DB join."""
     # Get all approved users for dropdown population
     users = db.list_users(filter_type="all")  # Get all approved/active users
     active_pairings = db.list_pairings(active_only=True)
     inactive_pairings = [p for p in db.list_pairings(active_only=False) if not p["is_active"]]
     
-    # Enhance pairings
-    for pairing in active_pairings + inactive_pairings:
-        pilot = db.get_user_by_id(pairing["pilot_id"]) if hasattr(db, 'get_user_by_id') else None
-        observer = db.get_user_by_id(pairing["safety_observer_id"]) if hasattr(db, 'get_user_by_id') else None
-        pairing["pilot_name"] = pilot["name"] if pilot else "Unknown"
-        pairing["observer_name"] = observer["name"] if observer else "Unknown"
+    # Names are already populated by list_pairings via JOIN
     
     return templates.TemplateResponse("coach/pairings.html", {
         "request": request,
@@ -1480,13 +1509,22 @@ async def coach_create_pairing(
     pilot_id: int = Form(...),
     safety_observer_id: int = Form(...)
 ):
-    """Create pairing."""
+    """Create pairing. Issue 20: Returns JSON for AJAX, redirect for form submission."""
     try:
         pairing_id = db.create_pairing(pilot_id, safety_observer_id)
-        return RedirectResponse(url="/coach/pairings?message=Pairing created", status_code=303)
+        # Check if it's an AJAX request
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or 'application/json' in request.headers.get('accept', ''):
+            return {"success": True, "pairing_id": pairing_id}
+        else:
+            return RedirectResponse(url="/coach/pairings?message=Pairing created", status_code=303)
     except Exception as e:
         logger.error(f"Error creating pairing: {e}")
-        return RedirectResponse(url=f"/coach/pairings?error={str(e)}", status_code=303)
+        error_msg = str(e)
+        # Check if it's an AJAX request
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or 'application/json' in request.headers.get('accept', ''):
+            return {"success": False, "detail": error_msg}
+        else:
+            return RedirectResponse(url=f"/coach/pairings?error={error_msg}", status_code=303)
 
 @app.get("/coach/pairings/{pairing_id}/break")
 async def coach_break_pairing(pairing_id: int, user: dict = Depends(require_coach)):

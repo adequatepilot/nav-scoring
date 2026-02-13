@@ -191,6 +191,39 @@ th, td {
 .btn-cancel:hover {
     background: #bbb;
 }
+.btn-approve {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin-right: 0.5rem;
+}
+.btn-approve:hover {
+    background: #218838;
+}
+.btn-deny {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+.btn-deny:hover {
+    background: #c82333;
+}
+.status-approved {
+    color: #28a745;
+    font-weight: bold;
+}
+.status-denied {
+    color: #dc3545;
+    font-weight: bold;
+}
 </style>
 {% endblock %}
 
@@ -280,15 +313,13 @@ th, td {
                         <span class="badge badge-pending">⏳ Pending</span>
                     {% endif %}
                 </td>
-                <td>
-                    <div class="checkbox-group">
-                        <input type="checkbox" 
-                               id="approved_{{ member.id }}"
-                               class="checkbox-approved"
-                               {{ 'checked disabled' if member.is_approved else '' }}
-                               onchange="updateUser({{ member.id }}, 'is_approved', this.checked)">
-                        <span class="loading" id="loading_{{ member.id }}">Updating...</span>
-                    </div>
+                <td id="approval-{{ member.id }}">
+                    {% if not member.is_approved %}
+                        <button class="btn-approve" onclick="approveUser({{ member.id }})">✓ Approve</button>
+                        <button class="btn-deny" onclick="denyUser({{ member.id }})">✗ Deny</button>
+                    {% else %}
+                        <span class="status-approved">✓ Approved</span>
+                    {% endif %}
                 </td>
                 <td>
                     <div class="checkbox-group">
@@ -349,6 +380,14 @@ th, td {
                 <label for="editPassword">New Password (leave blank to keep current):</label>
                 <input type="password" id="editPassword" name="password">
                 <small style="color: #666;">Only enter if you want to change the password</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="forceReset">
+                    <input type="checkbox" id="forceReset" name="force_reset" value="1">
+                    Force user to reset password on next login (Issue 13)
+                </label>
+                <small style="color: #666;">If checked, user must reset password before accessing the system</small>
             </div>
             
             <div class="modal-footer">
@@ -501,6 +540,7 @@ function submitEditForm(event) {
     const name = document.getElementById('editName').value;
     const email = document.getElementById('editEmail').value;
     const password = document.getElementById('editPassword').value;
+    const forceReset = document.getElementById('forceReset').checked ? '1' : '0';
     
     const formData = new FormData();
     formData.append('user_id', userId);
@@ -509,6 +549,7 @@ function submitEditForm(event) {
     if (password) {
         formData.append('password', password);
     }
+    formData.append('force_reset', forceReset);
     
     fetch('/coach/members/edit', {
         method: 'POST',
@@ -537,6 +578,53 @@ document.addEventListener('click', function(event) {
         closeEditModal();
     }
 });
+
+function approveUser(userId) {
+    fetch('/coach/members/' + userId + '/approve', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Update UI without refresh
+            const cell = document.getElementById('approval-' + userId);
+            cell.innerHTML = '<span class="status-approved">✓ Approved</span>';
+            // Update row styling
+            const row = document.querySelector(`tr[data-member-id="${userId}"]`);
+            if (row) {
+                row.classList.remove('pending');
+                row.dataset.approved = 1;
+            }
+            showNotification('User approved successfully', 'success');
+        } else {
+            showNotification('Failed to approve user: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        showNotification('Error approving user', 'error');
+    });
+}
+
+function denyUser(userId) {
+    fetch('/coach/members/' + userId + '/deny', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const cell = document.getElementById('approval-' + userId);
+            cell.innerHTML = '<span class="status-denied">✗ Denied</span>';
+            const row = document.querySelector(`tr[data-member-id="${userId}"]`);
+            if (row) {
+                row.dataset.approved = 0;
+            }
+            showNotification('User denied', 'success');
+        } else {
+            showNotification('Failed to deny user: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        showNotification('Error denying user', 'error');
+    });
+}
 </script>
 
 {% endblock %}

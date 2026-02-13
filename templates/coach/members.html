@@ -2,6 +2,22 @@
 
 {% block title %}Manage Users - Coach Dashboard{% endblock %}
 
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Users</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/results">Results</a>
+        <a href="/coach/members">Members</a>
+        <a href="/coach/pairings">Pairings</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
 {% block extra_css %}
 <style>
 .card {
@@ -335,15 +351,6 @@ th, td {
                 <small style="color: #666;">Only enter if you want to change the password</small>
             </div>
             
-            <!-- Issue 13: Force password reset checkbox -->
-            <div class="form-group">
-                <label for="editForceReset" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="editForceReset" name="force_reset" value="1" style="width: auto; margin: 0;">
-                    Force password reset on next login
-                </label>
-                <small style="color: #666;">User must reset their password when they next log in</small>
-            </div>
-            
             <div class="modal-footer">
                 <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
                 <button type="submit" style="background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);">Save Changes</button>
@@ -494,7 +501,6 @@ function submitEditForm(event) {
     const name = document.getElementById('editName').value;
     const email = document.getElementById('editEmail').value;
     const password = document.getElementById('editPassword').value;
-    const forceReset = document.getElementById('editForceReset').checked; // Issue 13
     
     const formData = new FormData();
     formData.append('user_id', userId);
@@ -502,9 +508,6 @@ function submitEditForm(event) {
     formData.append('email', email);
     if (password) {
         formData.append('password', password);
-    }
-    if (forceReset) { // Issue 13
-        formData.append('force_reset', '1');
     }
     
     fetch('/coach/members/edit', {

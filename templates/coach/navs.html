@@ -2,6 +2,23 @@
 
 {% block title %}NAV Management - Coach Dashboard{% endblock %}
 
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - NAV Management</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/results">Results</a>
+        <a href="/coach/members">Members</a>
+        <a href="/coach/pairings">Pairings</a>
+        <a href="/coach/config">Config</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
 {% block extra_css %}
 <style>
 .nav-grid {

@@ -5,30 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}NAV Scoring{% endblock %}</title>
     <link rel="stylesheet" href="/static/styles.css">
-    <!-- ISSUE 11: Standard navbar links for all pages -->
-    {% if user and user.is_coach or is_coach %}
-        {% set nav_title = "Coach Dashboard" %}
-        {% set navbar_links = [
-            ("Dashboard", "/coach"),
-            ("View Results", "/coach/results"),
-            ("Users", "/coach/members"),
-            ("Pairings", "/coach/pairings"),
-            ("NAVs", "/coach/navs")
-        ] %}
-        {% if (user and user.is_admin) or is_admin %}
-            {% set navbar_links = navbar_links + [("Config", "/coach/config")] %}
-        {% endif %}
-        {% set navbar_links = navbar_links + [("Logout", "/logout")] %}
-    {% else %}
-        {% set nav_title = "Team Dashboard" %}
-        {% set navbar_links = [
-            ("Home", "/team"),
-            ("Submit Pre-Flight", "/prenav"),
-            ("Submit Post-Flight", "/flight"),
-            ("View Results", "/results"),
-            ("Logout", "/logout")
-        ] %}
-    {% endif %}
     <style>
         * {
             margin: 0;
@@ -314,20 +290,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    {% block navbar %}
-    <!-- ISSUE 11: Standard navbar for all pages (consistent links) -->
-    <div class="navbar">
-        <div class="navbar-brand">
-            <button class="hamburger" id="hamburgerBtn">☰</button>
-            <h1>NAV Scoring - {{ nav_title }}</h1>
-        </div>
-        <div class="navbar-links" id="navbarLinks">
-            {% for link_text, link_url in navbar_links %}
-                <a href="{{ link_url }}">{{ link_text }}</a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endblock %}
+    {% block navbar %}{% endblock %}
     
     <!-- Navigation Sidebar (Mobile) -->
     <div class="nav-overlay" id="navOverlay"></div>

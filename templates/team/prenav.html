@@ -2,6 +2,22 @@
 
 {% block title %}Pre-Flight Plan - NAV Scoring{% endblock %}
 
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - Pre-Flight Plan</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <span>{{ member_name }}</span>
+        <a href="/team">Dashboard</a>
+        <a href="/flight">Post-Flight</a>
+        <a href="/results">Results</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
 {% block content %}
 <h2>Submit Pre-Flight Plan</h2>
 
@@ -34,40 +50,24 @@
     </div>
     
     <div id="leg_times_container" style="display: none;">
-        <h3>Leg Times (HH:MM:SS format) - Issue 16</h3>
+        <h3>Leg Times (MM:SS format)</h3>
         <div id="leg_times_fields"></div>
     </div>
     
     <div class="form-group" style="display: none;" id="total_time_group">
-        <label for="total_time_hours">Total Flight Time:</label>
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <div style="flex: 1;">
-                <input type="number" id="total_time_hours" name="total_time_hours" 
-                       min="0" max="23" placeholder="HH" class="time-input" required>
-                <small style="color: #666;">Hours</small>
-            </div>
-            <div style="flex: 1;">
-                <input type="number" id="total_time_minutes" name="total_time_minutes" 
-                       min="0" max="59" placeholder="MM" class="time-input" required>
-                <small style="color: #666;">Minutes</small>
-            </div>
-            <div style="flex: 1;">
-                <input type="number" id="total_time_seconds" name="total_time_seconds" 
-                       min="0" max="59" placeholder="SS" class="time-input" required>
-                <small style="color: #666;">Seconds</small>
-            </div>
-        </div>
+        <label for="total_time_str">Total Flight Time (MM:SS):</label>
+        <input type="text" id="total_time_str" name="total_time_str" 
+               placeholder="48:30" pattern="\d+:\d{2}" class="time-input" required>
+        <small style="color: #666;">Example: 48:30 (48 minutes, 30 seconds)</small>
     </div>
     
     <div class="form-group" style="display: none;" id="fuel_group">
-        <label for="fuel_estimate">Estimated Fuel Burn (gallons) - Issue 17:</label>
+        <label for="fuel_estimate">Estimated Fuel Burn (gallons):</label>
         <input type="number" id="fuel_estimate" name="fuel_estimate" 
                step="0.1" min="0" placeholder="8.5" required>
-        <small style="color: #666;">Precision to 0.1 gallon</small>
     </div>
     
     <input type="hidden" id="leg_times_str" name="leg_times_str">
-    <input type="hidden" id="total_time_str" name="total_time_str">
     
     <button type="submit">Submit Pre-Flight Plan</button>
 </form>
@@ -90,7 +90,7 @@ function updateCheckpointFields() {
     document.getElementById('total_time_group').style.display = 'block';
     document.getElementById('fuel_group').style.display = 'block';
     
-    // Generate leg time input fields - Issue 16: HH:MM:SS individual boxes
+    // Generate leg time input fields
     const container = document.getElementById('leg_times_fields');
     container.innerHTML = '';
     
@@ -98,24 +98,9 @@ function updateCheckpointFields() {
         const div = document.createElement('div');
         div.className = 'form-group';
         div.innerHTML = `
-            <label>Leg ${i + 1} Time (HH:MM:SS):</label>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <div style="flex: 1;">
-                    <input type="number" id="leg_${i}_hours" name="leg_${i}_hours" 
-                           min="0" max="23" placeholder="HH" class="time-input" required>
-                    <small style="color: #666;">Hours</small>
-                </div>
-                <div style="flex: 1;">
-                    <input type="number" id="leg_${i}_minutes" name="leg_${i}_minutes" 
-                           min="0" max="59" placeholder="MM" class="time-input" required>
-                    <small style="color: #666;">Minutes</small>
-                </div>
-                <div style="flex: 1;">
-                    <input type="number" id="leg_${i}_seconds" name="leg_${i}_seconds" 
-                           min="0" max="59" placeholder="SS" class="time-input" required>
-                    <small style="color: #666;">Seconds</small>
-                </div>
-            </div>
+            <label for="leg_${i}">Leg ${i + 1} Time (MM:SS):</label>
+            <input type="text" id="leg_${i}" name="leg_${i}" 
+                   placeholder="15:00" pattern="\\d+:\\d{2}" class="time-input" required>
         `;
         container.appendChild(div);
     }
@@ -140,39 +125,21 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
         return;
     }
     
-    // Validate and convert leg times to seconds - Issue 16: HH:MM:SS
+    // Validate leg times
     const legTimes = [];
     for (let i = 0; i < numCheckpoints; i++) {
-        const hours = parseInt(document.getElementById(`leg_${i}_hours`).value || 0);
-        const minutes = parseInt(document.getElementById(`leg_${i}_minutes`).value || 0);
-        const seconds = parseInt(document.getElementById(`leg_${i}_seconds`).value || 0);
-        
-        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59) {
-            alert(`Please enter valid time for Leg ${i + 1} (HH:MM:SS)`);
+        const value = document.getElementById(`leg_${i}`).value;
+        if (!value) {
+            alert(`Please enter time for Leg ${i + 1}`);
             return;
         }
-        
-        const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
-        if (totalSeconds === 0) {
-            alert(`Please enter non-zero time for Leg ${i + 1}`);
-            return;
-        }
-        legTimes.push(totalSeconds);
+        legTimes.push(value);
     }
     
-    // Validate total time - convert HH:MM:SS to seconds
-    const totalHours = parseInt(document.getElementById('total_time_hours').value || 0);
-    const totalMinutes = parseInt(document.getElementById('total_time_minutes').value || 0);
-    const totalSeconds = parseInt(document.getElementById('total_time_seconds').value || 0);
-    
-    if (totalHours < 0 || totalMinutes < 0 || totalSeconds < 0) {
-        alert('Please enter valid total flight time');
-        return;
-    }
-    
-    const totalTimeSeconds = (totalHours * 3600) + (totalMinutes * 60) + totalSeconds;
-    if (totalTimeSeconds === 0) {
-        alert('Please enter non-zero total flight time');
+    // Validate total time
+    const totalTimeStr = document.getElementById('total_time_str').value;
+    if (!totalTimeStr) {
+        alert('Please enter total flight time');
         return;
     }
     
@@ -183,11 +150,8 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
         return;
     }
     
-    // Store leg times as JSON (converted to seconds)
+    // Store leg times as JSON
     document.getElementById('leg_times_str').value = JSON.stringify(legTimes);
-    
-    // Store total time as seconds in a simple format
-    document.getElementById('total_time_str').value = totalTimeSeconds.toString();
     
     // Submit form
     this.submit();

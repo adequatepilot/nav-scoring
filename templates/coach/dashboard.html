@@ -2,6 +2,24 @@
 
 {% block title %}Coach Dashboard - NAV Scoring{% endblock %}
 
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <img src="/static/images/siu_logo_stacked_full_color_black_text.png" alt="SIU Salukis Logo" class="navbar-logo">
+        <h1>Coach Dashboard</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/results">Results</a>
+        <a href="/coach/members">Users</a>
+        <a href="/coach/pairings">Pairings</a>
+        {% if is_admin %}<a href="/coach/config">Config</a>{% endif %}
+        <a href="/logout">Logout{% if is_admin %} (Admin){% endif %}</a>
+    </div>
+</div>
+{% endblock %}
+
 {% block extra_css %}
 <style>
 .card {

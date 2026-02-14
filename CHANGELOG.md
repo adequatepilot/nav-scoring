@@ -2,6 +2,26 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.9] - 2026-02-14
+
+### Fixed
+- **Batch 11 - Admin/Coach Prenav Form Workflow (Items 17 & Issue 2)** - Complete prenav form for admin/coach view
+  - **Item 17 Verification**: Fuel input confirmed to have `step="0.1"` for 0.1 gallon precision
+  - **Admin/Coach Prenav Form**: Previously showed only pairing selector with no way to continue
+  - **Added missing form fields** to coach/admin prenav view:
+    - NAV selector dropdown (with `onchange="updateCheckpointFields()"`)
+    - Leg times container with dynamic HH:MM:SS inputs
+    - Total flight time with HH:MM:SS inputs (displayed only when NAV selected)
+    - Fuel input with `step="0.1"` for 0.1 gallon precision (displayed only when NAV selected)
+    - Submit button for form submission
+  - **UX Improvement**: Coach/admin now see complete form in one view:
+    - Pairing selector at top
+    - NAV selector below pairing
+    - Leg times, total time, fuel (shown dynamically when NAV is selected)
+    - Same form structure and JavaScript behavior as competitor view
+  - **Testing**: Verified fuel input accepts decimal values (8.5, 10.2, etc.)
+  - **Files Modified**: `templates/team/prenav.html` (added form fields to coach/admin section)
+
 ## [0.3.8] - 2026-02-14
 
 ### Added

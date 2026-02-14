@@ -91,7 +91,7 @@ class Auth:
                 self.db.delete_verification_pending(pending["id"])
                 return {"success": False, "message": "Verification link has expired. Please sign up again."}
             
-            # Create user in users table with is_approved=0, email_verified=1
+            # Create user in users table with is_approved=0, email_verified=1, must_reset_password=1
             user_id = self.db.create_user(
                 username=pending["email"],  # Use email as username
                 password_hash=pending["password_hash"],
@@ -100,7 +100,8 @@ class Auth:
                 is_coach=False,
                 is_admin=False,
                 is_approved=False,  # Pending admin approval
-                email_verified=True
+                email_verified=True,
+                must_reset_password=True  # New signups must reset password on first login
             )
             
             # Delete from verification_pending

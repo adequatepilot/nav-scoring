@@ -214,6 +214,13 @@
             </div>
             <div class="profile-name">{{ member_name }}</div>
             <div class="profile-email">{{ user_email }}</div>
+            <div class="profile-status">
+                {% if user.get('is_approved') %}
+                    <span style="color: #4caf50; font-weight: bold;">Account Status: Approved</span>
+                {% else %}
+                    <span style="color: #ff9800; font-weight: bold;">Account Status: Pending Approval</span>
+                {% endif %}
+            </div>
         </div>
 
         <div class="upload-section">

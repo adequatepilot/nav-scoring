@@ -256,7 +256,7 @@ class Database:
 
     def create_user(self, username: str, password_hash: str, email: str, name: str, 
                    is_coach: bool = False, is_admin: bool = False, is_approved: bool = False,
-                   email_verified: bool = False) -> int:
+                   email_verified: bool = False, must_reset_password: bool = False) -> int:
         """Create a new user in the unified users table. Returns user ID.
         username is now the same as email for consistency.
         """
@@ -264,14 +264,14 @@ class Database:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved, email_verified)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (username, password_hash, email, name, is_coach, is_admin, is_approved, email_verified, must_reset_password)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (username, password_hash, email, name, 1 if is_coach else 0, 1 if is_admin else 0, 
-                 1 if is_approved else 0, 1 if email_verified else 0),
+                 1 if is_approved else 0, 1 if email_verified else 0, 1 if must_reset_password else 0),
             )
             user_id = cursor.lastrowid
-            logger.info(f"Created user: {email} (ID: {user_id}, coach={is_coach}, admin={is_admin}, verified={email_verified})")
+            logger.info(f"Created user: {email} (ID: {user_id}, coach={is_coach}, admin={is_admin}, verified={email_verified}, must_reset={must_reset_password})")
             return user_id
 
     def get_user_by_username(self, username: str) -> Optional[Dict]:

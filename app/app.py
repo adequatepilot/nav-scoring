@@ -148,16 +148,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 # Cleanup on startup
-@app.on_event("startup")
-async def startup_event():
-    """Run cleanup tasks on app startup."""
-    logger.info("Running startup tasks...")
-    # Cleanup expired verification tokens
-    try:
-        db.cleanup_expired_verification_pending()
-    except Exception as e:
-        logger.error(f"Error during startup cleanup: {e}")
-
 # ===== DEPENDENCIES =====
 
 def get_session_user(request: Request) -> Optional[dict]:
@@ -2120,6 +2110,14 @@ async def coach_update_email_config(
 async def startup_event():
     """App startup."""
     logger.info("NAV Scoring app starting up")
+    
+    # Cleanup expired verification tokens
+    try:
+        db.cleanup_expired_verification_pending()
+    except Exception as e:
+        logger.warning(f"Could not cleanup verification tokens on startup: {e}")
+    
+    # Cleanup expired prenav submissions
     try:
         deleted = db.delete_expired_prenavs()
         if deleted:
@@ -2130,6 +2128,8 @@ async def startup_event():
     # Ensure storage directories exist
     Path(config["storage"]["gpx_uploads"]).mkdir(parents=True, exist_ok=True)
     Path(config["storage"]["pdf_reports"]).mkdir(parents=True, exist_ok=True)
+    
+    logger.info("Startup complete")
 
 @app.on_event("shutdown")
 async def shutdown_event():

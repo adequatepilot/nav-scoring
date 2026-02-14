@@ -2,6 +2,35 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.8] - 2026-02-14
+
+### Added
+- **Pairing Dropdown Filtering (Issue 24)** - Pairing creation dropdowns now filter out ineligible users
+  - New database method: `get_available_pairing_users()` 
+  - Filters exclude:
+    - Users with `is_coach=1` (coaches don't compete)
+    - Users with `is_admin=1` (admins don't compete)
+    - Users already in active pairings (cannot pair twice)
+    - Unapproved users
+  - Updated `/coach/pairings` route to use filtered user list
+  - Dropdown now shows only eligible users for pilot and observer selection
+  - Prevents duplicate pairings and coaches appearing in competition pairing lists
+
+### Fixed
+- **Post-Flight Error Handling (Issue 23)** - Enhanced error handling in flight submission
+  - Fixed missing context variables in error response template
+  - Added `pairings_for_dropdown` to error response for coaches
+  - Added `is_coach` and `is_admin` flags to error response template context
+  - Ensures error form re-renders with all necessary data for coaches to retry
+  - Explicit `error=None` default in GET `/flight` route
+
+### Notes
+- **Items 16.5 & 16.6** (Total Time HH:MM:SS inputs and default values) already implemented in prenav.html
+  - Total flight time has separate HH/MM/SS inputs with `value="0"`
+  - All time inputs configured with `type="number"`, `min="0"`, `max="59"` (for min/sec)
+  - Leg times follow same pattern
+  - Form submission properly converts HH:MM:SS to total seconds
+
 ## [0.3.5] - 2026-02-14
 
 ### Added

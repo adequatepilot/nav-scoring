@@ -1189,7 +1189,8 @@ async def flight_form(request: Request, user: dict = Depends(require_login)):
         "pairings_for_dropdown": pairings_for_dropdown,
         "is_coach": is_coach,
         "is_admin": is_admin,
-        "member_name": user["name"]
+        "member_name": user["name"],
+        "error": None
     })
 
 @app.post("/flight", response_class=HTMLResponse)
@@ -1454,9 +1455,24 @@ async def submit_flight(
                 if gate not in gates:
                     gates.append(gate)
         
+        # Get pairings for dropdown if coach
+        pairings_for_dropdown = []
+        if is_coach or is_admin:
+            all_pairings = db.list_pairings(active_only=True)
+            for p in all_pairings:
+                pilot = db.get_user_by_id(p["pilot_id"])
+                observer = db.get_user_by_id(p["safety_observer_id"])
+                pairings_for_dropdown.append({
+                    "id": p["id"],
+                    "display_name": f"{pilot['name'] if pilot else 'Unknown'} / {observer['name'] if observer else 'Unknown'}"
+                })
+        
         return templates.TemplateResponse("team/flight.html", {
             "request": request,
             "start_gates": gates,
+            "pairings_for_dropdown": pairings_for_dropdown,
+            "is_coach": is_coach,
+            "is_admin": is_admin,
             "member_name": user["name"],
             "error": error
         })
@@ -1985,9 +2001,9 @@ async def deny_user_ajax(
 
 @app.get("/coach/pairings", response_class=HTMLResponse)
 async def coach_pairings(request: Request, user: dict = Depends(require_coach)):
-    """Pairing management. Issue 15: Names populated from DB join."""
-    # Get all approved users for dropdown population
-    users = db.list_users(filter_type="all")  # Get all approved/active users
+    """Pairing management. Issue 15: Names populated from DB join. Issue 24: Filter dropdowns."""
+    # Get only available users for dropdown population (exclude coaches, admins, and already-paired users)
+    users = db.get_available_pairing_users()
     active_pairings = db.list_pairings(active_only=True)
     inactive_pairings = [p for p in db.list_pairings(active_only=False) if not p["is_active"]]
     

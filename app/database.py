@@ -316,6 +316,24 @@ class Database:
                 cursor.execute("SELECT * FROM users ORDER BY name")
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_available_pairing_users(self) -> List[Dict]:
+        """Get users available for pairing (exclude coaches, admins, and already-paired users)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.* FROM users u
+                WHERE u.is_coach = 0 
+                  AND u.is_admin = 0
+                  AND u.is_approved = 1
+                  AND u.id NOT IN (
+                      SELECT pilot_id FROM pairings WHERE is_active = 1
+                      UNION
+                      SELECT safety_observer_id FROM pairings WHERE is_active = 1
+                  )
+                ORDER BY u.name
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+
     def update_user(self, user_id: int, **kwargs) -> bool:
         """Update user fields. Returns success."""
         allowed_fields = {"password_hash", "email", "name", "is_coach", "is_admin", "is_approved", "profile_picture_path", "must_reset_password"}

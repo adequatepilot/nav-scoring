@@ -66,6 +66,7 @@
 <div class="error">{{ error }}</div>
 {% endif %}
 
+{% if is_admin %}
 <div class="card" style="max-width: 600px;">
     <h3>Create New Airport</h3>
     <form method="POST" action="/coach/navs/airports">
@@ -78,6 +79,12 @@
         <button type="submit">Create Airport</button>
     </form>
 </div>
+{% else %}
+<div class="info" style="margin: 1rem 0; padding: 1rem; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
+    <strong>Read-Only Mode</strong><br>
+    You can view airports but cannot create new ones. Contact an administrator to add airports.
+</div>
+{% endif %}
 
 <div class="airport-list">
     <h3>Existing Airports</h3>
@@ -92,11 +99,13 @@
             </div>
             <div class="actions">
                 <a href="/coach/navs/gates/{{ airport.id }}" class="button" style="font-size: 0.85rem;">Gates</a>
+                {% if is_admin %}
                 <a href="/coach/navs/airports/{{ airport.id }}/delete" 
                    class="button-danger" 
                    onclick="return confirm('Delete airport {{ airport.code }}? This will cascade delete all gates and routes.')">
                     Delete
                 </a>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

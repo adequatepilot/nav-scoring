@@ -70,6 +70,7 @@
 <div class="error">{{ error }}</div>
 {% endif %}
 
+{% if is_admin %}
 <div class="card" style="max-width: 600px;">
     <h3>Create New Start Gate</h3>
     <form method="POST" action="/coach/navs/gates">
@@ -93,6 +94,12 @@
         <button type="submit">Create Gate</button>
     </form>
 </div>
+{% else %}
+<div class="info" style="margin: 1rem 0; padding: 1rem; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
+    <strong>Read-Only Mode</strong><br>
+    You can view gates but cannot create new ones. Contact an administrator to add gates.
+</div>
+{% endif %}
 
 <div class="gate-list">
     <h3>Existing Gates</h3>
@@ -104,11 +111,13 @@
                 📍 {{ "%.5f"|format(gate.lat) }}, {{ "%.5f"|format(gate.lon) }}
             </div>
             <div class="actions">
+                {% if is_admin %}
                 <a href="/coach/navs/gates/{{ gate.id }}/delete?airport_id={{ airport.id }}" 
                    class="button-danger" 
                    onclick="return confirm('Delete gate {{ gate.name }}?')">
                     Delete
                 </a>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

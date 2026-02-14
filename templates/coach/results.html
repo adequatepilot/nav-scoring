@@ -105,10 +105,12 @@
             <td>{{ result.fuel_penalty|round(0) }}</td>
             <td>
                 <a href="/coach/results/{{ result.id }}">View</a> |
-                <a href="/results/{{ result.id }}/pdf">PDF</a> |
+                <a href="/results/{{ result.id }}/pdf">PDF</a>
+                {% if is_admin %} |
                 <a href="/coach/results/{{ result.id }}/delete" 
                    onclick="return confirm('Delete this result?')"
                    style="color: #d32f2f;">Delete</a>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

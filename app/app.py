@@ -1732,7 +1732,7 @@ async def coach_view_result(request: Request, result_id: int, user: dict = Depen
     })
 
 @app.get("/coach/results/{result_id}/delete")
-async def coach_delete_result(result_id: int, user: dict = Depends(require_coach)):
+async def coach_delete_result(result_id: int, user: dict = Depends(require_admin)):
     """Delete a result."""
     result = db.get_flight_result(result_id)
     if result:
@@ -1896,7 +1896,7 @@ async def coach_create_member(
 @app.post("/coach/members/bulk")
 async def coach_bulk_members(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     csv_file: UploadFile = File(...)
 ):
     """Bulk import members from CSV."""
@@ -1938,13 +1938,13 @@ async def coach_bulk_members(
         return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
 
 @app.get("/coach/members/{member_id}/deactivate")
-async def coach_deactivate_member(member_id: int, user: dict = Depends(require_coach)):
+async def coach_deactivate_member(member_id: int, user: dict = Depends(require_admin)):
     """Deactivate member."""
     db.update_member(member_id, is_active=0)
     return RedirectResponse(url="/coach/members", status_code=303)
 
 @app.get("/coach/members/{member_id}/activate")
-async def coach_activate_member(member_id: int, user: dict = Depends(require_coach)):
+async def coach_activate_member(member_id: int, user: dict = Depends(require_admin)):
     """Activate member."""
     db.update_member(member_id, is_active=1)
     return RedirectResponse(url="/coach/members", status_code=303)
@@ -2005,7 +2005,7 @@ async def coach_pairings(request: Request, user: dict = Depends(require_coach)):
 @app.post("/coach/pairings")
 async def coach_create_pairing(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     pilot_id: int = Form(...),
     safety_observer_id: int = Form(...)
 ):
@@ -2027,19 +2027,19 @@ async def coach_create_pairing(
             return RedirectResponse(url=f"/coach/pairings?error={error_msg}", status_code=303)
 
 @app.get("/coach/pairings/{pairing_id}/break")
-async def coach_break_pairing(pairing_id: int, user: dict = Depends(require_coach)):
+async def coach_break_pairing(pairing_id: int, user: dict = Depends(require_admin)):
     """Break pairing."""
     db.break_pairing(pairing_id)
     return RedirectResponse(url="/coach/pairings", status_code=303)
 
 @app.get("/coach/pairings/{pairing_id}/reactivate")
-async def coach_reactivate_pairing(pairing_id: int, user: dict = Depends(require_coach)):
+async def coach_reactivate_pairing(pairing_id: int, user: dict = Depends(require_admin)):
     """Reactivate pairing."""
     db.update_pairing(pairing_id, is_active=1)
     return RedirectResponse(url="/coach/pairings", status_code=303)
 
 @app.get("/coach/pairings/{pairing_id}/delete")
-async def coach_delete_pairing(pairing_id: int, user: dict = Depends(require_coach)):
+async def coach_delete_pairing(pairing_id: int, user: dict = Depends(require_admin)):
     """Delete pairing."""
     db.delete_pairing(pairing_id)
     return RedirectResponse(url="/coach/pairings", status_code=303)
@@ -2077,7 +2077,7 @@ async def coach_manage_airports(request: Request, user: dict = Depends(require_c
 @app.post("/coach/navs/airports")
 async def coach_create_airport(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     code: str = Form(...)
 ):
     """Create airport."""
@@ -2092,7 +2092,7 @@ async def coach_create_airport(
         return RedirectResponse(url=f"/coach/navs/airports?error={str(e)}", status_code=303)
 
 @app.get("/coach/navs/airports/{airport_id}/delete")
-async def coach_delete_airport(airport_id: int, user: dict = Depends(require_coach)):
+async def coach_delete_airport(airport_id: int, user: dict = Depends(require_admin)):
     """Delete airport."""
     try:
         db.delete_airport(airport_id)
@@ -2118,7 +2118,7 @@ async def coach_manage_gates(request: Request, airport_id: int, user: dict = Dep
 @app.post("/coach/navs/gates")
 async def coach_create_gate(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     airport_id: int = Form(...),
     name: str = Form(...),
     lat: float = Form(...),
@@ -2133,7 +2133,7 @@ async def coach_create_gate(
         return RedirectResponse(url=f"/coach/navs/gates/{airport_id}?error={str(e)}", status_code=303)
 
 @app.get("/coach/navs/gates/{gate_id}/delete")
-async def coach_delete_gate(gate_id: int, user: dict = Depends(require_coach)):
+async def coach_delete_gate(gate_id: int, user: dict = Depends(require_admin)):
     """Delete start gate."""
     try:
         gate = db.get_start_gate(gate_id)
@@ -2170,7 +2170,7 @@ async def coach_manage_routes(request: Request, user: dict = Depends(require_coa
 @app.post("/coach/navs/routes")
 async def coach_create_route(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     name: str = Form(...),
     airport_id: int = Form(...)
 ):
@@ -2186,7 +2186,7 @@ async def coach_create_route(
         return RedirectResponse(url=f"/coach/navs/routes?error={str(e)}", status_code=303)
 
 @app.get("/coach/navs/routes/{nav_id}/delete")
-async def coach_delete_route(nav_id: int, user: dict = Depends(require_coach)):
+async def coach_delete_route(nav_id: int, user: dict = Depends(require_admin)):
     """Delete NAV route."""
     try:
         db.delete_nav(nav_id)
@@ -2214,7 +2214,7 @@ async def coach_manage_checkpoints(request: Request, nav_id: int, user: dict = D
 @app.post("/coach/navs/checkpoints")
 async def coach_create_checkpoint(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     nav_id: int = Form(...),
     name: str = Form(...),
     lat: float = Form(...),
@@ -2230,7 +2230,7 @@ async def coach_create_checkpoint(
         return RedirectResponse(url=f"/coach/navs/checkpoints/{nav_id}?error={str(e)}", status_code=303)
 
 @app.get("/coach/navs/checkpoints/{checkpoint_id}/delete")
-async def coach_delete_checkpoint(checkpoint_id: int, user: dict = Depends(require_coach)):
+async def coach_delete_checkpoint(checkpoint_id: int, user: dict = Depends(require_admin)):
     """Delete checkpoint."""
     try:
         checkpoint = db.get_checkpoint(checkpoint_id)
@@ -2263,7 +2263,7 @@ async def coach_manage_secrets(request: Request, nav_id: int, user: dict = Depen
 @app.post("/coach/navs/secrets")
 async def coach_create_secret(
     request: Request,
-    user: dict = Depends(require_coach),
+    user: dict = Depends(require_admin),
     nav_id: int = Form(...),
     name: str = Form(...),
     lat: float = Form(...),
@@ -2281,7 +2281,7 @@ async def coach_create_secret(
         return RedirectResponse(url=f"/coach/navs/secrets/{nav_id}?error={str(e)}", status_code=303)
 
 @app.get("/coach/navs/secrets/{secret_id}/delete")
-async def coach_delete_secret(secret_id: int, user: dict = Depends(require_coach)):
+async def coach_delete_secret(secret_id: int, user: dict = Depends(require_admin)):
     """Delete secret."""
     try:
         secret = db.get_secret(secret_id)

@@ -82,6 +82,7 @@
 <div class="error">{{ error }}</div>
 {% endif %}
 
+{% if is_admin %}
 <div class="card" style="max-width: 600px;">
     <h3>Create New NAV Route</h3>
     <form method="POST" action="/coach/navs/routes">
@@ -103,6 +104,12 @@
         <button type="submit">Create Route</button>
     </form>
 </div>
+{% else %}
+<div class="info" style="margin: 1rem 0; padding: 1rem; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
+    <strong>Read-Only Mode</strong><br>
+    You can view routes but cannot create new ones. Contact an administrator to add routes.
+</div>
+{% endif %}
 
 <div class="route-list">
     <h3>Existing Routes</h3>
@@ -120,11 +127,13 @@
                 <a href="/coach/navs/secrets/{{ nav.id }}" class="button button-secondary">
                     Secrets
                 </a>
+                {% if is_admin %}
                 <a href="/coach/navs/routes/{{ nav.id }}/delete" 
                    class="button-danger" 
                    onclick="return confirm('Delete route {{ nav.name }}? This will cascade delete checkpoints and secrets.')">
                     Delete
                 </a>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

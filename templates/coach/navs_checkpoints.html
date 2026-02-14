@@ -80,6 +80,7 @@
 <div class="error">{{ error }}</div>
 {% endif %}
 
+{% if is_admin %}
 <div class="card" style="max-width: 600px;">
     <h3>Add Checkpoint</h3>
     <form method="POST" action="/coach/navs/checkpoints">
@@ -109,6 +110,12 @@
         <button type="submit">Add Checkpoint</button>
     </form>
 </div>
+{% else %}
+<div class="info" style="margin: 1rem 0; padding: 1rem; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
+    <strong>Read-Only Mode</strong><br>
+    You can view checkpoints but cannot add new ones. Contact an administrator to add checkpoints.
+</div>
+{% endif %}
 
 <div class="checkpoint-list">
     <h3>Checkpoints</h3>
@@ -121,11 +128,13 @@
                 📍 {{ "%.5f"|format(checkpoint.lat) }}, {{ "%.5f"|format(checkpoint.lon) }}
             </div>
             <div class="actions">
+                {% if is_admin %}
                 <a href="/coach/navs/checkpoints/{{ checkpoint.id }}/delete?nav_id={{ nav.id }}" 
                    class="button-danger" 
                    onclick="return confirm('Delete checkpoint {{ checkpoint.name }}?')">
                     Delete
                 </a>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

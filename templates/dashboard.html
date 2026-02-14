@@ -301,7 +301,11 @@
 
 <!-- Admin Quick Links (Coaches & Admins Only) -->
 {% if is_coach or is_admin %}
+{% if is_admin %}
 <h3 style="margin-top: 2rem;">Admin Functions</h3>
+{% else %}
+<h3 style="margin-top: 2rem;">Coach Functions</h3>
+{% endif %}
 <div class="quick-links">
     <a href="/coach/members" class="quick-link">
         <h3>👥 Members</h3>

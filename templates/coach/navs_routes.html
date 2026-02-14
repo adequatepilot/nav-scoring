@@ -128,10 +128,7 @@
                     Secrets
                 </a>
                 {% if is_admin %}
-                <form method="POST" action="/coach/navs/routes/{{ nav.id }}/delete" style="display: inline;" 
-                      onsubmit="return confirm('Delete route {{ nav.name }}? This will cascade delete checkpoints and secrets.');">
-                    <button type="submit" class="button-danger">Delete</button>
-                </form>
+                <a href="/coach/navs/routes/{{ nav.id }}/delete-confirm" class="button-danger">Delete</a>
                 {% endif %}
             </div>
         </div>

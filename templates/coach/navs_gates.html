@@ -112,11 +112,7 @@
             </div>
             <div class="actions">
                 {% if is_admin %}
-                <form method="POST" action="/coach/navs/gates/{{ gate.id }}/delete" style="display: inline;" 
-                      onsubmit="return confirm('Delete gate {{ gate.name }}?');">
-                    <input type="hidden" name="airport_id" value="{{ airport.id }}">
-                    <button type="submit" class="button-danger">Delete</button>
-                </form>
+                <a href="/coach/navs/gates/{{ gate.id }}/delete-confirm" class="button-danger">Delete</a>
                 {% endif %}
             </div>
         </div>

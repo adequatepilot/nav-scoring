@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm Delete - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Confirm Delete</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/coach">Dashboard</a>
+        <a href="/coach/navs">NAV Management</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.delete-confirm-container {
+    max-width: 600px;
+    margin: 2rem auto;
+    text-align: center;
+}
+
+.delete-confirm-title {
+    color: #dc3545;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+}
+
+.delete-confirm-warning {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+}
+
+.delete-confirm-warning p {
+    margin: 0.5rem 0;
+}
+
+.warning-message {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: #333;
+}
+
+.cascade-info {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+.delete-confirm-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-delete {
+    background-color: #dc3545;
+    color: white;
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    min-width: 150px;
+}
+
+.btn-delete:hover {
+    background-color: #c82333;
+}
+
+.btn-cancel {
+    background-color: #6c757d;
+    color: white;
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    min-width: 150px;
+}
+
+.btn-cancel:hover {
+    background-color: #5a6268;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="delete-confirm-container">
+    <h2 class="delete-confirm-title">⚠️ Confirm Delete</h2>
+    
+    <div class="delete-confirm-warning">
+        <p class="warning-message">{{ warning_message }}</p>
+        {% if cascade_info %}
+        <p class="cascade-info">{{ cascade_info }}</p>
+        {% endif %}
+    </div>
+    
+    <div class="delete-confirm-buttons">
+        <form method="POST" action="{{ confirm_url }}" style="display: inline;">
+            <button type="submit" class="btn-delete">
+                Yes, Delete
+            </button>
+        </form>
+        <a href="{{ cancel_url }}" class="btn-cancel">
+            Cancel
+        </a>
+    </div>
+</div>
+{% endblock %}

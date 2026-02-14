@@ -100,10 +100,7 @@
             <div class="actions">
                 <a href="/coach/navs/gates/{{ airport.id }}" class="button" style="font-size: 0.85rem;">Gates</a>
                 {% if is_admin %}
-                <form method="POST" action="/coach/navs/airports/{{ airport.id }}/delete" style="display: inline;" 
-                      onsubmit="return confirm('Delete airport {{ airport.code }}? This will cascade delete all gates and routes.');">
-                    <button type="submit" class="button-danger" style="font-size: 0.85rem;">Delete</button>
-                </form>
+                <a href="/coach/navs/airports/{{ airport.id }}/delete-confirm" class="button-danger" style="font-size: 0.85rem;">Delete</a>
                 {% endif %}
             </div>
         </div>

@@ -2091,6 +2091,21 @@ async def coach_create_airport(
         logger.error(f"Error creating airport: {e}")
         return RedirectResponse(url=f"/coach/navs/airports?error={str(e)}", status_code=303)
 
+@app.get("/coach/navs/airports/{airport_id}/delete-confirm", response_class=HTMLResponse)
+async def confirm_delete_airport(request: Request, airport_id: int, user: dict = Depends(require_admin)):
+    """Show confirmation page for airport deletion."""
+    airport = db.get_airport(airport_id)
+    if not airport:
+        raise HTTPException(status_code=404, detail="Airport not found")
+    
+    return templates.TemplateResponse("coach/delete_confirm.html", {
+        "request": request,
+        "warning_message": f"Are you sure you want to delete airport {airport['code']}?",
+        "cascade_info": "This will permanently delete all associated start gates and NAV routes.",
+        "confirm_url": f"/coach/navs/airports/{airport_id}/delete",
+        "cancel_url": "/coach/navs/airports"
+    })
+
 @app.post("/coach/navs/airports/{airport_id}/delete")
 async def coach_delete_airport(airport_id: int, user: dict = Depends(require_admin)):
     """Delete airport."""
@@ -2131,6 +2146,23 @@ async def coach_create_gate(
     except Exception as e:
         logger.error(f"Error creating gate: {e}")
         return RedirectResponse(url=f"/coach/navs/gates/{airport_id}?error={str(e)}", status_code=303)
+
+@app.get("/coach/navs/gates/{gate_id}/delete-confirm", response_class=HTMLResponse)
+async def confirm_delete_gate(request: Request, gate_id: int, user: dict = Depends(require_admin)):
+    """Show confirmation page for gate deletion."""
+    gate = db.get_start_gate(gate_id)
+    if not gate:
+        raise HTTPException(status_code=404, detail="Gate not found")
+    
+    airport_id = gate["airport_id"]
+    
+    return templates.TemplateResponse("coach/delete_confirm.html", {
+        "request": request,
+        "warning_message": f"Are you sure you want to delete gate {gate['name']}?",
+        "cascade_info": None,
+        "confirm_url": f"/coach/navs/gates/{gate_id}/delete",
+        "cancel_url": f"/coach/navs/gates/{airport_id}"
+    })
 
 @app.post("/coach/navs/gates/{gate_id}/delete")
 async def coach_delete_gate(gate_id: int, user: dict = Depends(require_admin)):
@@ -2185,6 +2217,21 @@ async def coach_create_route(
         logger.error(f"Error creating route: {e}")
         return RedirectResponse(url=f"/coach/navs/routes?error={str(e)}", status_code=303)
 
+@app.get("/coach/navs/routes/{nav_id}/delete-confirm", response_class=HTMLResponse)
+async def confirm_delete_route(request: Request, nav_id: int, user: dict = Depends(require_admin)):
+    """Show confirmation page for NAV route deletion."""
+    nav = db.get_nav(nav_id)
+    if not nav:
+        raise HTTPException(status_code=404, detail="NAV route not found")
+    
+    return templates.TemplateResponse("coach/delete_confirm.html", {
+        "request": request,
+        "warning_message": f"Are you sure you want to delete NAV route '{nav['name']}'?",
+        "cascade_info": "This will permanently delete all checkpoints and secrets for this route.",
+        "confirm_url": f"/coach/navs/routes/{nav_id}/delete",
+        "cancel_url": "/coach/navs/routes"
+    })
+
 @app.post("/coach/navs/routes/{nav_id}/delete")
 async def coach_delete_route(nav_id: int, user: dict = Depends(require_admin)):
     """Delete NAV route."""
@@ -2228,6 +2275,23 @@ async def coach_create_checkpoint(
     except Exception as e:
         logger.error(f"Error creating checkpoint: {e}")
         return RedirectResponse(url=f"/coach/navs/checkpoints/{nav_id}?error={str(e)}", status_code=303)
+
+@app.get("/coach/navs/checkpoints/{checkpoint_id}/delete-confirm", response_class=HTMLResponse)
+async def confirm_delete_checkpoint(request: Request, checkpoint_id: int, user: dict = Depends(require_admin)):
+    """Show confirmation page for checkpoint deletion."""
+    checkpoint = db.get_checkpoint(checkpoint_id)
+    if not checkpoint:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+    
+    nav_id = checkpoint["nav_id"]
+    
+    return templates.TemplateResponse("coach/delete_confirm.html", {
+        "request": request,
+        "warning_message": f"Are you sure you want to delete checkpoint '{checkpoint['name']}'?",
+        "cascade_info": None,
+        "confirm_url": f"/coach/navs/checkpoints/{checkpoint_id}/delete",
+        "cancel_url": f"/coach/navs/checkpoints/{nav_id}"
+    })
 
 @app.post("/coach/navs/checkpoints/{checkpoint_id}/delete")
 async def coach_delete_checkpoint(checkpoint_id: int, user: dict = Depends(require_admin)):
@@ -2279,6 +2343,23 @@ async def coach_create_secret(
     except Exception as e:
         logger.error(f"Error creating secret: {e}")
         return RedirectResponse(url=f"/coach/navs/secrets/{nav_id}?error={str(e)}", status_code=303)
+
+@app.get("/coach/navs/secrets/{secret_id}/delete-confirm", response_class=HTMLResponse)
+async def confirm_delete_secret(request: Request, secret_id: int, user: dict = Depends(require_admin)):
+    """Show confirmation page for secret deletion."""
+    secret = db.get_secret(secret_id)
+    if not secret:
+        raise HTTPException(status_code=404, detail="Secret not found")
+    
+    nav_id = secret["nav_id"]
+    
+    return templates.TemplateResponse("coach/delete_confirm.html", {
+        "request": request,
+        "warning_message": f"Are you sure you want to delete secret '{secret['name']}'?",
+        "cascade_info": None,
+        "confirm_url": f"/coach/navs/secrets/{secret_id}/delete",
+        "cancel_url": f"/coach/navs/secrets/{nav_id}"
+    })
 
 @app.post("/coach/navs/secrets/{secret_id}/delete")
 async def coach_delete_secret(secret_id: int, user: dict = Depends(require_admin)):

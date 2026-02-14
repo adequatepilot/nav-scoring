@@ -129,11 +129,7 @@
             </div>
             <div class="actions">
                 {% if is_admin %}
-                <form method="POST" action="/coach/navs/checkpoints/{{ checkpoint.id }}/delete" style="display: inline;" 
-                      onsubmit="return confirm('Delete checkpoint {{ checkpoint.name }}?');">
-                    <input type="hidden" name="nav_id" value="{{ nav.id }}">
-                    <button type="submit" class="button-danger">Delete</button>
-                </form>
+                <a href="/coach/navs/checkpoints/{{ checkpoint.id }}/delete-confirm" class="button-danger">Delete</a>
                 {% endif %}
             </div>
         </div>

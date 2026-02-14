@@ -5,6 +5,18 @@ All notable changes to the NAV Scoring application.
 ## [0.3.5] - 2026-02-14
 
 ### Added
+- **Mobile-Friendly Confirmation Pages** - Replaced JavaScript `confirm()` dialogs with dedicated confirmation pages for all delete operations
+  - New confirmation page template: `templates/coach/delete_confirm.html`
+  - Added GET routes for confirmation pages (`/delete-confirm`) for:
+    - Airports: `/coach/navs/airports/{airport_id}/delete-confirm`
+    - Gates: `/coach/navs/gates/{gate_id}/delete-confirm`
+    - Routes: `/coach/navs/routes/{nav_id}/delete-confirm`
+    - Checkpoints: `/coach/navs/checkpoints/{checkpoint_id}/delete-confirm`
+    - Secrets: `/coach/navs/secrets/{secret_id}/delete-confirm`
+  - Updated all delete buttons to link to confirmation pages instead of using form + confirm() dialogs
+  - Better UX for mobile devices (iOS Safari, Android browsers) where confirm() dialogs don't work well
+  - Improved accessibility with clear warning messages and cascade information
+
 - **Unified Dashboard Architecture** - Single `/dashboard` route for all users (competitors, coaches, admins)
   - Replaces separate `/team` and `/coach` dashboards
   - Content adapts based on user role (`is_coach`, `is_admin` flags)

@@ -399,11 +399,8 @@ async def root(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     
-    # Route based on role
-    if user.get("is_coach"):
-        return RedirectResponse(url="/coach", status_code=303)
-    else:
-        return RedirectResponse(url="/team", status_code=303)
+    # Redirect all users to unified dashboard
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -554,17 +551,130 @@ async def login(
         logger.info(f"User {user_data['email']} must reset password on login")
         return RedirectResponse(url="/reset-password", status_code=303)
     
-    # Redirect based on role
-    if user_data["is_coach"]:
-        return RedirectResponse(url="/coach", status_code=303)
-    else:
-        return RedirectResponse(url="/team", status_code=303)
+    # Redirect all to unified dashboard
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 @app.get("/logout")
 async def logout(request: Request):
     """Logout user."""
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def unified_dashboard(request: Request, user: dict = Depends(require_login)):
+    """Unified dashboard for all users - content adapts based on role."""
+    is_coach = user.get("is_coach", False)
+    is_admin = user.get("is_admin", False)
+    
+    if is_coach or is_admin:
+        # Coach/Admin dashboard
+        members = db.list_members()
+        pairings = db.list_pairings(active_only=True)
+        results = db.list_flight_results()
+        
+        # Recent results (last 5)
+        recent = results[:5] if results else []
+        
+        # Enhance recent results
+        for result in recent:
+            nav = db.get_nav(result["nav_id"])
+            result["nav_name"] = nav["name"] if nav else "Unknown"
+            
+            pairing = db.get_pairing(result["pairing_id"])
+            if pairing:
+                pilot = db.get_user_by_id(pairing["pilot_id"])
+                observer = db.get_user_by_id(pairing["safety_observer_id"])
+                result["team_name"] = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Unknown"
+        
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "member_name": user["name"],
+            "is_coach": is_coach,
+            "is_admin": is_admin,
+            "stats": {
+                "total_members": len(members),
+                "active_pairings": len(pairings),
+                "recent_results": len(results)
+            },
+            "recent_results": recent,
+            "pairing_info": None
+        })
+    else:
+        # Competitor dashboard
+        # Get pairing info
+        pairing = db.get_active_pairing_for_member(user["user_id"])
+        pairing_data = None
+        
+        if pairing:
+            pilot = db.get_user_by_id(pairing["pilot_id"])
+            observer = db.get_user_by_id(pairing["safety_observer_id"])
+            
+            # Build pilot data with profile picture
+            pilot_picture = None
+            if pilot and pilot.get("profile_picture_path"):
+                pilot_picture = f"/static/{pilot['profile_picture_path']}"
+            
+            # Build observer data with profile picture
+            observer_picture = None
+            if observer and observer.get("profile_picture_path"):
+                observer_picture = f"/static/{observer['profile_picture_path']}"
+            
+            pairing_data = {
+                "id": pairing["id"],
+                "pilot_name": pilot["name"] if pilot else "Unknown",
+                "pilot_initials": get_initials(pilot["name"]) if pilot else "?",
+                "pilot_picture": pilot_picture,
+                "pilot_color": get_avatar_color(pilot["name"]) if pilot else "avatar-color-1",
+                "observer_name": observer["name"] if observer else "Unknown",
+                "observer_initials": get_initials(observer["name"]) if observer else "?",
+                "observer_picture": observer_picture,
+                "observer_color": get_avatar_color(observer["name"]) if observer else "avatar-color-2"
+            }
+        
+        # Get recent results for this user's pairings
+        pairings = db.list_pairings_for_member(user["user_id"], active_only=False)
+        pairing_ids = [p["id"] for p in pairings]
+        
+        recent_results = []
+        for pairing_id in pairing_ids:
+            pairing_results = db.list_flight_results(pairing_id=pairing_id)
+            recent_results.extend(pairing_results)
+        
+        # Sort by date descending and take top 5
+        recent_results.sort(key=lambda r: r["scored_at"], reverse=True)
+        recent_results = recent_results[:5]
+        
+        # Enhance with NAV names
+        for result in recent_results:
+            nav = db.get_nav(result["nav_id"])
+            result["nav_name"] = nav["name"] if nav else "Unknown"
+        
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "member_name": user["name"],
+            "is_coach": is_coach,
+            "is_admin": is_admin,
+            "pairing_info": pairing_data,
+            "recent_results": recent_results,
+            "stats": None
+        })
+
+# Legacy redirects for backward compatibility
+@app.get("/team")
+async def team_redirect(request: Request):
+    """Legacy redirect: /team -> /dashboard"""
+    user = get_session_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    return RedirectResponse(url="/dashboard", status_code=303)
+
+@app.get("/coach")
+async def coach_redirect(request: Request):
+    """Legacy redirect: /coach -> /dashboard"""
+    user = get_session_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 @app.get("/reset-password", response_class=HTMLResponse)
 async def reset_password_page(request: Request):
@@ -875,56 +985,91 @@ async def team_dashboard(request: Request, user: dict = Depends(require_competit
 # ===== MEMBER ROUTES =====
 
 @app.get("/prenav", response_class=HTMLResponse)
-async def prenav_form(request: Request, user: dict = Depends(require_member)):
-    """Display pre-flight form."""
+async def prenav_form(request: Request, user: dict = Depends(require_login)):
+    """Display pre-flight form. Coaches can select pairing, competitors use their own."""
+    is_coach = user.get("is_coach", False)
+    is_admin = user.get("is_admin", False)
+    
     navs = db.list_navs()
-    
-    # Get pairing info
-    pairing = db.get_active_pairing_for_member(user["user_id"])
-    pairing_data = None
-    
-    if pairing:
-        pilot = db.get_user_by_id(pairing["pilot_id"])
-        observer = db.get_user_by_id(pairing["safety_observer_id"])
-        pairing_data = {
-            "id": pairing["id"],
-            "pilot_name": pilot["name"] if pilot else "Unknown",
-            "observer_name": observer["name"] if observer else "Unknown"
-        }
     
     # Add checkpoint counts to navs
     for nav in navs:
         checkpoints = db.get_checkpoints(nav["id"])
         nav["checkpoints"] = checkpoints
     
+    # Handle pairing selection
+    pairing_data = None
+    pairings_for_dropdown = []
+    
+    if is_coach or is_admin:
+        # Coaches can submit for any pairing
+        all_pairings = db.list_pairings(active_only=True)
+        for p in all_pairings:
+            pilot = db.get_user_by_id(p["pilot_id"])
+            observer = db.get_user_by_id(p["safety_observer_id"])
+            pairings_for_dropdown.append({
+                "id": p["id"],
+                "display_name": f"{pilot['name'] if pilot else 'Unknown'} / {observer['name'] if observer else 'Unknown'}"
+            })
+    else:
+        # Competitors use their own pairing
+        pairing = db.get_active_pairing_for_member(user["user_id"])
+        if pairing:
+            pilot = db.get_user_by_id(pairing["pilot_id"])
+            observer = db.get_user_by_id(pairing["safety_observer_id"])
+            pairing_data = {
+                "id": pairing["id"],
+                "pilot_name": pilot["name"] if pilot else "Unknown",
+                "observer_name": observer["name"] if observer else "Unknown"
+            }
+    
     return templates.TemplateResponse("team/prenav.html", {
         "request": request,
         "navs": navs,
         "pairing": pairing_data,
+        "pairings_for_dropdown": pairings_for_dropdown,
+        "is_coach": is_coach,
+        "is_admin": is_admin,
         "member_name": user["name"]
     })
 
 @app.post("/prenav")
 async def submit_prenav(
     request: Request,
-    user: dict = Depends(require_member),
+    user: dict = Depends(require_login),
     nav_id: int = Form(...),
     leg_times_str: str = Form(...),
     total_time_str: str = Form(...),
-    fuel_estimate: float = Form(...)
+    fuel_estimate: float = Form(...),
+    pairing_id: int = Form(None)
 ):
-    """Submit pre-flight plan."""
+    """Submit pre-flight plan. Coaches can specify pairing_id, competitors use their own."""
     try:
+        is_coach = user.get("is_coach", False)
+        is_admin = user.get("is_admin", False)
+        
         logger.info(f"Prenav submission from user {user['user_id']}: nav_id={nav_id}, fuel_estimate={fuel_estimate}")
         
-        # Get pairing
-        pairing = db.get_active_pairing_for_member(user["user_id"])
-        if not pairing:
-            logger.error(f"No active pairing found for user {user['user_id']}")
-            raise HTTPException(status_code=400, detail="No active pairing found")
+        # Get pairing based on role
+        if is_coach or is_admin:
+            # Coaches must specify pairing_id
+            if not pairing_id:
+                logger.error(f"Coach {user['user_id']} did not specify pairing_id")
+                raise HTTPException(status_code=400, detail="Please select a pairing")
+            pairing = db.get_pairing(pairing_id)
+            if not pairing:
+                logger.error(f"Pairing {pairing_id} not found")
+                raise HTTPException(status_code=400, detail="Invalid pairing selected")
+        else:
+            # Competitors use their own pairing
+            pairing = db.get_active_pairing_for_member(user["user_id"])
+            if not pairing:
+                logger.error(f"No active pairing found for competitor {user['user_id']}")
+                raise HTTPException(status_code=400, detail="No active pairing found")
+            pairing_id = pairing["id"]
         
-        # Verify user is pilot
-        if pairing["pilot_id"] != user["user_id"]:
+        # Verify user is pilot (if competitor) or allow coach to submit
+        if not (is_coach or is_admin) and pairing["pilot_id"] != user["user_id"]:
             logger.error(f"User {user['user_id']} is not the pilot (pilot_id={pairing['pilot_id']})")
             raise HTTPException(status_code=403, detail="Only pilot can submit pre-flight plan")
         
@@ -1012,10 +1157,12 @@ async def prenav_confirmation(request: Request, user: dict = Depends(require_mem
     })
 
 @app.get("/flight", response_class=HTMLResponse)
-async def flight_form(request: Request, user: dict = Depends(require_member)):
-    """Display post-flight form."""
-    # Get all start gates (we'll filter by airport later if needed)
-    # For now, get all gates
+async def flight_form(request: Request, user: dict = Depends(require_login)):
+    """Display post-flight form. Coaches can select pairing, competitors use their own."""
+    is_coach = user.get("is_coach", False)
+    is_admin = user.get("is_admin", False)
+    
+    # Get all start gates
     gates = []
     navs = db.list_navs()
     for nav in navs:
@@ -1024,16 +1171,31 @@ async def flight_form(request: Request, user: dict = Depends(require_member)):
             if gate not in gates:
                 gates.append(gate)
     
+    # Get pairings for dropdown if coach
+    pairings_for_dropdown = []
+    if is_coach or is_admin:
+        all_pairings = db.list_pairings(active_only=True)
+        for p in all_pairings:
+            pilot = db.get_user_by_id(p["pilot_id"])
+            observer = db.get_user_by_id(p["safety_observer_id"])
+            pairings_for_dropdown.append({
+                "id": p["id"],
+                "display_name": f"{pilot['name'] if pilot else 'Unknown'} / {observer['name'] if observer else 'Unknown'}"
+            })
+    
     return templates.TemplateResponse("team/flight.html", {
         "request": request,
         "start_gates": gates,
+        "pairings_for_dropdown": pairings_for_dropdown,
+        "is_coach": is_coach,
+        "is_admin": is_admin,
         "member_name": user["name"]
     })
 
 @app.post("/flight", response_class=HTMLResponse)
 async def submit_flight(
     request: Request,
-    user: dict = Depends(require_member),
+    user: dict = Depends(require_login),
     prenav_token: str = Form(...),
     actual_fuel: float = Form(...),
     secrets_checkpoint: int = Form(...),
@@ -1041,7 +1203,10 @@ async def submit_flight(
     start_gate_id: int = Form(...),
     gpx_file: UploadFile = File(...)
 ):
-    """Submit post-flight GPX and process scoring."""
+    """Submit post-flight GPX and process scoring. Competitors must be part of pairing, coaches can submit for any."""
+    is_coach = user.get("is_coach", False)
+    is_admin = user.get("is_admin", False)
+    
     error = None
     try:
         # Validate prenav token
@@ -1055,10 +1220,12 @@ async def submit_flight(
             if not pairing:
                 error = "Pairing not found"
         
-        # Verify user is part of pairing
+        # Verify user is authorized
         if not error:
-            if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
-                error = "Token does not belong to this team"
+            # Coaches/admins can submit for any pairing, competitors must be part of the pairing
+            if not (is_coach or is_admin):
+                if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
+                    error = "Token does not belong to this team"
         
         # Check expiry
         if not error:
@@ -1378,20 +1545,28 @@ async def download_pdf(result_id: int, user: dict = Depends(require_member)):
     return FileResponse(pdf_path, media_type="application/pdf", filename=result["pdf_filename"])
 
 @app.get("/results", response_class=HTMLResponse)
-async def list_results(request: Request, user: dict = Depends(require_member)):
-    """List all results for user's pairings. Issue 18: Better error handling."""
+async def list_results(request: Request, user: dict = Depends(require_login)):
+    """List results - competitors see only their results, coaches/admins see all. Issue 18: Better error handling."""
     try:
+        is_coach = user.get("is_coach", False)
+        is_admin = user.get("is_admin", False)
+        
         logger.info(f"Fetching results for user {user['user_id']}")
         
-        pairings = db.list_pairings_for_member(user["user_id"], active_only=False)
-        pairing_ids = [p["id"] for p in pairings]
+        if is_coach or is_admin:
+            # Coaches/Admins see ALL results
+            results = db.list_flight_results()
+        else:
+            # Competitors see only their own results
+            pairings = db.list_pairings_for_member(user["user_id"], active_only=False)
+            pairing_ids = [p["id"] for p in pairings]
+            
+            results = []
+            for pairing_id in pairing_ids:
+                pairing_results = db.list_flight_results(pairing_id=pairing_id)
+                results.extend(pairing_results)
         
-        results = []
-        for pairing_id in pairing_ids:
-            pairing_results = db.list_flight_results(pairing_id=pairing_id)
-            results.extend(pairing_results)
-        
-        logger.info(f"Found {len(results)} results for user {user['user_id']}")
+        logger.info(f"Found {len(results)} results")
         
         # Sort by date descending
         results.sort(key=lambda r: r["scored_at"], reverse=True)
@@ -1409,7 +1584,10 @@ async def list_results(request: Request, user: dict = Depends(require_member)):
         
         logger.debug(f"Successfully loaded results page for user {user['user_id']}")
         
-        return templates.TemplateResponse("team/results_list.html", {
+        # Use coach template for coaches/admins, team template for competitors
+        template_name = "coach/results.html" if (is_coach or is_admin) else "team/results_list.html"
+        
+        return templates.TemplateResponse(template_name, {
             "request": request,
             "results": results,
             "member_name": user["name"]
@@ -1578,10 +1756,12 @@ async def coach_delete_result(result_id: int, user: dict = Depends(require_coach
 async def coach_members(request: Request, user: dict = Depends(require_coach), filter_type: str = "all"):
     """Member management - now using unified users table."""
     members = db.list_users(filter_type=filter_type)
+    is_admin = user.get("is_admin", False)
     return templates.TemplateResponse("coach/members.html", {
         "request": request,
         "members": members,
-        "current_filter": filter_type
+        "current_filter": filter_type,
+        "is_admin": is_admin
     })
 
 @app.post("/coach/members/update")
@@ -1812,12 +1992,14 @@ async def coach_pairings(request: Request, user: dict = Depends(require_coach)):
     inactive_pairings = [p for p in db.list_pairings(active_only=False) if not p["is_active"]]
     
     # Names are already populated by list_pairings via JOIN
+    is_admin = user.get("is_admin", False)
     
     return templates.TemplateResponse("coach/pairings.html", {
         "request": request,
         "members": users,
         "active_pairings": active_pairings,
-        "inactive_pairings": inactive_pairings
+        "inactive_pairings": inactive_pairings,
+        "is_admin": is_admin
     })
 
 @app.post("/coach/pairings")
@@ -1867,6 +2049,7 @@ async def coach_navs(request: Request, user: dict = Depends(require_coach)):
     """NAV management dashboard."""
     airports = db.list_airports()
     navs = db.list_navs()
+    is_admin = user.get("is_admin", False)
     
     # Enhance with counts
     for airport in airports:
@@ -1876,16 +2059,19 @@ async def coach_navs(request: Request, user: dict = Depends(require_coach)):
     return templates.TemplateResponse("coach/navs.html", {
         "request": request,
         "airports": airports,
-        "navs": navs
+        "navs": navs,
+        "is_admin": is_admin
     })
 
 @app.get("/coach/navs/airports", response_class=HTMLResponse)
 async def coach_manage_airports(request: Request, user: dict = Depends(require_coach)):
     """Manage airports."""
     airports = db.list_airports()
+    is_admin = user.get("is_admin", False)
     return templates.TemplateResponse("coach/navs_airports.html", {
         "request": request,
-        "airports": airports
+        "airports": airports,
+        "is_admin": is_admin
     })
 
 @app.post("/coach/navs/airports")
@@ -1966,6 +2152,7 @@ async def coach_manage_routes(request: Request, user: dict = Depends(require_coa
     """Manage NAV routes."""
     airports = db.list_airports()
     navs = db.list_navs()
+    is_admin = user.get("is_admin", False)
     
     # Enhance navs with airport name and checkpoint count
     for nav in navs:
@@ -1976,7 +2163,8 @@ async def coach_manage_routes(request: Request, user: dict = Depends(require_coa
     return templates.TemplateResponse("coach/navs_routes.html", {
         "request": request,
         "airports": airports,
-        "navs": navs
+        "navs": navs,
+        "is_admin": is_admin
     })
 
 @app.post("/coach/navs/routes")
@@ -2015,10 +2203,12 @@ async def coach_manage_checkpoints(request: Request, nav_id: int, user: dict = D
         raise HTTPException(status_code=404, detail="NAV not found")
     
     checkpoints = db.get_checkpoints(nav_id)
+    is_admin = user.get("is_admin", False)
     return templates.TemplateResponse("coach/navs_checkpoints.html", {
         "request": request,
         "nav": nav,
-        "checkpoints": checkpoints
+        "checkpoints": checkpoints,
+        "is_admin": is_admin
     })
 
 @app.post("/coach/navs/checkpoints")
@@ -2062,10 +2252,12 @@ async def coach_manage_secrets(request: Request, nav_id: int, user: dict = Depen
         raise HTTPException(status_code=404, detail="NAV not found")
     
     secrets = db.get_secrets(nav_id)
+    is_admin = user.get("is_admin", False)
     return templates.TemplateResponse("coach/navs_secrets.html", {
         "request": request,
         "nav": nav,
-        "secrets": secrets
+        "secrets": secrets,
+        "is_admin": is_admin
     })
 
 @app.post("/coach/navs/secrets")

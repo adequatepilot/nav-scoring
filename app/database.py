@@ -137,17 +137,17 @@ class Database:
             return dict(row) if row else None
 
     def list_members(self) -> List[Dict]:
-        """List all members."""
+        """List all members (approved users). Bug fix: query users table instead of members."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM members ORDER BY name")
+            cursor.execute("SELECT * FROM users WHERE is_approved = 1 ORDER BY name")
             return [dict(row) for row in cursor.fetchall()]
 
     def list_active_members(self) -> List[Dict]:
-        """List active members only."""
+        """List active members only (approved users)."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM members WHERE is_active = 1 ORDER BY name")
+            cursor.execute("SELECT * FROM users WHERE is_approved = 1 ORDER BY name")
             return [dict(row) for row in cursor.fetchall()]
 
     def update_member(self, member_id: int, **kwargs) -> bool:

@@ -84,6 +84,7 @@
 <div class="error">{{ error }}</div>
 {% endif %}
 
+{% if is_admin %}
 <div class="section">
     <h3>Create New Pairing</h3>
     <div id="error-message" class="error-message" style="display:none;"></div>
@@ -111,6 +112,7 @@
         <button type="submit">Create Pairing</button>
     </form>
 </div>
+{% endif %}
 
 <div class="section">
     <h3>Active Pairings</h3>
@@ -131,6 +133,7 @@
                 <td>{{ pairing.observer_name }}</td>
                 <td>{{ pairing.created_at[:10] }}</td>
                 <td>
+                    {% if is_admin %}
                     <div class="tooltip">
                         <a href="/coach/pairings/{{ pairing.id }}/break" 
                            onclick="return confirm('Break this pairing?')">Break</a>
@@ -143,6 +146,9 @@
                            style="color: #d32f2f;">Delete</a>
                         <span class="tooltiptext">Permanently delete the pairing. This cannot be undone.</span>
                     </div>
+                    {% else %}
+                    <span style="color: #999; font-size: 0.9rem;">View Only</span>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -172,6 +178,7 @@
                 <td>{{ pairing.observer_name }}</td>
                 <td>{{ pairing.created_at[:10] }}</td>
                 <td>
+                    {% if is_admin %}
                     <div class="tooltip">
                         <a href="/coach/pairings/{{ pairing.id }}/reactivate">Reactivate</a>
                         <span class="tooltiptext">Restore this pairing to active status.</span>
@@ -183,6 +190,9 @@
                            style="color: #d32f2f;">Delete</a>
                         <span class="tooltiptext">Permanently delete the pairing. This cannot be undone.</span>
                     </div>
+                    {% else %}
+                    <span style="color: #999; font-size: 0.9rem;">View Only</span>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

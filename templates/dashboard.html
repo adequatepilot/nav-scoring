@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <img src="/static/images/siu_logo_stacked_full_color_black_text.png" alt="SIU Salukis Logo" class="navbar-logo">
+        <h1>Dashboard</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/prenav">Pre-NAV</a>
+        <a href="/flight">Post-NAV</a>
+        <a href="/results">Results</a>
+        <a href="/profile">Profile</a>
+        {% if is_coach or is_admin %}
+        <div class="dropdown">
+            <a href="#" class="dropdown-toggle">Admin ▼</a>
+            <div class="dropdown-menu">
+                <a href="/coach/members">Members</a>
+                <a href="/coach/pairings">Pairings</a>
+                <a href="/coach/navs">NAVs</a>
+                {% if is_admin %}
+                <a href="/coach/config">System Config</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        <a href="/logout">Logout{% if is_admin %} (Admin){% endif %}</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 900px;
+}
+
+/* Dropdown menu styling */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-toggle {
+    cursor: pointer;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    background-color: white;
+    min-width: 200px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    z-index: 1;
+    top: 100%;
+    left: 0;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+}
+
+.dropdown-menu a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+}
+
+.dropdown-menu a:hover {
+    background-color: #f1f1f1;
+}
+
+.dropdown:hover .dropdown-menu {
+    display: block;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #B0B0B0 0%, #4A4A4A 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 0.5rem 0;
+}
+
+.stat-label {
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+.quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.quick-link {
+    background: #f5f5f5;
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+}
+
+.quick-link:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+}
+
+.quick-link h3 {
+    margin: 0 0 0.5rem 0;
+    color: #333;
+    font-size: 1.3rem;
+}
+
+.quick-link p {
+    color: #666;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Profile pictures styling */
+.pairing-section {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.pairing-info {
+    flex: 1;
+}
+
+.pairing-info strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+    color: #2e7d32;
+}
+
+.pairing-info p {
+    margin: 0.3rem 0;
+    font-size: 0.95rem;
+}
+
+.avatars-container {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.avatar {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 2rem;
+    overflow: hidden;
+    border: 3px solid #ddd;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+}
+
+.avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-initials {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 2rem;
+}
+
+/* Color palette for initials */
+.avatar-color-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.avatar-color-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.avatar-color-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.avatar-color-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+.avatar-color-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+.avatar-color-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Welcome, {{ member_name }}</h2>
+
+{% if is_coach or is_admin %}
+<!-- Coaches/Admins see stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Members</div>
+        <div class="stat-number">{{ stats.total_members }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Active Pairings</div>
+        <div class="stat-number">{{ stats.active_pairings }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Results</div>
+        <div class="stat-number">{{ stats.recent_results }}</div>
+    </div>
+</div>
+{% endif %}
+
+{% if pairing_info and not is_coach and not is_admin %}
+<!-- Competitors see their pairing info -->
+<div class="pairing-section">
+    <div class="pairing-info">
+        <strong>✓ Active Pairing Found</strong>
+        <p><strong>Pilot:</strong> {{ pairing_info.pilot_name }}</p>
+        <p><strong>Observer:</strong> {{ pairing_info.observer_name }}</p>
+    </div>
+    <div class="avatars-container">
+        <!-- Pilot Avatar -->
+        <div>
+            <div class="avatar {{ pairing_info.pilot_color }}">
+                {% if pairing_info.pilot_picture %}
+                    <img src="{{ pairing_info.pilot_picture }}" alt="{{ pairing_info.pilot_name }}">
+                {% else %}
+                    <div class="avatar-initials">{{ pairing_info.pilot_initials }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <!-- Observer Avatar -->
+        <div>
+            <div class="avatar {{ pairing_info.observer_color }}">
+                {% if pairing_info.observer_picture %}
+                    <img src="{{ pairing_info.observer_picture }}" alt="{{ pairing_info.observer_name }}">
+                {% else %}
+                    <div class="avatar-initials">{{ pairing_info.observer_initials }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Quick Actions: Everyone sees these -->
+<h3>Quick Actions</h3>
+<div class="quick-links">
+    <a href="/prenav" class="quick-link">
+        <h3>📝 Submit Pre-Flight Plan</h3>
+        <p>Enter leg times and fuel estimate</p>
+    </a>
+    <a href="/flight" class="quick-link">
+        <h3>✈️ Submit Post-Flight</h3>
+        <p>Upload GPX and report actuals</p>
+    </a>
+    <a href="/results" class="quick-link">
+        <h3>📊 View Results</h3>
+        {% if is_coach or is_admin %}
+            <p>See all team results</p>
+        {% else %}
+            <p>See your scored flights</p>
+        {% endif %}
+    </a>
+</div>
+
+<!-- Admin Quick Links (Coaches & Admins Only) -->
+{% if is_coach or is_admin %}
+<h3 style="margin-top: 2rem;">Admin Functions</h3>
+<div class="quick-links">
+    <a href="/coach/members" class="quick-link">
+        <h3>👥 Members</h3>
+        <p>{% if is_admin %}Manage users{% else %}View users (read-only){% endif %}</p>
+    </a>
+    <a href="/coach/pairings" class="quick-link">
+        <h3>🔗 Pairings</h3>
+        <p>{% if is_admin %}Manage pairings{% else %}View pairings (read-only){% endif %}</p>
+    </a>
+    <a href="/coach/navs" class="quick-link">
+        <h3>🗺️ NAVs</h3>
+        <p>{% if is_admin %}Manage routes{% else %}View routes (read-only){% endif %}</p>
+    </a>
+    {% if is_admin %}
+    <a href="/coach/config" class="quick-link">
+        <h3>⚙️ System Config</h3>
+        <p>Scoring rules & settings</p>
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Recent Results -->
+{% if recent_results %}
+<h3 style="margin-top: 2rem;">Recent Results</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>NAV</th>
+            {% if is_coach or is_admin %}<th>Team</th>{% endif %}
+            <th>Score</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for result in recent_results %}
+        <tr>
+            <td>{{ result.scored_at[:10] }}</td>
+            <td>{{ result.nav_name }}</td>
+            {% if is_coach or is_admin %}<td>{{ result.team_name }}</td>{% endif %}
+            <td><strong>{{ result.overall_score|round(0) }}</strong> pts</td>
+            <td>
+                {% if is_coach or is_admin %}
+                    <a href="/coach/results/{{ result.id }}">View</a>
+                {% else %}
+                    <a href="/results/{{ result.id }}">View</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<!-- Competitor-specific: No active pairing warning -->
+{% if not is_coach and not is_admin and not pairing_info %}
+<div class="error" style="margin-top: 2rem;">
+    <strong>⚠️ No Active Pairing!</strong><br>
+    You are not currently paired with another team member. Contact your coach to set up a pairing.
+</div>
+
+<h3 style="margin-top: 2rem;">Once Paired, You Can:</h3>
+<div class="quick-links">
+    <div class="quick-link disabled">
+        <h3>📝 Submit Pre-Flight Plan</h3>
+        <p>Enter leg times and fuel estimate</p>
+    </div>
+    <div class="quick-link disabled">
+        <h3>✈️ Submit Post-Flight</h3>
+        <p>Upload GPX and report actuals</p>
+    </div>
+    <div class="quick-link disabled">
+        <h3>📊 View Results</h3>
+        <p>See your scored flights</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -10,9 +10,11 @@
     </div>
     <div class="navbar-links" id="navbarLinks">
         <span>{{ member_name }}</span>
-        <a href="/team">Dashboard</a>
-        <a href="/flight">Post-Flight</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/prenav">Pre-NAV</a>
+        <a href="/flight">Post-NAV</a>
         <a href="/results">Results</a>
+        <a href="/profile">Profile</a>
         <a href="/logout">Logout</a>
     </div>
 </div>
@@ -25,6 +27,22 @@
 <div class="error">{{ error }}</div>
 {% endif %}
 
+{% if is_coach or is_admin %}
+<!-- Coach: Show pairing selector -->
+<form method="POST" action="/prenav" id="prenavForm">
+    <div class="form-group">
+        <label for="pairing_id">Select Pairing:</label>
+        <select id="pairing_id" name="pairing_id" required>
+            <option value="">-- Select Team --</option>
+            {% for pairing in pairings_for_dropdown %}
+            <option value="{{ pairing.id }}">{{ pairing.display_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="form-group">
+{% else %}
+<!-- Competitor: Show their pairing or error -->
 {% if not pairing %}
 <div class="error">
     <strong>No Active Pairing!</strong><br>
@@ -39,6 +57,8 @@
 </div>
 
 <form method="POST" action="/prenav" id="prenavForm">
+    <input type="hidden" name="pairing_id" value="{{ pairing.id }}">
+    
     <div class="form-group">
         <label for="nav_id">Select NAV Route:</label>
         <select id="nav_id" name="nav_id" required onchange="updateCheckpointFields()">
@@ -219,5 +239,6 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
 });
 </script>
 
+{% endif %}
 {% endif %}
 {% endblock %}

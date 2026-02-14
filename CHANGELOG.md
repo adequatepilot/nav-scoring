@@ -2,6 +2,69 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.5] - 2026-02-14
+
+### Added
+- **Unified Dashboard Architecture** - Single `/dashboard` route for all users (competitors, coaches, admins)
+  - Replaces separate `/team` and `/coach` dashboards
+  - Content adapts based on user role (`is_coach`, `is_admin` flags)
+  - Competitors see their pairing info, prenav/postnav links, and personal results
+  - Coaches/Admins see stats boxes (total members, active pairings, recent results)
+  - Both groups see unified navigation bar with Admin dropdown for coaches/admins
+
+### Changed
+- **Routing**
+  - `/` redirects to `/dashboard`
+  - `/team` and `/coach` now redirect to `/dashboard` (legacy support)
+  - `/login` redirects to `/dashboard` instead of role-specific URLs
+  - `/results` now supports both competitors and coaches
+    - Competitors see only their own results
+    - Coaches/Admins see all results (uses coach/results.html template)
+  - `/prenav` supports coaches submitting for any pairing (removed `require_member` restriction)
+  - `/flight` supports coaches submitting for any pairing (removed `require_member` restriction)
+
+- **Pre-NAV & Post-NAV Submission**
+  - Competitors: Auto-use their own pairing (no change)
+  - Coaches/Admins: Show dropdown to select which team they're submitting for
+  - Both prenav.html and flight.html updated with pairing selectors
+
+- **Admin Permissions (Read-Only for Coaches)**
+  - Members page: Hidden create/bulk import forms for non-admins, hidden edit/delete/role buttons
+  - Pairings page: Hidden create pairing form for non-admins, hidden break/delete/reactivate buttons
+  - Airports/Routes/Checkpoints/Secrets pages: Hidden CRUD buttons for non-admins
+  - All pages now pass `is_admin` flag to templates
+
+- **Navigation Updates**
+  - Unified navbar for all users: Dashboard | Pre-NAV | Post-NAV | Results | Profile | [Admin] | Logout
+  - Admin dropdown with conditional visibility of System Config link (admins only)
+  - Updated all team/*.html and coach/results templates to use new navbar
+
+- **Bug Fixes**
+  - Fixed `list_members()` database function - now queries `users` table with `WHERE is_approved=1` instead of non-existent `members` table
+  - Fixed `list_active_members()` to query `users` table
+
+### Technical
+- Unified `dashboard.html` template with conditional blocks for role-based display
+- Frontend routes now use `require_login()` instead of `require_member()` where appropriate
+- Coach-specific routes check `is_admin` flag and pass to templates
+- Database queries now filter results by role (competitive/team view vs. coach/admin view)
+- All CRUD operations still protected by `require_admin` decorator at route level
+- Template-level visibility prevents accidental button rendering to non-admins
+
+### UI/UX
+- Single unified design for all users (no more two separate dashboards)
+- Coaches/Admins see admin controls and stats
+- Competitors see their pairing info and personal results
+- Pairing selector dropdown on prenav/postnav forms (coaches only)
+- "View Only" labels instead of hidden buttons for non-admin coaches
+- Consistent color scheme and styling across all pages
+
+### Backward Compatibility
+- Legacy URLs `/team` and `/coach` still work (redirect to `/dashboard`)
+- All existing functionality preserved
+- Competitor workflows unchanged
+- Coach workflows enhanced (can now submit prenav/postnav for any team)
+
 ## [0.3.7] - 2026-02-14
 
 ### Added

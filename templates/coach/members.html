@@ -238,6 +238,7 @@ th, td {
 <div class="error">{{ error }}</div>
 {% endif %}
 
+{% if is_admin %}
 <div class="section">
     <h3>Add New Member</h3>
     <form method="POST" action="/coach/members">
@@ -273,6 +274,7 @@ th, td {
         <button type="submit">Upload CSV</button>
     </form>
 </div>
+{% endif %}
 
 <div class="section">
     <h3>Manage Users</h3>
@@ -306,14 +308,23 @@ th, td {
                 <td>{{ member.email }}</td>
                 <td>{{ member.name }}</td>
                 <td id="approval-{{ member.id }}">
-                    {% if not member.is_approved %}
-                        <button class="btn-approve" onclick="approveUser({{ member.id }})">✓ Approve</button>
-                        <button class="btn-deny" onclick="denyUser({{ member.id }})">✗ Deny</button>
+                    {% if is_admin %}
+                        {% if not member.is_approved %}
+                            <button class="btn-approve" onclick="approveUser({{ member.id }})">✓ Approve</button>
+                            <button class="btn-deny" onclick="denyUser({{ member.id }})">✗ Deny</button>
+                        {% else %}
+                            <span class="status-approved">✓ Approved</span>
+                        {% endif %}
                     {% else %}
-                        <span class="status-approved">✓ Approved</span>
+                        {% if not member.is_approved %}
+                            <span style="color: #ff9800; font-size: 0.9rem;">Pending</span>
+                        {% else %}
+                            <span class="status-approved">✓ Approved</span>
+                        {% endif %}
                     {% endif %}
                 </td>
                 <td>
+                    {% if is_admin %}
                     <div class="checkbox-group">
                         <input type="checkbox" 
                                id="coach_{{ member.id }}"
@@ -322,8 +333,12 @@ th, td {
                                onchange="updateUser({{ member.id }}, 'is_coach', this.checked)">
                         <span class="loading" id="loading_{{ member.id }}">Updating...</span>
                     </div>
+                    {% else %}
+                        <span style="color: #999;">{% if member.is_coach %}Yes{% else %}No{% endif %}</span>
+                    {% endif %}
                 </td>
                 <td>
+                    {% if is_admin %}
                     <div class="checkbox-group">
                         <input type="checkbox" 
                                id="admin_{{ member.id }}"
@@ -332,11 +347,18 @@ th, td {
                                onchange="updateUser({{ member.id }}, 'is_admin', this.checked)">
                         <span class="loading" id="loading_{{ member.id }}">Updating...</span>
                     </div>
+                    {% else %}
+                        <span style="color: #999;">{% if member.is_admin %}Yes{% else %}No{% endif %}</span>
+                    {% endif %}
                 </td>
                 <td>
                     <div class="action-buttons">
+                        {% if is_admin %}
                         <button onclick="openEditModal({{ member.id }}, '{{ member.name }}', '{{ member.email }}')" style="background: #2196f3;">Edit</button>
                         <a href="/coach/members/{{ member.id }}/delete" onclick="return confirm('Delete this user? This cannot be undone.');">Delete</a>
+                        {% else %}
+                        <span style="color: #999; font-size: 0.9rem;">View Only</span>
+                        {% endif %}
                     </div>
                 </td>
             </tr>

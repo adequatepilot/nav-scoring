@@ -2,6 +2,16 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.6] - 2026-02-14
+
+### Fixed
+- **Config Persistence** - Moved `config.yaml` to persistent data directory
+  - Config file now stored in `/app/data/config.yaml` instead of `/app/config/config.yaml`
+  - Persists across container rebuilds via volume mount
+  - `init-db-if-needed.sh` copies template on first-time setup if config doesn't exist
+  - Updated all references in `app.py`, `Dockerfile`, `README.md`, and documentation
+  - **Impact:** SMTP settings and all config changes now survive container rebuilds
+
 ## [0.3.5] - 2026-02-14
 
 ### Added

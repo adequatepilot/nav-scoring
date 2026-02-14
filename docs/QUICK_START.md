@@ -8,7 +8,7 @@ All code is complete and tested. Follow these steps to get the NAV Scoring syste
 
 ## Step 1: Configure Email
 
-Edit `config/config.yaml`:
+Edit `data/config.yaml`:
 
 ```yaml
 email:
@@ -144,11 +144,11 @@ Repeat for other teams.
 - **Database:** `/app/data/navs.db`
 - **GPX Uploads:** `/app/data/gpx_uploads/`
 - **PDF Reports:** `/app/data/pdf_reports/`
-- **Config:** `/app/config/config.yaml`
+- **Config:** `/app/data/config.yaml`
 
 **On Host (Unraid):**
 - **Database:** `/mnt/user/appdata/nav_scoring/data/navs.db`
-- **Config:** `/mnt/user/appdata/nav_scoring/config/config.yaml`
+- **Config:** `/mnt/user/appdata/nav_scoring/data/config.yaml`
 
 ---
 

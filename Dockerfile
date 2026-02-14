@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create data directories
-RUN mkdir -p data/gpx_uploads data/pdf_reports config
+RUN mkdir -p data/gpx_uploads data/pdf_reports
 
 # Expose port
 EXPOSE 8000

@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.INFO)
 
 # ===== CONFIG LOADING =====
 
-def load_config(config_path: str = "config/config.yaml") -> dict:
+def load_config(config_path: str = "data/config.yaml") -> dict:
     """Load config from YAML file."""
     try:
         with open(config_path, "r") as f:
@@ -2033,7 +2033,7 @@ async def coach_update_config(
         config["scoring"]["secrets"]["max_distance_miles"] = secrets_max_distance
         
         # Save to file
-        config_path = Path("config/config.yaml")
+        config_path = Path("data/config.yaml")
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(yaml.dump(config, default_flow_style=False))
         
@@ -2071,7 +2071,7 @@ async def coach_update_email_config(
             config["email"]["sender_password"] = smtp_password
         
         # Save to file
-        config_path = Path("config/config.yaml")
+        config_path = Path("data/config.yaml")
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(yaml.dump(config, default_flow_style=False))
         
@@ -2114,7 +2114,7 @@ async def coach_update_backup_config(
         config["backup"]["backup_path"] = backup_path
         
         # Save to file
-        config_path = Path("config/config.yaml")
+        config_path = Path("data/config.yaml")
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(yaml.dump(config, default_flow_style=False))
         

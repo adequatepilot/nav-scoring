@@ -25,10 +25,10 @@ A complete NIFA NAV scoring application for piloting competitions. Handles pre-f
 cd nav_scoring
 
 # Copy config template
-cp config.yaml.template config/config.yaml
+cp config.yaml.template data/config.yaml
 
 # Edit config with your email settings (optional for initial testing)
-nano config/config.yaml
+nano data/config.yaml
 
 # Start the application
 docker-compose up -d
@@ -114,7 +114,7 @@ nav-scoring/
 
 ## Environment Variables
 
-Key configuration in `config/config.yaml`:
+Key configuration in `data/config.yaml`:
 
 ```yaml
 app:
@@ -138,7 +138,7 @@ docker-compose restart
 ```
 
 **Email not sending**
-- Verify SMTP credentials in config.yaml
+- Verify SMTP credentials in data/config.yaml
 - Check container logs: `docker logs nav-scoring`
 - Use Zoho app-specific password (not main password)
 
@@ -156,7 +156,7 @@ Proprietary - Southern Illinois University Aviation
 For issues and questions:
 1. Check relevant documentation in `docs/`
 2. Review application logs: `docker logs nav-scoring`
-3. Verify configuration in `config/config.yaml`
+3. Verify configuration in `data/config.yaml`
 
 ---
 

@@ -58,3 +58,11 @@ database:
 storage:
   gpx_uploads: "/app/data/gpx_uploads"
   pdf_reports: "/app/data/pdf_reports"
+
+# Automated Backup Configuration
+backup:
+  enabled: true                           # Enable/disable automated backups
+  frequency_hours: 24                     # How often to run backups (in hours)
+  retention_days: 7                       # How long to keep backups (in days)
+  backup_path: "/app/data/backups"        # Where to save backups
+  max_backups: 10                         # Maximum number of backups to keep

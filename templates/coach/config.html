@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Scoring Config - Coach Dashboard{% endblock %}
+{% block title %}System Config - Coach Dashboard{% endblock %}
 
 {% block navbar %}
 <div class="navbar">
     <div class="navbar-brand">
         <button class="hamburger" id="hamburgerBtn">☰</button>
-        <h1>Coach Dashboard - Config <span style="background: #0066cc; color: white; padding: 0.25rem 0.5rem; border-radius: 5px; font-size: 0.8rem;">ADMIN</span></h1>
+        <h1>Coach Dashboard - System Config <span style="background: #0066cc; color: white; padding: 0.25rem 0.5rem; border-radius: 5px; font-size: 0.8rem;">ADMIN</span></h1>
     </div>
     <div class="navbar-links" id="navbarLinks">
         <a href="/coach">Dashboard</a>
@@ -65,7 +65,7 @@
 {% endblock %}
 
 {% block content %}
-<h2>Scoring Configuration</h2>
+<h2>System Configuration</h2>
 
 {% if message %}
 <div class="success">{{ message }}</div>
@@ -245,6 +245,95 @@
     </div>
 </form>
 
+<!-- Backup Configuration Form -->
+<form method="POST" action="/coach/config/backup">
+    <div class="config-section">
+        <h3>💾 Automated Backup Configuration</h3>
+        <p style="color: #666; margin-bottom: 1rem;">Configure automatic database backups and retention policies</p>
+        
+        <div class="config-group full">
+            <div class="form-group">
+                <label for="backup_enabled" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="backup_enabled" name="backup_enabled" 
+                           {% if backup_config.enabled %}checked{% endif %}>
+                    <span>Enable Automated Backups</span>
+                </label>
+                <small style="color: #666; margin-left: 1.5rem;">Enable or disable automatic database backups</small>
+            </div>
+        </div>
+        
+        <div class="config-group">
+            <div class="form-group">
+                <label for="backup_frequency_hours">Backup Frequency (hours):</label>
+                <input type="number" id="backup_frequency_hours" name="backup_frequency_hours" 
+                       value="{{ backup_config.frequency_hours }}" min="1" max="720" required>
+                <small style="color: #666;">How often to run backups (1-720 hours)</small>
+            </div>
+            <div class="form-group">
+                <label for="backup_retention_days">Retention Period (days):</label>
+                <input type="number" id="backup_retention_days" name="backup_retention_days" 
+                       value="{{ backup_config.retention_days }}" min="1" max="365" required>
+                <small style="color: #666;">Keep backups for this many days</small>
+            </div>
+        </div>
+        
+        <div class="config-group">
+            <div class="form-group">
+                <label for="backup_max_backups">Max Backups to Keep:</label>
+                <input type="number" id="backup_max_backups" name="backup_max_backups" 
+                       value="{{ backup_config.max_backups }}" min="1" max="1000" required>
+                <small style="color: #666;">Keep only the most recent backups</small>
+            </div>
+            <div class="form-group">
+                <label for="backup_path">Backup Directory Path:</label>
+                <input type="text" id="backup_path" name="backup_path" 
+                       value="{{ backup_config.backup_path }}" required>
+                <small style="color: #666;">Where to store backup files</small>
+            </div>
+        </div>
+        
+        <!-- Backup Status Section -->
+        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #ddd;">
+            <h4 style="color: #333; margin-top: 0;">Backup Status</h4>
+            <div class="config-group full">
+                <div style="padding: 1rem; background: white; border: 1px solid #ddd; border-radius: 5px;">
+                    <p style="margin: 0.5rem 0;">
+                        <strong>Last Backup:</strong> 
+                        <span id="lastBackupTime">{% if backup_status.last_backup %}{{ backup_status.last_backup }}{% else %}Never{% endif %}</span>
+                    </p>
+                    <p style="margin: 0.5rem 0;">
+                        <strong>Next Scheduled:</strong> 
+                        <span id="nextBackupTime">{% if backup_status.next_scheduled %}{{ backup_status.next_scheduled }}{% else %}Not scheduled{% endif %}</span>
+                    </p>
+                    <p style="margin: 0.5rem 0;">
+                        <strong>Total Backups:</strong> 
+                        <span id="totalBackups">{{ backup_status.total_backups }}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Manual Backup Section -->
+        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #ddd;">
+            <h4 style="color: #333; margin-top: 0;">Manual Backup</h4>
+            <p style="color: #666; margin-bottom: 1rem;">Trigger an immediate backup of the database</p>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button type="button" id="runBackupBtn" class="btn-backup" style="background-color: #28a745;">
+                    🔄 Run Backup Now
+                </button>
+                <span id="backupLoading" style="display: none; color: #666;">Backing up...</span>
+            </div>
+            <div id="backupResult" style="margin-top: 1rem; display: none; padding: 1rem; border-radius: 5px;">
+                <span id="backupMessage"></span>
+            </div>
+        </div>
+        
+        <div class="button-group" style="margin-top: 2rem;">
+            <button type="submit">Save Backup Configuration</button>
+        </div>
+    </div>
+</form>
+
 <style>
 .btn-secondary {
     background-color: #666;
@@ -268,6 +357,38 @@
 }
 
 .test-result-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.btn-backup {
+    background-color: #28a745;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+.btn-backup:hover {
+    background-color: #218838;
+}
+
+.btn-backup:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.backup-result-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.backup-result-error {
     background-color: #f8d7da;
     color: #721c24;
     border: 1px solid #f5c6cb;
@@ -311,6 +432,57 @@ document.getElementById('testSmtpBtn').addEventListener('click', async function(
     } catch (error) {
         result.style.display = 'block';
         result.className = 'test-result-error';
+        message.innerHTML = '❌ Error: ' + error.message;
+    } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+    }
+});
+
+// Manual Backup Button
+document.getElementById('runBackupBtn').addEventListener('click', async function(e) {
+    e.preventDefault();
+    
+    const btn = document.getElementById('runBackupBtn');
+    const loading = document.getElementById('backupLoading');
+    const result = document.getElementById('backupResult');
+    const message = document.getElementById('backupMessage');
+    
+    // Show loading state
+    btn.disabled = true;
+    loading.style.display = 'inline';
+    result.style.display = 'none';
+    
+    try {
+        const response = await fetch('/coach/backup/run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        const data = await response.json();
+        
+        // Display result
+        result.style.display = 'block';
+        if (data.success) {
+            result.className = 'backup-result-success';
+            message.innerHTML = '✅ ' + data.message + (data.backup_file ? '<br>File: ' + data.backup_file : '');
+            // Update status
+            if (data.last_backup) {
+                document.getElementById('lastBackupTime').textContent = data.last_backup;
+            }
+            if (data.total_backups) {
+                document.getElementById('totalBackups').textContent = data.total_backups;
+            }
+        } else {
+            result.className = 'backup-result-error';
+            message.innerHTML = '❌ ' + data.message;
+        }
+    } catch (error) {
+        result.style.display = 'block';
+        result.className = 'backup-result-error';
         message.innerHTML = '❌ Error: ' + error.message;
     } finally {
         btn.disabled = false;

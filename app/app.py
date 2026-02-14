@@ -9,6 +9,7 @@ import yaml
 import gpxpy
 import csv
 import io
+import asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
@@ -30,6 +31,7 @@ from app.database import Database
 from app.auth import Auth
 from app.scoring_engine import NavScoringEngine
 from app.email import EmailService
+from app.backup_scheduler import BackupScheduler
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -84,6 +86,13 @@ def load_config(config_path: str = "config/config.yaml") -> dict:
                 "sender_name": "NAV Scoring",
                 "sender_password": "",
                 "recipients_coach": "coach@example.com"
+            },
+            "backup": {
+                "enabled": True,
+                "frequency_hours": 24,
+                "retention_days": 7,
+                "backup_path": "data/backups",
+                "max_backups": 10
             }
         }
 
@@ -94,6 +103,11 @@ db = Database(config["database"]["path"])
 auth = Auth(db)
 scoring_engine = NavScoringEngine(config)
 email_service = EmailService(config["email"])
+backup_scheduler = BackupScheduler(
+    config.get("backup", {}),
+    config["database"]["path"]
+)
+backup_task = None  # Will be set during startup
 
 app = FastAPI(
     title=config["app"]["title"],
@@ -127,13 +141,42 @@ if static_path.exists():
 # Cleanup on startup
 @app.on_event("startup")
 async def startup_event():
-    """Run cleanup tasks on app startup."""
+    """Run cleanup and initialization tasks on app startup."""
+    global backup_task
     logger.info("Running startup tasks...")
+    
     # Cleanup expired verification tokens
     try:
         db.cleanup_expired_verification_pending()
     except Exception as e:
         logger.error(f"Error during startup cleanup: {e}")
+    
+    # Try to cleanup expired prenavs
+    try:
+        deleted = db.delete_expired_prenavs()
+        if deleted:
+            logger.info(f"Deleted {deleted} expired pre-NAV submissions")
+    except Exception as e:
+        logger.warning(f"Could not delete expired prenavs on startup (likely first run): {e}")
+    
+    # Ensure storage directories exist
+    try:
+        Path(config["storage"]["gpx_uploads"]).mkdir(parents=True, exist_ok=True)
+        Path(config["storage"]["pdf_reports"]).mkdir(parents=True, exist_ok=True)
+        Path(config.get("backup", {}).get("backup_path", "data/backups")).mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating storage directories: {e}")
+    
+    # Initialize backup scheduler
+    try:
+        if backup_scheduler.enabled:
+            # Run initial backup
+            backup_scheduler.run_backup()
+            # Start background backup task
+            backup_task = asyncio.create_task(backup_scheduler.start_background_task())
+            logger.info("Backup scheduler started")
+    except Exception as e:
+        logger.error(f"Error initializing backup scheduler: {e}")
 
 # ===== DEPENDENCIES =====
 
@@ -1951,11 +1994,15 @@ async def coach_config(request: Request, user: dict = Depends(require_admin)):
     """View/edit config (admin only)."""
     config_data = config["scoring"]
     email_config = config.get("email", {})
+    backup_config = config.get("backup", {})
+    backup_status = backup_scheduler.get_status()
     
     return templates.TemplateResponse("coach/config.html", {
         "request": request,
         "config": config_data,
-        "email_config": email_config
+        "email_config": email_config,
+        "backup_config": backup_config,
+        "backup_status": backup_status
     })
 
 @app.post("/coach/config")
@@ -2049,24 +2096,86 @@ async def coach_test_smtp(request: Request, user: dict = Depends(require_admin))
         logger.error(f"Error testing SMTP: {e}")
         return {"success": False, "message": f"Error testing SMTP: {str(e)}"}
 
-# ===== STARTUP/SHUTDOWN =====
-
-@app.on_event("startup")
-async def startup_event():
-    """App startup."""
-    logger.info("NAV Scoring app starting up")
-    
-    # Try to cleanup expired prenavs (will fail on first run, that's OK)
+@app.post("/coach/config/backup")
+async def coach_update_backup_config(
+    request: Request,
+    user: dict = Depends(require_admin),
+    backup_enabled: Optional[str] = Form(None),
+    backup_frequency_hours: int = Form(...),
+    backup_retention_days: int = Form(...),
+    backup_max_backups: int = Form(...),
+    backup_path: str = Form(...)
+):
+    """Update backup configuration (admin only)."""
     try:
-        deleted = db.delete_expired_prenavs()
-        if deleted:
-            logger.info(f"Deleted {deleted} expired pre-NAV submissions")
+        # Update backup config
+        config["backup"]["enabled"] = backup_enabled is not None
+        config["backup"]["frequency_hours"] = backup_frequency_hours
+        config["backup"]["retention_days"] = backup_retention_days
+        config["backup"]["max_backups"] = backup_max_backups
+        config["backup"]["backup_path"] = backup_path
+        
+        # Save to file
+        config_path = Path("config/config.yaml")
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(yaml.dump(config, default_flow_style=False))
+        
+        # Recreate backup scheduler with new config
+        global backup_scheduler
+        backup_scheduler = BackupScheduler(
+            config.get("backup", {}),
+            config["database"]["path"]
+        )
+        
+        logger.info("Backup configuration updated")
+        return RedirectResponse(url="/coach/config?message=Backup config updated successfully", status_code=303)
     except Exception as e:
-        logger.warning(f"Could not delete expired prenavs on startup (likely first run): {e}")
-    
-    # Ensure storage directories exist
-    Path(config["storage"]["gpx_uploads"]).mkdir(parents=True, exist_ok=True)
-    Path(config["storage"]["pdf_reports"]).mkdir(parents=True, exist_ok=True)
+        logger.error(f"Error updating backup config: {e}")
+        return RedirectResponse(url=f"/coach/config?error={str(e)}", status_code=303)
+
+@app.post("/coach/backup/run")
+async def coach_run_backup(request: Request, user: dict = Depends(require_admin)):
+    """Trigger manual backup (admin only). Returns JSON."""
+    try:
+        # Run backup in executor to avoid blocking
+        loop = asyncio.get_event_loop()
+        success = await loop.run_in_executor(None, backup_scheduler.run_backup)
+        
+        if success:
+            status = backup_scheduler.get_status()
+            return {
+                "success": True,
+                "message": "Backup completed successfully",
+                "backup_file": status.get("last_backup_file"),
+                "last_backup": status.get("last_backup"),
+                "total_backups": status.get("total_backups")
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Backup failed. Check logs for details."
+            }
+    except Exception as e:
+        logger.error(f"Error running backup: {e}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
+
+@app.get("/coach/backup/status")
+async def coach_backup_status(request: Request, user: dict = Depends(require_admin)):
+    """Get backup status (admin only). Returns JSON."""
+    try:
+        status = backup_scheduler.get_status()
+        return status
+    except Exception as e:
+        logger.error(f"Error getting backup status: {e}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
+
+# ===== STARTUP/SHUTDOWN =====
 
 @app.on_event("shutdown")
 async def shutdown_event():

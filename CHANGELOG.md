@@ -2,6 +2,58 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.5] - 2026-02-14
+
+### Added
+- **Automated Database Backups** - Scheduled backup system with configurable retention
+  - `BackupScheduler` class in `app/backup_scheduler.py` handles backup orchestration
+  - Background async task runs backups at configurable intervals (default: 24 hours)
+  - Python-based backup using SQLite backup API for safe, non-blocking backups
+  - Backup file naming: `navs_YYYYMMDD_HHMMSS.db` with timestamps
+  - State tracking in `data/backup_state.json` with last backup time and metadata
+- **Backup Configuration UI** - New "Backup Configuration" section on System Config page (admin only)
+  - Toggle enable/disable automated backups
+  - Set backup frequency (hours)
+  - Set retention period (days) and max backups to keep
+  - Configure backup directory path
+  - View backup status: last backup time, next scheduled backup, total backups
+  - **"Run Backup Now"** button for manual on-demand backups
+- **Backup API Endpoints** (admin only)
+  - `POST /coach/backup/run` - Trigger manual backup, returns JSON with status
+  - `GET /coach/backup/status` - Get current backup status and metadata
+  - `POST /coach/config/backup` - Update backup configuration
+- **Backup Cleanup** - Automatic cleanup after each backup
+  - Deletes backups older than `retention_days`
+  - Keeps only the most recent `max_backups`
+  - Uses the more restrictive constraint (retention OR max count)
+- **Backup Integration** - Backup scheduler starts automatically on app startup
+  - Performs initial backup when app starts
+  - Cleanup of old backups based on retention policy
+  - Error handling prevents backup failures from crashing the app
+
+### Changed
+- **"Scoring Config" → "System Config"** - Renamed throughout UI and templates
+  - Page title: "Scoring Configuration" → "System Configuration"
+  - Dashboard quick-link text: "Scoring Config" → "System Config"
+  - Navbar: "Config" remains unchanged (generic)
+  - Better reflects broader system management role
+- **config.yaml.template** - Added new `backup` section with defaults:
+  ```yaml
+  backup:
+    enabled: true
+    frequency_hours: 24
+    retention_days: 7
+    backup_path: "/app/data/backups"
+    max_backups: 10
+  ```
+
+### Technical
+- Backup uses Python `sqlite3.backup()` API instead of shell script for portability
+- Backup state stored in JSON for easy inspection and debugging
+- Background task uses `asyncio` for non-blocking execution
+- Backup files created with 0644 permissions (readable by app, backupable by admin)
+- Storage directories created automatically on startup if missing
+
 ## [0.3.4] - 2026-02-13
 
 ### Fixed

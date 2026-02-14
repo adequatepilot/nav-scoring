@@ -2091,7 +2091,7 @@ async def coach_create_airport(
         logger.error(f"Error creating airport: {e}")
         return RedirectResponse(url=f"/coach/navs/airports?error={str(e)}", status_code=303)
 
-@app.get("/coach/navs/airports/{airport_id}/delete")
+@app.post("/coach/navs/airports/{airport_id}/delete")
 async def coach_delete_airport(airport_id: int, user: dict = Depends(require_admin)):
     """Delete airport."""
     try:

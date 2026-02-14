@@ -11,6 +11,16 @@ All notable changes to the NAV Scoring application.
 - **Issue 19 & 19.1:** Removed redundant "Status" column from members table - Single "Approval Status" column shows approve/deny buttons for pending users
 
 ### Added
+- **SMTP Test Connectivity** - New "Test SMTP Connection" button on config page (admin only)
+  - POST /coach/test_smtp endpoint tests connection, authentication, and sends test email
+  - Provides specific error messages for connection failures, auth failures, and send failures
+  - AJAX integration displays green success or red error message below button
+  - Test email sent to configured sender_email address to verify loop
+- **EmailService.test_connection()** - New async method to test SMTP configuration
+  - Tests connection to SMTP server
+  - Tests authentication with provided credentials
+  - Sends test email as final verification
+  - Returns tuple (success: bool, message: str) with descriptive error messages
 - **SQLite WAL mode** - Enables Write-Ahead Logging for better concurrency with Docker volume mounts
 - **Database persistence** - Volume mount at `/app/data` ensures database survives container restarts
 - **MDH 20 NAV route** - Loaded from nav_route.txt with 5 checkpoints and 2 start gates

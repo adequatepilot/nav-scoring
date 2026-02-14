@@ -2039,6 +2039,16 @@ async def coach_update_email_config(
         logger.error(f"Error updating email config: {e}")
         return RedirectResponse(url=f"/coach/config?error={str(e)}", status_code=303)
 
+@app.post("/coach/test_smtp")
+async def coach_test_smtp(request: Request, user: dict = Depends(require_admin)):
+    """Test SMTP connection (admin only). Returns JSON."""
+    try:
+        success, message = await email_service.test_connection()
+        return {"success": success, "message": message}
+    except Exception as e:
+        logger.error(f"Error testing SMTP: {e}")
+        return {"success": False, "message": f"Error testing SMTP: {str(e)}"}
+
 # ===== STARTUP/SHUTDOWN =====
 
 @app.on_event("startup")

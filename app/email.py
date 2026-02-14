@@ -9,6 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +204,64 @@ Log in to review detailed results.
         )
         
         return True
+
+    async def test_connection(self) -> tuple[bool, str]:
+        """Test SMTP connection, authentication, and send a test email.
+        
+        Returns:
+            tuple[bool, str]: (success, message)
+        """
+        try:
+            # Test 1: Connection
+            logger.info(f"Testing SMTP connection to {self.smtp_host}:{self.smtp_port}")
+            async with aiosmtplib.SMTP(hostname=self.smtp_host, port=self.smtp_port) as smtp:
+                # Test 2: Authentication
+                logger.info(f"Testing authentication as {self.sender_email}")
+                await smtp.login(self.sender_email, self.sender_password)
+                
+                # Test 3: Send test email
+                logger.info(f"Sending test email to {self.sender_email}")
+                
+                test_subject = "NAV Scoring SMTP Test"
+                test_body = "This is a test email from the NAV Scoring system. If you received this, SMTP is configured correctly."
+                html_body = f"""
+                <html>
+                    <body style="font-family: Arial, sans-serif;">
+                        <h2>NAV Scoring SMTP Test</h2>
+                        <p>{test_body}</p>
+                        <p style="color: #999; font-size: 12px;">Sent at {datetime.utcnow().isoformat()}</p>
+                    </body>
+                </html>
+                """
+                
+                msg = MIMEMultipart("alternative")
+                msg["Subject"] = test_subject
+                msg["From"] = f"{self.sender_name} <{self.sender_email}>"
+                msg["To"] = self.sender_email
+                
+                msg.attach(MIMEText(test_body, "plain"))
+                msg.attach(MIMEText(html_body, "html"))
+                
+                await smtp.send_message(msg)
+                
+                logger.info("SMTP test successful - all checks passed")
+                return (True, "SMTP connection successful! Test email sent to " + self.sender_email)
+        
+        except aiosmtplib.SMTPAuthenticationError as e:
+            logger.error(f"SMTP authentication failed: {e}")
+            return (False, f"Authentication failed: {str(e)}")
+        except aiosmtplib.SMTPException as e:
+            logger.error(f"SMTP error: {e}")
+            return (False, f"SMTP error: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to test SMTP connection: {e}")
+            error_msg = str(e)
+            if "Name or service not known" in error_msg or "nodename nor servname provided" in error_msg:
+                return (False, f"Connection failed: Unable to reach SMTP host '{self.smtp_host}'")
+            elif "Connection refused" in error_msg or "refused" in error_msg:
+                return (False, f"Connection failed: SMTP host '{self.smtp_host}' refused connection on port {self.smtp_port}")
+            else:
+                return (False, f"Connection failed: {error_msg}")
 
     async def _send_email(
         self,

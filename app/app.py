@@ -577,8 +577,8 @@ async def team_dashboard(request: Request, user: dict = Depends(require_competit
     pairing_data = None
     
     if pairing:
-        pilot = db.get_member_by_id(pairing["pilot_id"])
-        observer = db.get_member_by_id(pairing["safety_observer_id"])
+        pilot = db.get_user_by_id(pairing["pilot_id"])
+        observer = db.get_user_by_id(pairing["safety_observer_id"])
         pairing_data = {
             "id": pairing["id"],
             "pilot_name": pilot["name"] if pilot else "Unknown",
@@ -622,8 +622,8 @@ async def prenav_form(request: Request, user: dict = Depends(require_member)):
     pairing_data = None
     
     if pairing:
-        pilot = db.get_member_by_id(pairing["pilot_id"])
-        observer = db.get_member_by_id(pairing["safety_observer_id"])
+        pilot = db.get_user_by_id(pairing["pilot_id"])
+        observer = db.get_user_by_id(pairing["safety_observer_id"])
         pairing_data = {
             "id": pairing["id"],
             "pilot_name": pilot["name"] if pilot else "Unknown",
@@ -698,7 +698,7 @@ async def submit_prenav(
         nav = db.get_nav(nav_id)
         
         # Get observer email
-        observer = db.get_member_by_id(pairing["safety_observer_id"])
+        observer = db.get_user_by_id(pairing["safety_observer_id"])
         
         # Send emails to both pilot and observer
         pilot_email = user["email"]
@@ -932,8 +932,8 @@ async def submit_flight(
                 pdf_path = pdf_storage / pdf_filename
                 
                 # Get pairing member names
-                pilot = db.get_member_by_id(pairing["pilot_id"])
-                observer = db.get_member_by_id(pairing["safety_observer_id"])
+                pilot = db.get_user_by_id(pairing["pilot_id"])
+                observer = db.get_user_by_id(pairing["safety_observer_id"])
                 
                 pairing_display = {
                     "pilot_name": pilot["name"] if pilot else "Unknown",
@@ -1178,8 +1178,8 @@ async def coach_dashboard(request: Request, user: dict = Depends(require_coach))
         
         pairing = db.get_pairing(result["pairing_id"])
         if pairing:
-            pilot = db.get_member_by_id(pairing["pilot_id"])
-            observer = db.get_member_by_id(pairing["safety_observer_id"])
+            pilot = db.get_user_by_id(pairing["pilot_id"])
+            observer = db.get_user_by_id(pairing["safety_observer_id"])
             result["team_name"] = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Unknown"
     
     return templates.TemplateResponse("coach/dashboard.html", {
@@ -1222,8 +1222,8 @@ async def coach_results(
         
         pairing = db.get_pairing(result["pairing_id"])
         if pairing:
-            pilot = db.get_member_by_id(pairing["pilot_id"])
-            observer = db.get_member_by_id(pairing["safety_observer_id"])
+            pilot = db.get_user_by_id(pairing["pilot_id"])
+            observer = db.get_user_by_id(pairing["safety_observer_id"])
             result["pilot_name"] = pilot["name"] if pilot else "Unknown"
             result["observer_name"] = observer["name"] if observer else "Unknown"
         
@@ -1239,8 +1239,8 @@ async def coach_results(
     # Get all pairings and NAVs for filter dropdowns
     pairings = db.list_pairings(active_only=False)
     for pairing in pairings:
-        pilot = db.get_member_by_id(pairing["pilot_id"])
-        observer = db.get_member_by_id(pairing["safety_observer_id"])
+        pilot = db.get_user_by_id(pairing["pilot_id"])
+        observer = db.get_user_by_id(pairing["safety_observer_id"])
         pairing["pilot_name"] = pilot["name"] if pilot else "Unknown"
         pairing["observer_name"] = observer["name"] if observer else "Unknown"
     

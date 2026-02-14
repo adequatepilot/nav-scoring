@@ -1294,7 +1294,7 @@ async def list_results(request: Request, user: dict = Depends(require_member)):
         
         logger.debug(f"Successfully loaded results page for user {user['user_id']}")
         
-        return templates.TemplateResponse("team/results.html", {
+        return templates.TemplateResponse("team/results_list.html", {
             "request": request,
             "results": results,
             "member_name": user["name"]

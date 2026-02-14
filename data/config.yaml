@@ -1,0 +1,44 @@
+app:
+  debug: false
+  title: SIU Salukis NAV Scoring
+  version: 1.0.0
+backup:
+  backup_path: /app/data/backups
+  enabled: true
+  frequency_hours: 24
+  max_backups: 10
+  retention_days: 7
+database:
+  path: /app/data/navs.db
+email:
+  recipients_coach: mike@YOUR_DOMAIN.com
+  sender_email: mike@nssttw.com
+  sender_name: SIU Flying Salukis NAV Scoring
+  sender_password: Y0TdPWQ8LmCt
+  smtp_host: smtp.zoho.com
+  smtp_port: 587
+  smtp_username: mike@nssttw.com
+prenav:
+  token_expiry_hours: 48
+scoring:
+  fuel_burn:
+    over_estimate_multiplier: 500
+    under_estimate_multiplier: 250
+    under_estimate_threshold: 0.1
+  off_course:
+    max_no_penalty_nm: 0.25
+    max_penalty_distance_nm: 5.0
+    max_penalty_points: 500
+  secrets:
+    checkpoint_penalty: 20
+    enroute_penalty: 10
+    max_distance_miles: 1.0
+  timing_penalty_per_second: 1.0
+session:
+  cookie_httponly: true
+  cookie_name: nav_scoring_session
+  cookie_secure: true
+  timeout_hours: 24
+storage:
+  gpx_uploads: /app/data/gpx_uploads
+  pdf_reports: /app/data/pdf_reports

@@ -194,9 +194,11 @@ def require_member(request: Request) -> dict:
     user = require_login(request)
     # Competitors are users with is_coach=0 (but can be is_admin)
     if user.get("is_coach"):
-        # Redirect coaches to their dashboard instead of showing error
-        from fastapi.responses import RedirectResponse
-        raise RedirectResponse(url="/coach", status_code=303)
+        # Can't redirect from dependency function, use error template
+        raise HTTPException(
+            status_code=403, 
+            detail="This page is for competitors only. Please use the Coach Dashboard instead."
+        )
     return user
 
 def require_competitor(request: Request) -> dict:

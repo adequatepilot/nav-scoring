@@ -170,10 +170,7 @@ async def startup_event():
     # Initialize backup scheduler
     try:
         if backup_scheduler.enabled:
-            # Run initial backup in executor to avoid blocking
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, backup_scheduler.run_backup)
-            # Start background backup task
+            # Start background backup task (first backup will run after frequency_hours)
             backup_task = asyncio.create_task(backup_scheduler.start_background_task())
             logger.info("Backup scheduler started")
     except Exception as e:

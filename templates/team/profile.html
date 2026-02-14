@@ -198,6 +198,166 @@
 .avatar-color-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
 .avatar-color-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
 .avatar-color-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+
+/* Email management styles */
+.email-section h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    color: #333;
+}
+
+.email-list {
+    margin-bottom: 2rem;
+}
+
+.email-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: #f9f9f9;
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+    border-left: 4px solid #2196f3;
+}
+
+.email-item.primary {
+    border-left-color: #4caf50;
+}
+
+.email-info {
+    flex: 1;
+}
+
+.email-address {
+    font-weight: 500;
+    color: #333;
+    font-family: monospace;
+}
+
+.email-label {
+    font-size: 0.75rem;
+    color: #999;
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.email-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-remove {
+    background: #f44336;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.3s;
+}
+
+.btn-remove:hover {
+    background: #d32f2f;
+}
+
+.btn-remove:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.add-email-form {
+    background: #f5f5f5;
+    border-radius: 5px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.add-email-form input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    box-sizing: border-box;
+}
+
+.add-email-form input:focus {
+    outline: none;
+    border-color: #2196f3;
+    box-shadow: 0 0 5px rgba(33, 150, 243, 0.3);
+}
+
+.btn-add {
+    background: #2196f3;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.3s;
+}
+
+.btn-add:hover {
+    background: #1976d2;
+}
+
+.btn-add:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.email-message {
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.email-message.success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.email-message.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.email-message.info {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+.email-loading {
+    display: none;
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
+.email-spinner {
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #2196f3;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    animation: email-spin 0.6s linear infinite;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+@keyframes email-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
 </style>
 {% endblock %}
 
@@ -220,6 +380,65 @@
                 {% else %}
                     <span style="color: #ff9800; font-weight: bold;">Account Status: Pending Approval</span>
                 {% endif %}
+            </div>
+        </div>
+
+        <div class="email-section">
+            <h2>Password</h2>
+            <div id="passwordMessage"></div>
+            <form id="passwordForm">
+                <div style="margin-bottom: 1rem;">
+                    <label for="currentPassword" style="display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500;">Current Password</label>
+                    <input type="password" id="currentPassword" name="current_password" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; box-sizing: border-box;">
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label for="newPassword" style="display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500;">New Password</label>
+                    <input type="password" id="newPassword" name="new_password" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; box-sizing: border-box;">
+                    <small style="color: #999;">Minimum 8 characters</small>
+                </div>
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="confirmPassword" style="display: block; margin-bottom: 0.5rem; color: #333; font-weight: 500;">Confirm New Password</label>
+                    <input type="password" id="confirmPassword" name="confirm_password" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; box-sizing: border-box;">
+                </div>
+                <button type="submit" class="btn-add" id="changePasswordBtn">Change Password</button>
+                <div class="email-loading" id="passwordLoading">
+                    <div class="email-spinner"></div>
+                    <span>Changing password...</span>
+                </div>
+            </form>
+        </div>
+
+        <div class="email-section">
+            <h2>Email Addresses</h2>
+            <p style="color: #666; margin-bottom: 1.5rem;">Manage your email addresses for notifications</p>
+            
+            <div class="email-list">
+                <h3 style="font-size: 1rem; color: #333; margin-bottom: 0.5rem;">Primary Email</h3>
+                <div class="email-item primary">
+                    <div class="email-info">
+                        <div class="email-address">{{ user_email }}</div>
+                        <div class="email-label">🔒 Primary (SIU Email - Cannot be changed)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="email-list">
+                <h3 style="font-size: 1rem; color: #333; margin-bottom: 0.5rem;">Additional Email Addresses</h3>
+                <div id="additionalEmailsList"></div>
+                <div id="noAdditionalEmails" style="padding: 1rem; color: #999; font-style: italic;">No additional email addresses yet</div>
+            </div>
+
+            <div class="add-email-form">
+                <h3 style="font-size: 1rem; color: #333; margin-bottom: 1rem;">Add Email Address</h3>
+                <div id="emailMessage"></div>
+                <form id="addEmailForm">
+                    <input type="email" id="newEmailInput" placeholder="Enter your email address" required>
+                    <button type="submit" class="btn-add" id="addEmailBtn">Add Email</button>
+                    <div class="email-loading" id="emailLoading">
+                        <div class="email-spinner"></div>
+                        <span>Adding email...</span>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -333,6 +552,210 @@ submitBtn.addEventListener('click', async function() {
         submitBtn.style.display = 'block';
     }
 });
+
+// ===== PASSWORD CHANGE =====
+
+document.getElementById('passwordForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const loading = document.getElementById('passwordLoading');
+    const btn = document.getElementById('changePasswordBtn');
+    const msgDiv = document.getElementById('passwordMessage');
+    
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        msgDiv.textContent = 'Please fill in all password fields';
+        msgDiv.className = 'email-message error';
+        msgDiv.style.display = 'block';
+        return;
+    }
+    
+    if (newPassword.length < 8) {
+        msgDiv.textContent = 'New password must be at least 8 characters';
+        msgDiv.className = 'email-message error';
+        msgDiv.style.display = 'block';
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        msgDiv.textContent = 'New passwords do not match';
+        msgDiv.className = 'email-message error';
+        msgDiv.style.display = 'block';
+        return;
+    }
+    
+    loading.style.display = 'block';
+    btn.disabled = true;
+    
+    try {
+        const formData = new FormData();
+        formData.append('current_password', currentPassword);
+        formData.append('new_password', newPassword);
+        formData.append('confirm_password', confirmPassword);
+        
+        const response = await fetch('/profile/password', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        loading.style.display = 'none';
+        btn.disabled = false;
+        
+        if (result.success) {
+            msgDiv.textContent = result.message;
+            msgDiv.className = 'email-message success';
+            msgDiv.style.display = 'block';
+            document.getElementById('passwordForm').reset();
+            
+            setTimeout(() => {
+                msgDiv.style.display = 'none';
+            }, 3000);
+        } else {
+            msgDiv.textContent = result.message;
+            msgDiv.className = 'email-message error';
+            msgDiv.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error changing password:', error);
+        loading.style.display = 'none';
+        btn.disabled = false;
+        msgDiv.textContent = 'Error changing password: ' + error.message;
+        msgDiv.className = 'email-message error';
+        msgDiv.style.display = 'block';
+    }
+});
+
+// ===== EMAIL MANAGEMENT =====
+
+// Load emails on page load
+document.addEventListener('DOMContentLoaded', loadEmails);
+
+async function loadEmails() {
+    try {
+        const response = await fetch('/profile/emails');
+        const result = await response.json();
+        
+        if (result.success) {
+            renderAdditionalEmails(result.additional_emails);
+        }
+    } catch (error) {
+        console.error('Error loading emails:', error);
+    }
+}
+
+function renderAdditionalEmails(emails) {
+    const container = document.getElementById('additionalEmailsList');
+    const noEmails = document.getElementById('noAdditionalEmails');
+    
+    if (emails.length === 0) {
+        container.innerHTML = '';
+        noEmails.style.display = 'block';
+        return;
+    }
+    
+    noEmails.style.display = 'none';
+    container.innerHTML = emails.map(email => `
+        <div class="email-item">
+            <div class="email-info">
+                <div class="email-address">${email}</div>
+                <div class="email-label">Additional Email</div>
+            </div>
+            <div class="email-actions">
+                <button class="btn-remove" onclick="removeEmail('${email}')">Remove</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function removeEmail(email) {
+    if (!confirm(`Are you sure you want to remove ${email}?`)) {
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('email', email);
+        
+        const response = await fetch('/profile/emails/remove', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showEmailMessage(result.message, 'success');
+            loadEmails();
+        } else {
+            showEmailMessage(result.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error removing email:', error);
+        showEmailMessage('Error removing email: ' + error.message, 'error');
+    }
+}
+
+document.getElementById('addEmailForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('newEmailInput').value.trim();
+    const loading = document.getElementById('emailLoading');
+    const btn = document.getElementById('addEmailBtn');
+    
+    if (!email) {
+        showEmailMessage('Please enter an email address', 'error');
+        return;
+    }
+    
+    loading.style.display = 'block';
+    btn.disabled = true;
+    
+    try {
+        const formData = new FormData();
+        formData.append('email', email);
+        
+        const response = await fetch('/profile/emails/add', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        loading.style.display = 'none';
+        btn.disabled = false;
+        
+        if (result.success) {
+            showEmailMessage(result.message, 'success');
+            document.getElementById('newEmailInput').value = '';
+            loadEmails();
+        } else {
+            showEmailMessage(result.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error adding email:', error);
+        loading.style.display = 'none';
+        btn.disabled = false;
+        showEmailMessage('Error adding email: ' + error.message, 'error');
+    }
+});
+
+function showEmailMessage(message, type) {
+    const msgDiv = document.getElementById('emailMessage');
+    msgDiv.textContent = message;
+    msgDiv.className = `email-message ${type}`;
+    msgDiv.style.display = 'block';
+    
+    // Auto-hide success messages after 3 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            msgDiv.style.display = 'none';
+        }, 3000);
+    }
+}
 </script>
 
 {% endblock %}

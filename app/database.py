@@ -352,6 +352,110 @@ class Database:
             )
             return cursor.rowcount > 0
 
+    # ===== USER EMAIL MANAGEMENT =====
+
+    def add_user_email(self, user_id: int, email: str) -> bool:
+        """Add additional email address for user. Returns success."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO user_emails (user_id, email, is_primary)
+                    VALUES (?, ?, 0)
+                    """,
+                    (user_id, email),
+                )
+                logger.info(f"Added email {email} for user {user_id}")
+                return True
+        except sqlite3.IntegrityError:
+            logger.warning(f"Email {email} already exists for another user")
+            return False
+        except Exception as e:
+            logger.error(f"Error adding email for user {user_id}: {e}")
+            return False
+
+    def remove_user_email(self, user_id: int, email: str) -> bool:
+        """Remove additional email address for user. Cannot remove primary email. Returns success."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                # Check if it's the primary email
+                cursor.execute(
+                    "SELECT is_primary FROM user_emails WHERE user_id = ? AND email = ?",
+                    (user_id, email),
+                )
+                row = cursor.fetchone()
+                
+                if not row:
+                    logger.warning(f"Email {email} not found for user {user_id}")
+                    return False
+                
+                if row[0] == 1:  # is_primary = 1
+                    logger.warning(f"Cannot remove primary email {email} for user {user_id}")
+                    return False
+                
+                # Delete the additional email
+                cursor.execute(
+                    "DELETE FROM user_emails WHERE user_id = ? AND email = ?",
+                    (user_id, email),
+                )
+                logger.info(f"Removed email {email} for user {user_id}")
+                return True
+        except Exception as e:
+            logger.error(f"Error removing email for user {user_id}: {e}")
+            return False
+
+    def get_user_emails(self, user_id: int) -> List[str]:
+        """Get all additional (non-primary) email addresses for user."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT email FROM user_emails WHERE user_id = ? AND is_primary = 0 ORDER BY created_at",
+                    (user_id,),
+                )
+                return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting additional emails for user {user_id}: {e}")
+            return []
+
+    def get_all_emails_for_user(self, user_id: int) -> List[str]:
+        """Get all emails for user (primary + additional)."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT email FROM user_emails WHERE user_id = ? ORDER BY is_primary DESC, created_at",
+                    (user_id,),
+                )
+                return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting all emails for user {user_id}: {e}")
+            # Fallback to just the primary email from users table
+            user = self.get_user_by_id(user_id)
+            return [user["email"]] if user else []
+
+    def email_exists(self, email: str, exclude_user_id: Optional[int] = None) -> bool:
+        """Check if email exists in user_emails table (for a different user)."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                if exclude_user_id:
+                    cursor.execute(
+                        "SELECT 1 FROM user_emails WHERE email = ? AND user_id != ?",
+                        (email, exclude_user_id),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT 1 FROM user_emails WHERE email = ?",
+                        (email,),
+                    )
+                return cursor.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Error checking if email exists: {e}")
+            return False
+
     # ===== EMAIL VERIFICATION =====
 
     def create_verification_pending(self, email: str, password_hash: str, name: str, 

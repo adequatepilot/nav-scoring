@@ -2,6 +2,51 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.7] - 2026-02-14
+
+### Added
+- **Multiple Email Addresses** - Users can now add and manage additional email addresses
+  - New `user_emails` table stores primary and additional email addresses
+  - Migration 007 creates table and migrates existing user emails as primary
+  - Primary email (SIU email) displays in profile as non-editable, labeled "Primary"
+  - Additional emails show with remove buttons for easy management
+  - Add Email form with validation and duplicate checking
+  - New API endpoints:
+    - `GET /profile/emails` - List all emails for current user
+    - `POST /profile/emails/add` - Add new email with format validation
+    - `POST /profile/emails/remove` - Remove additional email (cannot remove primary)
+  - Database methods: `add_user_email()`, `remove_user_email()`, `get_user_emails()`, `get_all_emails_for_user()`, `email_exists()`
+- **Email Service Updates** - `send_prenav_confirmation()` and `send_results_notification()` now accept multiple emails
+  - Backward compatible - still works with single email string
+  - Loops through list and sends to each email individually
+  - Updated app.py to call `get_all_emails_for_user()` before sending emails
+- **Password Change Functionality** - Users can change their password from profile page
+  - New `POST /profile/password` endpoint for password changes
+  - Form requires current password verification
+  - Validates password strength (minimum 8 characters)
+  - Prevents reusing current password
+  - AJAX form with success/error messages
+
+### Changed
+- Email sending logic updated to use `get_all_emails_for_user()` instead of single user.email
+- Prenav and results notifications now sent to all email addresses for user
+- Profile page reorganized: Password section added above Email Addresses section
+
+### Technical
+- Database migration 007: Creates `user_emails` table with foreign key to users
+- Email validation regex pattern for format checking
+- AJAX handlers for email add/remove operations with inline messages
+- Form validation prevents duplicate emails and invalid formats
+
+### UI/UX
+- Profile page now has three main sections: Password, Email Addresses, Profile Picture
+- Email Addresses section shows Primary Email (non-editable, labeled)
+- Additional Emails listed with remove buttons
+- Add Email form with inline validation messages
+- Professional styling with color-coded email items (primary=green, additional=blue)
+- Password change form with current password verification
+- Auto-hiding success messages after 3 seconds
+
 ## [0.3.6] - 2026-02-14
 
 ### Fixed

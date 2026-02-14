@@ -701,6 +701,115 @@ async def upload_profile_picture(
         logger.error(f"Error uploading profile picture for user {user['user_id']}: {e}")
         return {"success": False, "message": f"Error uploading file: {str(e)}"}
 
+# ===== EMAIL MANAGEMENT ENDPOINTS =====
+
+@app.get("/profile/emails")
+async def get_profile_emails(user: dict = Depends(require_login)):
+    """Get all email addresses for current user (primary + additional)."""
+    try:
+        all_emails = db.get_all_emails_for_user(user["user_id"])
+        additional_emails = db.get_user_emails(user["user_id"])
+        primary_email = user["email"]
+        
+        return {
+            "success": True,
+            "primary_email": primary_email,
+            "additional_emails": additional_emails,
+            "all_emails": all_emails
+        }
+    except Exception as e:
+        logger.error(f"Error getting emails for user {user['user_id']}: {e}")
+        return {"success": False, "message": f"Error retrieving emails: {str(e)}"}
+
+@app.post("/profile/emails/add")
+async def add_profile_email(user: dict = Depends(require_login), email: str = Form(...)):
+    """Add a new email address for current user."""
+    try:
+        # Validate email format
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            return {"success": False, "message": "Invalid email format"}
+        
+        # Check if email is the same as primary email
+        if email.lower() == user["email"].lower():
+            return {"success": False, "message": "This is already your primary email"}
+        
+        # Check if email already exists (for this user or another)
+        if db.email_exists(email):
+            return {"success": False, "message": "This email is already in use"}
+        
+        # Add the email
+        if db.add_user_email(user["user_id"], email):
+            return {"success": True, "message": f"Email {email} added successfully"}
+        else:
+            return {"success": False, "message": "Failed to add email"}
+    
+    except Exception as e:
+        logger.error(f"Error adding email for user {user['user_id']}: {e}")
+        return {"success": False, "message": f"Error adding email: {str(e)}"}
+
+@app.post("/profile/emails/remove")
+async def remove_profile_email(user: dict = Depends(require_login), email: str = Form(...)):
+    """Remove an additional email address for current user."""
+    try:
+        # Check if trying to remove primary email
+        if email.lower() == user["email"].lower():
+            return {"success": False, "message": "Cannot remove your primary email"}
+        
+        # Remove the email
+        if db.remove_user_email(user["user_id"], email):
+            return {"success": True, "message": f"Email {email} removed successfully"}
+        else:
+            return {"success": False, "message": "Failed to remove email"}
+    
+    except Exception as e:
+        logger.error(f"Error removing email for user {user['user_id']}: {e}")
+        return {"success": False, "message": f"Error removing email: {str(e)}"}
+
+@app.post("/profile/password")
+async def change_password(
+    request: Request,
+    user: dict = Depends(require_login),
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...)
+):
+    """Change password for current user."""
+    try:
+        # Get user from database
+        user_data = db.get_user_by_id(user["user_id"])
+        
+        if not user_data:
+            return {"success": False, "message": "User not found"}
+        
+        # Verify current password
+        if not auth.verify_password(current_password, user_data["password_hash"]):
+            return {"success": False, "message": "Current password is incorrect"}
+        
+        # Check new password confirmation
+        if new_password != confirm_password:
+            return {"success": False, "message": "New passwords do not match"}
+        
+        # Check password length
+        if len(new_password) < 8:
+            return {"success": False, "message": "Password must be at least 8 characters"}
+        
+        # Check if new password is same as current
+        if auth.verify_password(new_password, user_data["password_hash"]):
+            return {"success": False, "message": "New password must be different from current password"}
+        
+        # Hash and update password
+        password_hash = auth.hash_password(new_password)
+        db.update_user(user["user_id"], password_hash=password_hash)
+        
+        logger.info(f"User {user['email']} successfully changed their password")
+        return {"success": True, "message": "Password changed successfully"}
+    
+    except Exception as e:
+        logger.error(f"Error changing password for user {user['user_id']}: {e}")
+        return {"success": False, "message": f"Error changing password: {str(e)}"}
+
 @app.get("/team", response_class=HTMLResponse)
 async def team_dashboard(request: Request, user: dict = Depends(require_competitor)):
     """Team member main dashboard."""
@@ -849,21 +958,22 @@ async def submit_prenav(
         # Get observer email
         observer = db.get_user_by_id(pairing["safety_observer_id"])
         
-        # Send emails to both pilot and observer
-        pilot_email = user["email"]
-        observer_email = observer["email"] if observer else ""
+        # Send emails to both pilot and observer (including additional emails)
+        pilot_emails = db.get_all_emails_for_user(user["user_id"])
+        observer_emails = db.get_all_emails_for_user(observer["id"]) if observer else []
         
         try:
-            await email_service.send_prenav_confirmation(
-                team_email=pilot_email,
-                team_name=user["name"],
-                nav_name=nav["name"],
-                token=token
-            )
-            
-            if observer_email:
+            if pilot_emails:
                 await email_service.send_prenav_confirmation(
-                    team_email=observer_email,
+                    team_emails=pilot_emails,
+                    team_name=user["name"],
+                    nav_name=nav["name"],
+                    token=token
+                )
+            
+            if observer_emails:
+                await email_service.send_prenav_confirmation(
+                    team_emails=observer_emails,
                     team_name=observer["name"],
                     nav_name=nav["name"],
                     token=token
@@ -1123,16 +1233,16 @@ async def submit_flight(
                         (pdf_filename, result_id)
                     )
                 
-                # Send emails
-                pilot_email = pilot["email"] if pilot else ""
-                observer_email = observer["email"] if observer else ""
+                # Send emails (including additional emails)
+                pilot_emails = db.get_all_emails_for_user(pilot["id"]) if pilot else []
+                observer_emails = db.get_all_emails_for_user(observer["id"]) if observer else []
                 
                 team_name = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Team"
                 
-                if pilot_email:
+                if pilot_emails:
                     try:
                         await email_service.send_results_notification(
-                            team_email=pilot_email,
+                            team_emails=pilot_emails,
                             team_name=pilot["name"],
                             nav_name=nav["name"],
                             overall_score=overall_score,
@@ -1141,10 +1251,10 @@ async def submit_flight(
                     except Exception as email_err:
                         logger.warning(f"Failed to send email to pilot: {email_err}")
                 
-                if observer_email:
+                if observer_emails:
                     try:
                         await email_service.send_results_notification(
-                            team_email=observer_email,
+                            team_emails=observer_emails,
                             team_name=observer["name"],
                             nav_name=nav["name"],
                             overall_score=overall_score,

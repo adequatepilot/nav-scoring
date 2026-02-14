@@ -78,9 +78,13 @@ NAV Scoring System
         )
 
     async def send_prenav_confirmation(
-        self, team_email: str, team_name: str, nav_name: str, token: str
+        self, team_emails, team_name: str, nav_name: str, token: str
     ) -> bool:
-        """Send pre-flight confirmation email to team."""
+        """Send pre-flight confirmation email to team. Accepts single email (str) or list of emails."""
+        # Handle both single email string and list of emails
+        if isinstance(team_emails, str):
+            team_emails = [team_emails]
+        
         subject = f"Pre-NAV Confirmation: {nav_name}"
         
         html_body = f"""
@@ -119,22 +123,32 @@ Good luck!
 NAV Scoring System
         """
         
-        return await self._send_email(
-            to_email=team_email,
-            subject=subject,
-            html_body=html_body,
-            text_body=text_body
-        )
+        # Send to all emails
+        all_success = True
+        for email in team_emails:
+            success = await self._send_email(
+                to_email=email,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body
+            )
+            all_success = all_success and success
+        
+        return all_success
 
     async def send_results_notification(
         self,
-        team_email: str,
+        team_emails,
         team_name: str,
         nav_name: str,
         overall_score: float,
         pdf_filename: Optional[str] = None,
     ) -> bool:
-        """Send flight results email to team and coach."""
+        """Send flight results email to team and coach. Accepts single email (str) or list of emails."""
+        # Handle both single email string and list of emails
+        if isinstance(team_emails, str):
+            team_emails = [team_emails]
+        
         subject = f"Flight Scored: {nav_name} - Score: {overall_score:.0f}"
         
         html_body = f"""
@@ -169,13 +183,16 @@ Questions? Contact your coach.
 NAV Scoring System
         """
         
-        # Send to team
-        await self._send_email(
-            to_email=team_email,
-            subject=subject,
-            html_body=html_body,
-            text_body=text_body
-        )
+        # Send to all team emails
+        all_success = True
+        for email in team_emails:
+            success = await self._send_email(
+                to_email=email,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body
+            )
+            all_success = all_success and success
         
         # Send to coach
         await self._send_email(
@@ -203,7 +220,7 @@ Log in to review detailed results.
             """
         )
         
-        return True
+        return all_success
 
     async def test_connection(self) -> tuple[bool, str]:
         """Test SMTP connection, authentication, and send a test email.

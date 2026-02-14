@@ -1018,7 +1018,7 @@ async def submit_flight(
                     
                     # Calculate leg score
                     estimated_time = prenav["leg_times"][i]
-                    actual_time = timing_point["time"].timestamp() - previous_time
+                    actual_time = (timing_point["time"] - previous_time).total_seconds()
                     
                     leg_score, off_course_penalty = scoring_engine.calculate_leg_score(
                         actual_time, estimated_time, distance_nm, within_025
@@ -1037,7 +1037,7 @@ async def submit_flight(
                     })
                     
                     previous_point = timing_point
-                    previous_time = timing_point["time"].timestamp()
+                    previous_time = timing_point["time"]
             except Exception as e:
                 error = f"Error scoring checkpoints: {str(e)}"
         

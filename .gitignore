@@ -69,3 +69,6 @@ MIKE_*.md
 CRITICAL_*.md
 10000_FOOT_UPGRADES.md
 bootstrap_db.py
+
+# Backup files
+backups/

@@ -128,11 +128,14 @@ class NavScoringEngine:
         track_points: List[Dict],
         checkpoint: Dict,
         previous_point: Dict,
-        previous_time: float,
+        previous_time,
     ) -> Tuple[Optional[Dict], float, str, bool]:
         """
         Find how aircraft approached checkpoint.
         Returns (timing_point, distance_nm, method, within_025_nm)
+        
+        Args:
+            previous_time: datetime object or float (timestamp) of previous checkpoint
         """
         CHECKPOINT_RADIUS_NM = 0.25
 

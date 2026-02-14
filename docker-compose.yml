@@ -2,19 +2,18 @@ version: '3.8'
 
 services:
   nav-scoring:
-    build: .
-    container_name: nav_scoring
+    image: nav-scoring:latest
+    container_name: nav-scoring
     ports:
       - "8000:8000"
     volumes:
-      - /mnt/user/appdata/nav_scoring/data:/app/data
-      - /mnt/user/appdata/nav_scoring/config:/app/config
-    environment:
-      - PYTHONUNBUFFERED=1
+      - ./persistent_data:/app/data
     restart: unless-stopped
+    environment:
+      - TZ=America/Chicago
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 40s

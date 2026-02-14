@@ -2111,23 +2111,23 @@ async def startup_event():
     """App startup."""
     logger.info("NAV Scoring app starting up")
     
-    # Cleanup expired verification tokens
-    try:
-        db.cleanup_expired_verification_pending()
-    except Exception as e:
-        logger.warning(f"Could not cleanup verification tokens on startup: {e}")
-    
-    # Cleanup expired prenav submissions
-    try:
-        deleted = db.delete_expired_prenavs()
-        if deleted:
-            logger.info(f"Deleted {deleted} expired pre-NAV submissions")
-    except Exception as e:
-        logger.warning(f"Could not delete expired prenavs on startup (likely first run): {e}")
-    
     # Ensure storage directories exist
     Path(config["storage"]["gpx_uploads"]).mkdir(parents=True, exist_ok=True)
     Path(config["storage"]["pdf_reports"]).mkdir(parents=True, exist_ok=True)
+    
+    # Cleanup expired data (run after app is up to avoid blocking startup)
+    # TODO: Move these to background tasks or run after startup completes
+    # try:
+    #     db.cleanup_expired_verification_pending()
+    # except Exception as e:
+    #     logger.warning(f"Could not cleanup verification tokens on startup: {e}")
+    # 
+    # try:
+    #     deleted = db.delete_expired_prenavs()
+    #     if deleted:
+    #         logger.info(f"Deleted {deleted} expired pre-NAV submissions")
+    # except Exception as e:
+    #     logger.warning(f"Could not delete expired prenavs on startup (likely first run): {e}")
     
     logger.info("Startup complete")
 

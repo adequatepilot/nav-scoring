@@ -2124,10 +2124,12 @@ async def coach_manage_gates(request: Request, airport_id: int, user: dict = Dep
         raise HTTPException(status_code=404, detail="Airport not found")
     
     gates = db.get_start_gates(airport_id)
+    is_admin = user.get("is_admin", False)
     return templates.TemplateResponse("coach/navs_gates.html", {
         "request": request,
         "airport": airport,
-        "gates": gates
+        "gates": gates,
+        "is_admin": is_admin
     })
 
 @app.post("/coach/navs/gates")

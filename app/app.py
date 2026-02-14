@@ -124,6 +124,25 @@ static_path = Path("static")
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
+# Startup event - Initialize database before handling requests
+@app.on_event("startup")
+async def startup_event():
+    """App startup - initialize database FIRST."""
+    logger.info("NAV Scoring app starting up")
+    
+    # Initialize database (run migrations) BEFORE handling any requests
+    try:
+        db.initialize()
+    except Exception as e:
+        logger.error(f"CRITICAL: Database initialization failed: {e}", exc_info=True)
+        raise
+    
+    # Ensure storage directories exist
+    Path(config["storage"]["gpx_uploads"]).mkdir(parents=True, exist_ok=True)
+    Path(config["storage"]["pdf_reports"]).mkdir(parents=True, exist_ok=True)
+    
+    logger.info("Startup complete")
+
 # Exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):

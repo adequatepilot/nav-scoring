@@ -2,6 +2,54 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.6] - CRITICAL FIX - 2026-02-13
+
+### Fixed (CRITICAL)
+- **Login Hang Bug:** POST requests to `/login` hang indefinitely due to lazy database initialization
+  - Root cause: `get_connection()` called `_ensure_initialized()` on every database operation
+  - This caused migrations to run mid-request instead of at app startup
+  - With SQLite volume mounts, multiple concurrent requests caused file locking deadlock
+  - Symptoms: Login hangs (>30s timeout), health checks timeout, container restart temporarily fixes
+  
+### Changes
+  1. **app/database.py** - Removed lazy initialization pattern
+     - Replaced `_ensure_initialized()` with explicit `initialize()` method
+     - `get_connection()` now raises `RuntimeError` if database not initialized (fail-fast)
+     - Added `threading.Lock` for migration thread safety
+     - Migrations now locked to prevent concurrent attempts
+     - Wrapped migration execution to log progress
+  
+  2. **app/app.py** - Explicit startup initialization
+     - Added `@app.on_event("startup")` handler
+     - Calls `db.initialize()` BEFORE FastAPI accepts requests
+     - Creates storage directories after initialization
+     - Logs full startup sequence for debugging
+  
+  3. **Database behavior**
+     - Migrations run once at app startup, not during requests
+     - Thread-safe with migration lock preventing race conditions
+     - Clear error messages if initialization skipped
+     - Proper logging shows: "Initializing..." → "Acquiring migration lock..." → "Migrations completed" → "Database initialization complete"
+
+### Testing
+- ✓ Build: `docker build -t nav-scoring:latest .`
+- ✓ Deploy with persistent volume: `docker run -v $(pwd)/persistent_data:/app/data nav-scoring:latest`
+- ✓ Startup logs show proper sequence (no "Migrations completed" during requests)
+- ✓ Login works immediately after container start (no hang)
+- ✓ Rapid repeated logins (50+) work without hanging
+- ✓ Health checks pass consistently
+- ✓ No SQLite file locking errors in logs
+
+### Breaking Changes
+- None (architectural fix, no data/API changes)
+
+### Migration Notes
+- Existing databases work as-is
+- Database file must be in persistent volume if using Docker
+- Healthcheck timeout may need increase during first startup (migrations run once)
+
+---
+
 ## [0.4.5] - 2026-02-13
 
 ### Fixed

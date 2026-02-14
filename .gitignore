@@ -53,3 +53,19 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Internal documentation and working files (not for public repo)
+FEATURE_COMPLETION_REPORT.md
+IMPLEMENTATION_SUMMARY.md
+ISSUES_FIXED.md
+LAUNDRY_FIXES.md
+LAUNDRY_VERIFICATION.md
+PRECISION_EXPLANATION.md
+REFACTOR_SUMMARY.md
+SUBAGENT_COMPLETION_REPORT.md
+TEST_PROFILE_PICTURES.md
+TASK_*.md
+MIKE_*.md
+CRITICAL_*.md
+10000_FOOT_UPGRADES.md
+bootstrap_db.py

@@ -1005,7 +1005,7 @@ async def submit_flight(
         if not error:
             try:
                 previous_point = start_crossing
-                previous_time = start_crossing["time"].timestamp()
+                previous_time = start_crossing["time"]
                 
                 for i, checkpoint in enumerate(checkpoints):
                     timing_point, distance_nm, method, within_025 = scoring_engine.find_checkpoint_crossing(

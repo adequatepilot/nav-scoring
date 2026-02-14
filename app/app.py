@@ -640,6 +640,7 @@ async def profile_page(request: Request, user: dict = Depends(require_login)):
         "request": request,
         "member_name": user["name"],
         "user_email": user["email"],
+        "user": user_data,
         "profile_picture": profile_picture,
         "initials": get_initials(user["name"]),
         "avatar_color": get_avatar_color(user["name"])

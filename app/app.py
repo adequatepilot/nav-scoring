@@ -562,7 +562,7 @@ async def reset_password(
     try:
         # Update password
         password_hash = auth.hash_password(password)
-        db.update_user(user["user_id"], password_hash=password_hash, must_reset_password=0)
+        db.update_user(user["user_id"], password_hash=password_hash, must_reset_password=False)
         
         # Clear the must_reset flag
         request.session.pop("must_reset_password", None)
@@ -1527,7 +1527,7 @@ async def edit_user(
         
         # Issue 13: Handle force_reset flag
         if force_reset:
-            updates["must_reset_password"] = 1
+            updates["must_reset_password"] = True
         
         # Update user
         success = db.update_user(int(user_id), **updates)
@@ -1589,7 +1589,7 @@ async def coach_create_member(
             name=name,
             is_coach=False,
             is_admin=False,
-            is_approved=1,  # Admin-created users are pre-approved
+            is_approved=True,  # Admin-created users are pre-approved
             email_verified=True,  # Coach-created accounts have verified email
             must_reset_password=force_reset  # Force password reset on next login
         )

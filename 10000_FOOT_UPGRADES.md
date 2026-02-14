@@ -19,34 +19,41 @@
 ## 🔴 CRITICAL PRIORITY (Pre-Production Blockers)
 
 ### C1: Database Persistence [BLOCKING]
-**Status:** ❌ Not Started  
-**Estimated Time:** 1 hour  
-**Risk:** Data loss on container restart
+**Status:** ✅ COMPLETE (2026-02-13)  
+**Actual Time:** 1 hour  
+**Risk:** ~~Data loss on container restart~~ RESOLVED
 
 **Problem:**
-Database lives inside Docker container at `/app/data/navs.db`. Container restart = all data lost.
+Database lived inside Docker container at `/app/data/navs.db`. Container restart = all data lost.
 
-**Solution:**
+**Solution Implemented:**
 ```bash
-# Current (BAD):
-docker run -d --name nav-scoring -p 8000:8000 nav-scoring:latest
-
-# Fixed (GOOD):
-docker run -d --name nav-scoring -p 8000:8000 \
-  -v /mnt/user/appdata/nav_scoring/database:/app/data \
+# Current deployment:
+cd /home/michael/clawd/work/nav_scoring
+docker run -d --name nav-scoring -p 8000:8000 --restart unless-stopped \
+  -v $(pwd)/persistent_data:/app/data \
   nav-scoring:latest
 ```
 
-**Acceptance Criteria:**
-- [ ] Database stored on host filesystem
-- [ ] Survives container restarts
-- [ ] Documented in deployment guide
-- [ ] Tested: restart container, verify data persists
+**What was done:**
+- Created `persistent_data/` directory on host
+- Volume mount: `$(pwd)/persistent_data:/app/data`
+- Database persists at `/home/michael/clawd/work/nav_scoring/persistent_data/navs.db`
+- Storage directories (gpx_uploads, pdf_reports) also persisted
+- Created `docker-compose.yml` for easier deployment
+- Fixed duplicate startup event handlers that were causing conflicts
+- Added restart policy: `unless-stopped`
 
-**Files to Update:**
-- `docker-compose.yml` (create if doesn't exist)
-- `docs/DEPLOYMENT.md`
-- `README.md`
+**Acceptance Criteria:**
+- [x] Database stored on host filesystem
+- [x] Survives container restarts
+- [x] Documented in deployment guide
+- [x] Tested: restart container, verify data persists
+
+**Files Updated:**
+- `docker-compose.yml` (created)
+- `app/app.py` (fixed duplicate startup events)
+- `persistent_data/` (created)
 
 ---
 

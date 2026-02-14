@@ -2132,7 +2132,7 @@ async def coach_create_gate(
         logger.error(f"Error creating gate: {e}")
         return RedirectResponse(url=f"/coach/navs/gates/{airport_id}?error={str(e)}", status_code=303)
 
-@app.get("/coach/navs/gates/{gate_id}/delete")
+@app.post("/coach/navs/gates/{gate_id}/delete")
 async def coach_delete_gate(gate_id: int, user: dict = Depends(require_admin)):
     """Delete start gate."""
     try:
@@ -2185,7 +2185,7 @@ async def coach_create_route(
         logger.error(f"Error creating route: {e}")
         return RedirectResponse(url=f"/coach/navs/routes?error={str(e)}", status_code=303)
 
-@app.get("/coach/navs/routes/{nav_id}/delete")
+@app.post("/coach/navs/routes/{nav_id}/delete")
 async def coach_delete_route(nav_id: int, user: dict = Depends(require_admin)):
     """Delete NAV route."""
     try:
@@ -2229,7 +2229,7 @@ async def coach_create_checkpoint(
         logger.error(f"Error creating checkpoint: {e}")
         return RedirectResponse(url=f"/coach/navs/checkpoints/{nav_id}?error={str(e)}", status_code=303)
 
-@app.get("/coach/navs/checkpoints/{checkpoint_id}/delete")
+@app.post("/coach/navs/checkpoints/{checkpoint_id}/delete")
 async def coach_delete_checkpoint(checkpoint_id: int, user: dict = Depends(require_admin)):
     """Delete checkpoint."""
     try:
@@ -2280,7 +2280,7 @@ async def coach_create_secret(
         logger.error(f"Error creating secret: {e}")
         return RedirectResponse(url=f"/coach/navs/secrets/{nav_id}?error={str(e)}", status_code=303)
 
-@app.get("/coach/navs/secrets/{secret_id}/delete")
+@app.post("/coach/navs/secrets/{secret_id}/delete")
 async def coach_delete_secret(secret_id: int, user: dict = Depends(require_admin)):
     """Delete secret."""
     try:

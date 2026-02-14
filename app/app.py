@@ -767,7 +767,7 @@ async def flight_form(request: Request, user: dict = Depends(require_member)):
         "member_name": user["name"]
     })
 
-@app.post("/flight")
+@app.post("/flight", response_class=HTMLResponse)
 async def submit_flight(
     request: Request,
     user: dict = Depends(require_member),
@@ -779,203 +779,257 @@ async def submit_flight(
     gpx_file: UploadFile = File(...)
 ):
     """Submit post-flight GPX and process scoring."""
+    error = None
     try:
         # Validate prenav token
         prenav = db.get_prenav_by_token(prenav_token)
         if not prenav:
-            raise HTTPException(status_code=400, detail="Invalid or expired token")
+            error = "Invalid or expired token"
         
         # Get pairing
-        pairing = db.get_pairing(prenav["pairing_id"])
-        if not pairing:
-            raise HTTPException(status_code=400, detail="Pairing not found")
+        if not error:
+            pairing = db.get_pairing(prenav["pairing_id"])
+            if not pairing:
+                error = "Pairing not found"
         
         # Verify user is part of pairing
-        if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
-            raise HTTPException(status_code=403, detail="Token does not belong to this team")
+        if not error:
+            if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
+                error = "Token does not belong to this team"
         
         # Check expiry
-        expires_at = datetime.fromisoformat(prenav["expires_at"])
-        if expires_at < datetime.utcnow():
-            raise HTTPException(status_code=400, detail="Token has expired")
+        if not error:
+            expires_at = datetime.fromisoformat(prenav["expires_at"])
+            if expires_at < datetime.utcnow():
+                error = "Token has expired"
         
         # Save GPX file
-        gpx_storage = Path(config["storage"]["gpx_uploads"])
-        gpx_storage.mkdir(parents=True, exist_ok=True)
-        
-        gpx_filename = f"gpx_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.gpx"
-        gpx_path = gpx_storage / gpx_filename
-        
-        gpx_content = await gpx_file.read()
-        gpx_path.write_bytes(gpx_content)
+        if not error:
+            try:
+                gpx_storage = Path(config["storage"]["gpx_uploads"])
+                gpx_storage.mkdir(parents=True, exist_ok=True)
+                
+                gpx_filename = f"gpx_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.gpx"
+                gpx_path = gpx_storage / gpx_filename
+                
+                gpx_content = await gpx_file.read()
+                if not gpx_content:
+                    error = "GPX file is empty"
+                else:
+                    gpx_path.write_bytes(gpx_content)
+            except Exception as e:
+                error = f"Failed to save GPX file: {str(e)}"
         
         # Parse GPX
-        track_points = parse_gpx(gpx_content)
-        if not track_points:
-            raise HTTPException(status_code=400, detail="No track points found in GPX file")
+        if not error:
+            try:
+                track_points = parse_gpx(gpx_content)
+                if not track_points:
+                    error = "No track points found in GPX file"
+            except Exception as e:
+                error = f"Failed to parse GPX file: {str(e)}"
         
         # Get NAV and checkpoints
-        nav = db.get_nav(prenav["nav_id"])
-        checkpoints = nav["checkpoints"]
+        if not error:
+            nav = db.get_nav(prenav["nav_id"])
+            checkpoints = nav["checkpoints"]
         
         # Get start gate
-        start_gate = db.get_start_gate(start_gate_id)
-        if not start_gate:
-            raise HTTPException(status_code=400, detail="Invalid start gate")
+        if not error:
+            start_gate = db.get_start_gate(start_gate_id)
+            if not start_gate:
+                error = "Invalid start gate"
         
         # Detect start gate crossing
-        start_crossing, start_distance = scoring_engine.detect_start_gate_crossing(
-            track_points, start_gate
-        )
-        
-        if not start_crossing:
-            raise HTTPException(status_code=400, detail="Could not detect start gate crossing")
+        if not error:
+            try:
+                start_crossing, start_distance = scoring_engine.detect_start_gate_crossing(
+                    track_points, start_gate
+                )
+                
+                if not start_crossing:
+                    error = "Could not detect start gate crossing. Please check your GPX file and try again."
+            except Exception as e:
+                error = f"Error detecting start gate: {str(e)}"
         
         # Score checkpoints
         checkpoint_results = []
-        previous_point = start_crossing
-        previous_time = start_crossing["time"].timestamp()
+        if not error:
+            try:
+                previous_point = start_crossing
+                previous_time = start_crossing["time"].timestamp()
+                
+                for i, checkpoint in enumerate(checkpoints):
+                    timing_point, distance_nm, method, within_025 = scoring_engine.find_checkpoint_crossing(
+                        track_points, checkpoint, previous_point, previous_time
+                    )
+                    
+                    if not timing_point:
+                        logger.error(f"Could not find crossing for checkpoint {checkpoint['name']}")
+                        continue
+                    
+                    # Calculate leg score
+                    estimated_time = prenav["leg_times"][i]
+                    actual_time = timing_point["time"].timestamp() - previous_time
+                    
+                    leg_score, off_course_penalty = scoring_engine.calculate_leg_score(
+                        actual_time, estimated_time, distance_nm, within_025
+                    )
+                    
+                    checkpoint_results.append({
+                        "name": checkpoint["name"],
+                        "distance_nm": distance_nm,
+                        "within_0_25_nm": within_025,
+                        "method": method,
+                        "estimated_time": estimated_time,
+                        "actual_time": actual_time,
+                        "deviation": actual_time - estimated_time,
+                        "leg_score": leg_score,
+                        "off_course_penalty": off_course_penalty
+                    })
+                    
+                    previous_point = timing_point
+                    previous_time = timing_point["time"].timestamp()
+            except Exception as e:
+                error = f"Error scoring checkpoints: {str(e)}"
         
-        for i, checkpoint in enumerate(checkpoints):
-            timing_point, distance_nm, method, within_025 = scoring_engine.find_checkpoint_crossing(
-                track_points, checkpoint, previous_point, previous_time
-            )
-            
-            if not timing_point:
-                logger.error(f"Could not find crossing for checkpoint {checkpoint['name']}")
-                continue
-            
-            # Calculate leg score
-            estimated_time = prenav["leg_times"][i]
-            actual_time = timing_point["time"].timestamp() - previous_time
-            
-            leg_score, off_course_penalty = scoring_engine.calculate_leg_score(
-                actual_time, estimated_time, distance_nm, within_025
-            )
-            
-            checkpoint_results.append({
-                "name": checkpoint["name"],
-                "distance_nm": distance_nm,
-                "within_0_25_nm": within_025,
-                "method": method,
-                "estimated_time": estimated_time,
-                "actual_time": actual_time,
-                "deviation": actual_time - estimated_time,
-                "leg_score": leg_score,
-                "off_course_penalty": off_course_penalty
-            })
-            
-            previous_point = timing_point
-            previous_time = timing_point["time"].timestamp()
-        
-        # Calculate total scores
-        total_time_deviation = sum(abs(cp["deviation"]) for cp in checkpoint_results)
-        total_time_score = sum(cp["leg_score"] for cp in checkpoint_results)
-        
-        fuel_penalty = scoring_engine.calculate_fuel_penalty(
-            prenav["fuel_estimate"], actual_fuel
-        )
-        
-        checkpoint_secrets_penalty, enroute_secrets_penalty = scoring_engine.calculate_secrets_penalty(
-            secrets_checkpoint, secrets_enroute
-        )
-        
-        checkpoint_scores = [(cp["leg_score"], cp["off_course_penalty"]) for cp in checkpoint_results]
-        
-        overall_score = scoring_engine.calculate_overall_score(
-            checkpoint_scores,
-            total_time_score,
-            fuel_penalty,
-            checkpoint_secrets_penalty,
-            enroute_secrets_penalty
-        )
-        
-        # Generate track plot
-        pdf_storage = Path(config["storage"]["pdf_reports"])
-        pdf_storage.mkdir(parents=True, exist_ok=True)
-        
-        plot_filename = f"plot_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.png"
-        plot_path = pdf_storage / plot_filename
-        
-        generate_track_plot(track_points, checkpoints, plot_path)
-        
-        # Generate PDF
-        pdf_filename = f"result_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.pdf"
-        pdf_path = pdf_storage / pdf_filename
-        
-        # Get pairing member names
-        pilot = db.get_member_by_id(pairing["pilot_id"])
-        observer = db.get_member_by_id(pairing["safety_observer_id"])
-        
-        pairing_display = {
-            "pilot_name": pilot["name"] if pilot else "Unknown",
-            "observer_name": observer["name"] if observer else "Unknown"
-        }
-        
-        result_data_for_pdf = {
-            "overall_score": overall_score,
-            "total_time_score": total_time_score,
-            "fuel_penalty": fuel_penalty,
-            "checkpoint_secrets_penalty": checkpoint_secrets_penalty,
-            "enroute_secrets_penalty": enroute_secrets_penalty,
-            "checkpoint_results": checkpoint_results,
-            "scored_at": datetime.utcnow().isoformat()
-        }
-        
-        generate_pdf_report(result_data_for_pdf, nav, pairing_display, plot_path, pdf_path)
-        
-        # Save result to database
-        result_id = db.create_flight_result(
-            prenav_id=prenav["id"],
-            pairing_id=pairing["id"],
-            nav_id=prenav["nav_id"],
-            gpx_filename=gpx_filename,
-            actual_fuel=actual_fuel,
-            secrets_checkpoint=secrets_checkpoint,
-            secrets_enroute=secrets_enroute,
-            start_gate_id=start_gate_id,
-            overall_score=overall_score,
-            checkpoint_results=checkpoint_results
-        )
-        
-        # Update with PDF filename
-        from app.database import Database as DB
-        with db.get_connection() as conn:
-            conn.execute(
-                "UPDATE flight_results SET pdf_filename = ? WHERE id = ?",
-                (pdf_filename, result_id)
-            )
-        
-        # Send emails
-        pilot_email = pilot["email"] if pilot else ""
-        observer_email = observer["email"] if observer else ""
-        
-        team_name = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Team"
-        
-        if pilot_email:
-            await email_service.send_results_notification(
-                team_email=pilot_email,
-                team_name=pilot["name"],
-                nav_name=nav["name"],
-                overall_score=overall_score,
-                pdf_filename=pdf_filename
-            )
-        
-        if observer_email:
-            await email_service.send_results_notification(
-                team_email=observer_email,
-                team_name=observer["name"],
-                nav_name=nav["name"],
-                overall_score=overall_score,
-                pdf_filename=pdf_filename
-            )
-        
-        # Redirect to results page
-        return RedirectResponse(url=f"/results/{result_id}", status_code=303)
+        # If no error, proceed with scoring
+        if not error:
+            try:
+                # Calculate total scores
+                total_time_deviation = sum(abs(cp["deviation"]) for cp in checkpoint_results)
+                total_time_score = sum(cp["leg_score"] for cp in checkpoint_results)
+                
+                fuel_penalty = scoring_engine.calculate_fuel_penalty(
+                    prenav["fuel_estimate"], actual_fuel
+                )
+                
+                checkpoint_secrets_penalty, enroute_secrets_penalty = scoring_engine.calculate_secrets_penalty(
+                    secrets_checkpoint, secrets_enroute
+                )
+                
+                checkpoint_scores = [(cp["leg_score"], cp["off_course_penalty"]) for cp in checkpoint_results]
+                
+                overall_score = scoring_engine.calculate_overall_score(
+                    checkpoint_scores,
+                    total_time_score,
+                    fuel_penalty,
+                    checkpoint_secrets_penalty,
+                    enroute_secrets_penalty
+                )
+                
+                # Generate track plot
+                pdf_storage = Path(config["storage"]["pdf_reports"])
+                pdf_storage.mkdir(parents=True, exist_ok=True)
+                
+                plot_filename = f"plot_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.png"
+                plot_path = pdf_storage / plot_filename
+                
+                generate_track_plot(track_points, checkpoints, plot_path)
+                
+                # Generate PDF
+                pdf_filename = f"result_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.pdf"
+                pdf_path = pdf_storage / pdf_filename
+                
+                # Get pairing member names
+                pilot = db.get_member_by_id(pairing["pilot_id"])
+                observer = db.get_member_by_id(pairing["safety_observer_id"])
+                
+                pairing_display = {
+                    "pilot_name": pilot["name"] if pilot else "Unknown",
+                    "observer_name": observer["name"] if observer else "Unknown"
+                }
+                
+                result_data_for_pdf = {
+                    "overall_score": overall_score,
+                    "total_time_score": total_time_score,
+                    "fuel_penalty": fuel_penalty,
+                    "checkpoint_secrets_penalty": checkpoint_secrets_penalty,
+                    "enroute_secrets_penalty": enroute_secrets_penalty,
+                    "checkpoint_results": checkpoint_results,
+                    "scored_at": datetime.utcnow().isoformat()
+                }
+                
+                generate_pdf_report(result_data_for_pdf, nav, pairing_display, plot_path, pdf_path)
+                
+                # Save result to database
+                result_id = db.create_flight_result(
+                    prenav_id=prenav["id"],
+                    pairing_id=pairing["id"],
+                    nav_id=prenav["nav_id"],
+                    gpx_filename=gpx_filename,
+                    actual_fuel=actual_fuel,
+                    secrets_checkpoint=secrets_checkpoint,
+                    secrets_enroute=secrets_enroute,
+                    start_gate_id=start_gate_id,
+                    overall_score=overall_score,
+                    checkpoint_results=checkpoint_results
+                )
+                
+                # Update with PDF filename
+                from app.database import Database as DB
+                with db.get_connection() as conn:
+                    conn.execute(
+                        "UPDATE flight_results SET pdf_filename = ? WHERE id = ?",
+                        (pdf_filename, result_id)
+                    )
+                
+                # Send emails
+                pilot_email = pilot["email"] if pilot else ""
+                observer_email = observer["email"] if observer else ""
+                
+                team_name = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Team"
+                
+                if pilot_email:
+                    try:
+                        await email_service.send_results_notification(
+                            team_email=pilot_email,
+                            team_name=pilot["name"],
+                            nav_name=nav["name"],
+                            overall_score=overall_score,
+                            pdf_filename=pdf_filename
+                        )
+                    except Exception as email_err:
+                        logger.warning(f"Failed to send email to pilot: {email_err}")
+                
+                if observer_email:
+                    try:
+                        await email_service.send_results_notification(
+                            team_email=observer_email,
+                            team_name=observer["name"],
+                            nav_name=nav["name"],
+                            overall_score=overall_score,
+                            pdf_filename=pdf_filename
+                        )
+                    except Exception as email_err:
+                        logger.warning(f"Failed to send email to observer: {email_err}")
+                
+                # Redirect to results page
+                return RedirectResponse(url=f"/results/{result_id}", status_code=303)
+            except Exception as e:
+                logger.error(f"Error processing flight: {e}", exc_info=True)
+                error = f"Error processing flight: {str(e)}"
     
     except Exception as e:
-        logger.error(f"Error processing flight: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Unexpected error in submit_flight: {e}", exc_info=True)
+        error = f"An unexpected error occurred: {str(e)}"
+    
+    # If there was an error, render the form with the error message
+    if error:
+        navs = db.list_navs()
+        gates = []
+        for nav in navs:
+            nav_gates = db.get_start_gates(nav["airport_id"])
+            for gate in nav_gates:
+                if gate not in gates:
+                    gates.append(gate)
+        
+        return templates.TemplateResponse("team/flight.html", {
+            "request": request,
+            "start_gates": gates,
+            "member_name": user["name"],
+            "error": error
+        })
 
 @app.get("/results/{result_id}", response_class=HTMLResponse)
 async def view_result(request: Request, result_id: int, user: dict = Depends(require_member)):
@@ -1884,9 +1938,14 @@ async def coach_update_email_config(
 async def startup_event():
     """App startup."""
     logger.info("NAV Scoring app starting up")
-    deleted = db.delete_expired_prenavs()
-    if deleted:
-        logger.info(f"Deleted {deleted} expired pre-NAV submissions")
+    
+    # Try to cleanup expired prenavs (will fail on first run, that's OK)
+    try:
+        deleted = db.delete_expired_prenavs()
+        if deleted:
+            logger.info(f"Deleted {deleted} expired pre-NAV submissions")
+    except Exception as e:
+        logger.warning(f"Could not delete expired prenavs on startup (likely first run): {e}")
     
     # Ensure storage directories exist
     Path(config["storage"]["gpx_uploads"]).mkdir(parents=True, exist_ok=True)

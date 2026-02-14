@@ -183,6 +183,23 @@ def is_smtp_configured() -> bool:
     smtp_password = email_config.get("sender_password", "").strip()
     return bool(smtp_host and smtp_password)
 
+def get_initials(name: str) -> str:
+    """Get initials from name (first letter of first and last words)."""
+    parts = name.strip().split()
+    if len(parts) >= 2:
+        return (parts[0][0] + parts[-1][0]).upper()
+    elif len(parts) == 1:
+        return parts[0][0:2].upper()
+    else:
+        return "?"
+
+def get_avatar_color(name: str) -> str:
+    """Get a consistent color class for a name based on hash."""
+    colors = ["avatar-color-1", "avatar-color-2", "avatar-color-3", 
+              "avatar-color-4", "avatar-color-5", "avatar-color-6"]
+    color_index = sum(ord(c) for c in name) % len(colors)
+    return colors[color_index]
+
 def parse_mmss(time_str: str) -> float:
     """Parse MM:SS or M:SS format to seconds."""
     parts = time_str.strip().split(":")
@@ -569,6 +586,79 @@ async def reset_password(
             "error": f"Error resetting password: {str(e)}"
         })
 
+@app.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request, user: dict = Depends(require_login)):
+    """Display user profile page with picture upload."""
+    user_data = db.get_user_by_id(user["user_id"])
+    
+    profile_picture = None
+    if user_data and user_data.get("profile_picture_path"):
+        profile_picture = f"/static/{user_data['profile_picture_path']}"
+    
+    return templates.TemplateResponse("team/profile.html", {
+        "request": request,
+        "member_name": user["name"],
+        "user_email": user["email"],
+        "profile_picture": profile_picture,
+        "initials": get_initials(user["name"]),
+        "avatar_color": get_avatar_color(user["name"])
+    })
+
+@app.post("/profile/picture")
+async def upload_profile_picture(
+    request: Request,
+    user: dict = Depends(require_login),
+    profile_picture: Optional[UploadFile] = File(None)
+):
+    """Upload or update user's profile picture."""
+    try:
+        if not profile_picture or profile_picture.size == 0:
+            return {"success": False, "message": "No file provided"}
+        
+        # Validate file size (max 5MB)
+        max_size = 5 * 1024 * 1024  # 5MB
+        if profile_picture.size > max_size:
+            return {"success": False, "message": "File too large (max 5MB)"}
+        
+        # Validate file type
+        allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        if profile_picture.content_type not in allowed_types:
+            return {"success": False, "message": "Invalid file type. Allowed: JPG, PNG, GIF, WebP"}
+        
+        # Create profile_pictures directory if it doesn't exist
+        profile_pics_dir = Path("static/profile_pictures")
+        profile_pics_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Read file content
+        file_content = await profile_picture.read()
+        
+        # Generate filename: user_id_timestamp.ext
+        from datetime import datetime as dt
+        timestamp = int(dt.utcnow().timestamp())
+        file_ext = profile_picture.filename.split('.')[-1].lower()
+        filename = f"{user['user_id']}_{timestamp}.{file_ext}"
+        
+        # Save file
+        file_path = profile_pics_dir / filename
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
+        
+        # Update database with new picture path
+        relative_path = f"profile_pictures/{filename}"
+        db.update_user(user["user_id"], profile_picture_path=relative_path)
+        
+        logger.info(f"Profile picture uploaded for user {user['user_id']}: {filename}")
+        
+        return {
+            "success": True,
+            "message": "Profile picture uploaded successfully",
+            "path": f"/static/{relative_path}"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error uploading profile picture for user {user['user_id']}: {e}")
+        return {"success": False, "message": f"Error uploading file: {str(e)}"}
+
 @app.get("/team", response_class=HTMLResponse)
 async def team_dashboard(request: Request, user: dict = Depends(require_competitor)):
     """Team member main dashboard."""
@@ -579,10 +669,27 @@ async def team_dashboard(request: Request, user: dict = Depends(require_competit
     if pairing:
         pilot = db.get_user_by_id(pairing["pilot_id"])
         observer = db.get_user_by_id(pairing["safety_observer_id"])
+        
+        # Build pilot data with profile picture
+        pilot_picture = None
+        if pilot and pilot.get("profile_picture_path"):
+            pilot_picture = f"/static/{pilot['profile_picture_path']}"
+        
+        # Build observer data with profile picture
+        observer_picture = None
+        if observer and observer.get("profile_picture_path"):
+            observer_picture = f"/static/{observer['profile_picture_path']}"
+        
         pairing_data = {
             "id": pairing["id"],
             "pilot_name": pilot["name"] if pilot else "Unknown",
-            "observer_name": observer["name"] if observer else "Unknown"
+            "pilot_initials": get_initials(pilot["name"]) if pilot else "?",
+            "pilot_picture": pilot_picture,
+            "pilot_color": get_avatar_color(pilot["name"]) if pilot else "avatar-color-1",
+            "observer_name": observer["name"] if observer else "Unknown",
+            "observer_initials": get_initials(observer["name"]) if observer else "?",
+            "observer_picture": observer_picture,
+            "observer_color": get_avatar_color(observer["name"]) if observer else "avatar-color-2"
         }
     
     # Get recent results for this user's pairings

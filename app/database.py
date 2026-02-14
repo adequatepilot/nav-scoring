@@ -318,7 +318,7 @@ class Database:
 
     def update_user(self, user_id: int, **kwargs) -> bool:
         """Update user fields. Returns success."""
-        allowed_fields = {"password_hash", "email", "name", "is_coach", "is_admin", "is_approved"}
+        allowed_fields = {"password_hash", "email", "name", "is_coach", "is_admin", "is_approved", "profile_picture_path", "must_reset_password"}
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
         if not updates:
             return False

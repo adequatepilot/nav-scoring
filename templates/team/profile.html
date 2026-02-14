@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <img src="/static/images/siu_logo_stacked_full_color_black_text.png" alt="SIU Salukis Logo" class="navbar-logo">
+        <h1>Profile</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <span>{{ member_name }}</span>
+        <a href="/team">Dashboard</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.profile-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.profile-card {
+    background: white;
+    border-radius: 10px;
+    padding: 2rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+.profile-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.profile-avatar {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 3rem;
+    overflow: hidden;
+    border: 4px solid #ddd;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-avatar-initials {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-name {
+    font-size: 1.8rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.profile-email {
+    color: #666;
+    margin-bottom: 1rem;
+}
+
+.upload-section h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    color: #333;
+}
+
+.upload-form {
+    border: 2px dashed #ccc;
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.upload-form:hover {
+    border-color: #2196f3;
+    background-color: #f5f9ff;
+}
+
+.upload-form.drag-over {
+    border-color: #2196f3;
+    background-color: #f5f9ff;
+}
+
+.upload-form input[type="file"] {
+    display: none;
+}
+
+.upload-label {
+    cursor: pointer;
+    display: block;
+}
+
+.upload-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.upload-text {
+    color: #666;
+    margin-bottom: 0.5rem;
+}
+
+.upload-hint {
+    font-size: 0.85rem;
+    color: #999;
+}
+
+.upload-button {
+    background: #2196f3;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin-top: 1rem;
+    transition: background 0.3s;
+}
+
+.upload-button:hover {
+    background: #1976d2;
+}
+
+#preview-img {
+    max-width: 100%;
+    max-height: 300px;
+    margin-top: 1rem;
+    border-radius: 5px;
+}
+
+.message {
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+}
+
+.success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.loading {
+    display: none;
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #2196f3;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Avatar color classes */
+.avatar-color-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.avatar-color-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.avatar-color-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.avatar-color-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+.avatar-color-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+.avatar-color-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile-card">
+        <div class="profile-header">
+            <div class="profile-avatar {{ avatar_color }}">
+                {% if profile_picture %}
+                    <img src="{{ profile_picture }}" alt="{{ member_name }}">
+                {% else %}
+                    <div class="profile-avatar-initials">{{ initials }}</div>
+                {% endif %}
+            </div>
+            <div class="profile-name">{{ member_name }}</div>
+            <div class="profile-email">{{ user_email }}</div>
+        </div>
+
+        <div class="upload-section">
+            <h2>Upload Profile Picture</h2>
+            
+            {% if message %}
+            <div class="message success">{{ message }}</div>
+            {% endif %}
+            
+            {% if error %}
+            <div class="message error">{{ error }}</div>
+            {% endif %}
+
+            <div class="upload-form" id="uploadForm">
+                <label class="upload-label">
+                    <input type="file" id="fileInput" accept="image/*">
+                    <div class="upload-icon">📸</div>
+                    <div class="upload-text">Click to select or drag and drop</div>
+                    <div class="upload-hint">JPG, PNG, GIF, or WebP (max 5MB)</div>
+                </label>
+                <img id="preview-img" style="display: none;">
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Uploading...</p>
+            </div>
+
+            <button class="upload-button" id="submitBtn" style="display: none;">Upload Picture</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const uploadForm = document.getElementById('uploadForm');
+const previewImg = document.getElementById('preview-img');
+const submitBtn = document.getElementById('submitBtn');
+const loading = document.getElementById('loading');
+
+// File input change handler
+fileInput.addEventListener('change', function() {
+    handleFile(this.files[0]);
+});
+
+// Drag and drop
+uploadForm.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.classList.add('drag-over');
+});
+
+uploadForm.addEventListener('dragleave', function() {
+    this.classList.remove('drag-over');
+});
+
+uploadForm.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over');
+    
+    if (e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        handleFile(e.dataTransfer.files[0]);
+    }
+});
+
+function handleFile(file) {
+    if (!file) return;
+    
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        previewImg.src = e.target.result;
+        previewImg.style.display = 'block';
+        submitBtn.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
+
+// Upload handler
+submitBtn.addEventListener('click', async function() {
+    if (!fileInput.files.length) return;
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('profile_picture', file);
+    
+    loading.style.display = 'block';
+    submitBtn.style.display = 'none';
+    
+    try {
+        const response = await fetch('/profile/picture', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        loading.style.display = 'none';
+        
+        if (result.success) {
+            // Reload page to show updated picture
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            alert('Error: ' + result.message);
+            submitBtn.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Upload failed: ' + error.message);
+        loading.style.display = 'none';
+        submitBtn.style.display = 'block';
+    }
+});
+</script>
+
+{% endblock %}

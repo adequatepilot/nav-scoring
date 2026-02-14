@@ -18,6 +18,9 @@ data/*.db-journal
 data/gpx_uploads/
 data/pdf_reports/
 
+# Profile pictures (user uploaded data)
+static/profile_pictures/
+
 # Config with secrets
 config/config.yaml
 

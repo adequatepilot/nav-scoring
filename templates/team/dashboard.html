@@ -12,6 +12,7 @@
     <div class="navbar-links" id="navbarLinks">
         <span>{{ member_name }}</span>
         <a href="/team">Dashboard</a>
+        <a href="/profile">Profile</a>
         <a href="/logout">Logout</a>
     </div>
 </div>
@@ -82,6 +83,78 @@
     transform: none;
     box-shadow: none;
 }
+
+/* Profile pictures styling */
+.pairing-section {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.pairing-info {
+    flex: 1;
+}
+
+.pairing-info strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+    color: #2e7d32;
+}
+
+.pairing-info p {
+    margin: 0.3rem 0;
+    font-size: 0.95rem;
+}
+
+.avatars-container {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.avatar {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 2rem;
+    overflow: hidden;
+    border: 3px solid #ddd;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+}
+
+.avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-initials {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 2rem;
+}
+
+/* Color palette for initials - similar to coach dashboard */
+.avatar-color-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.avatar-color-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.avatar-color-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.avatar-color-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+.avatar-color-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+.avatar-color-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
 </style>
 {% endblock %}
 
@@ -89,10 +162,34 @@
 <h2>Welcome, {{ member_name }}</h2>
 
 {% if pairing_info %}
-<div class="info">
-    <strong>✓ Active Pairing Found:</strong><br>
-    Pilot: {{ pairing_info.pilot_name }}<br>
-    Observer: {{ pairing_info.observer_name }}
+<div class="pairing-section">
+    <div class="pairing-info">
+        <strong>✓ Active Pairing Found</strong>
+        <p><strong>Pilot:</strong> {{ pairing_info.pilot_name }}</p>
+        <p><strong>Observer:</strong> {{ pairing_info.observer_name }}</p>
+    </div>
+    <div class="avatars-container">
+        <!-- Pilot Avatar -->
+        <div>
+            <div class="avatar {{ pairing_info.pilot_color }}">
+                {% if pairing_info.pilot_picture %}
+                    <img src="{{ pairing_info.pilot_picture }}" alt="{{ pairing_info.pilot_name }}">
+                {% else %}
+                    <div class="avatar-initials">{{ pairing_info.pilot_initials }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <!-- Observer Avatar -->
+        <div>
+            <div class="avatar {{ pairing_info.observer_color }}">
+                {% if pairing_info.observer_picture %}
+                    <img src="{{ pairing_info.observer_picture }}" alt="{{ pairing_info.observer_name }}">
+                {% else %}
+                    <div class="avatar-initials">{{ pairing_info.observer_initials }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
 
 <h3>Quick Actions</h3>

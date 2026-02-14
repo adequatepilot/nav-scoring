@@ -1549,7 +1549,8 @@ async def coach_view_result(request: Request, result_id: int, user: dict = Depen
         "request": request,
         "result": result_display,
         "nav": nav,
-        "member_name": "Coach"
+        "member_name": "Coach",
+        "dashboard_url": "/coach"
     })
 
 @app.get("/coach/results/{result_id}/delete")

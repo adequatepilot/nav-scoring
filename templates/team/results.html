@@ -148,11 +148,11 @@
 {% if result.pdf_filename %}
 <div class="button-group" style="margin-top: 2rem;">
     <button onclick="window.location.href='/results/{{ result.id }}/pdf'">Download PDF Report</button>
-    <button onclick="window.location.href='/team'">Return to Dashboard</button>
+    <button onclick="window.location.href='{{ dashboard_url|default('/team') }}'">Return to Dashboard</button>
 </div>
 {% else %}
 <div class="button-group" style="margin-top: 2rem;">
-    <button onclick="window.location.href='/team'">Return to Dashboard</button>
+    <button onclick="window.location.href='{{ dashboard_url|default('/team') }}'">Return to Dashboard</button>
 </div>
 {% endif %}
 

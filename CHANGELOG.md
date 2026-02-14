@@ -2,6 +2,35 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.4] - 2026-02-13
+
+### Fixed
+- **Issue 16.5:** Total time inputs now use separate HH:MM:SS boxes instead of single MM:SS field
+- **Issue 16.6:** All time inputs default to "0" and only accept numeric input (type="number")
+- **Issue 23:** Post-flight submission error handling - Now shows descriptive error messages instead of blank error page
+- **Issue 19 & 19.1:** Removed redundant "Status" column from members table - Single "Approval Status" column shows approve/deny buttons for pending users
+
+### Added
+- **SQLite WAL mode** - Enables Write-Ahead Logging for better concurrency with Docker volume mounts
+- **Database persistence** - Volume mount at `/app/data` ensures database survives container restarts
+- **MDH 20 NAV route** - Loaded from nav_route.txt with 5 checkpoints and 2 start gates
+- **DEPLOYMENT.md** - Complete deployment and troubleshooting guide
+- **LAUNDRY_FIXES.md** - Documentation of laundry list item fixes
+- **Backup/restore scripts** - bash scripts for manual database backup and restore
+
+### Changed
+- Prenav form total time: Separate HH:MM:SS input boxes with numeric-only validation
+- Prenav form leg times: HH:MM:SS format (hours, minutes, seconds) instead of MM:SS
+- Flight submission error handling: HTML error display instead of JSON errors
+- Database connection: WAL mode with `PRAGMA journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`
+- Database timeouts: Reduced from 300s to 5s for faster failure detection
+- Members table: Removed duplicate status column, cleaner UI
+
+### Technical
+- Database files: `navs.db`, `navs.db-wal`, `navs.db-shm` (all must be backed up together)
+- Docker volume mount: `-v $(pwd)/data:/app/data` for persistent storage
+- Container deployment: Works like Radarr/Sonarr with SQLite on volume-mounted storage
+
 ## [0.3.3] - 2026-02-13
 
 ### Fixed

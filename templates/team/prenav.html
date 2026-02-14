@@ -50,15 +50,29 @@
     </div>
     
     <div id="leg_times_container" style="display: none;">
-        <h3>Leg Times (MM:SS format)</h3>
+        <h3>Leg Times (HH:MM:SS format)</h3>
         <div id="leg_times_fields"></div>
     </div>
     
     <div class="form-group" style="display: none;" id="total_time_group">
-        <label for="total_time_str">Total Flight Time (MM:SS):</label>
-        <input type="text" id="total_time_str" name="total_time_str" 
-               placeholder="48:30" pattern="\d+:\d{2}" class="time-input" required>
-        <small style="color: #666;">Example: 48:30 (48 minutes, 30 seconds)</small>
+        <label>Total Flight Time (HH:MM:SS):</label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <div>
+                <label for="total_hh" style="font-size: 0.85em;">Hours</label>
+                <input type="number" id="total_hh" name="total_hh" 
+                       min="0" value="0" class="time-input" required style="width: 60px;">
+            </div>
+            <div>
+                <label for="total_mm" style="font-size: 0.85em;">Minutes</label>
+                <input type="number" id="total_mm" name="total_mm" 
+                       min="0" max="59" value="0" class="time-input" required style="width: 60px;">
+            </div>
+            <div>
+                <label for="total_ss" style="font-size: 0.85em;">Seconds</label>
+                <input type="number" id="total_ss" name="total_ss" 
+                       min="0" max="59" value="0" class="time-input" required style="width: 60px;">
+            </div>
+        </div>
     </div>
     
     <div class="form-group" style="display: none;" id="fuel_group">
@@ -90,7 +104,7 @@ function updateCheckpointFields() {
     document.getElementById('total_time_group').style.display = 'block';
     document.getElementById('fuel_group').style.display = 'block';
     
-    // Generate leg time input fields
+    // Generate leg time input fields with HH:MM:SS format
     const container = document.getElementById('leg_times_fields');
     container.innerHTML = '';
     
@@ -98,12 +112,35 @@ function updateCheckpointFields() {
         const div = document.createElement('div');
         div.className = 'form-group';
         div.innerHTML = `
-            <label for="leg_${i}">Leg ${i + 1} Time (MM:SS):</label>
-            <input type="text" id="leg_${i}" name="leg_${i}" 
-                   placeholder="15:00" pattern="\\d+:\\d{2}" class="time-input" required>
+            <label>Leg ${i + 1} Time (HH:MM:SS):</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div>
+                    <label for="leg_${i}_hh" style="font-size: 0.85em;">Hours</label>
+                    <input type="number" id="leg_${i}_hh" name="leg_${i}_hh" 
+                           min="0" value="0" class="time-input" required style="width: 60px;">
+                </div>
+                <div>
+                    <label for="leg_${i}_mm" style="font-size: 0.85em;">Minutes</label>
+                    <input type="number" id="leg_${i}_mm" name="leg_${i}_mm" 
+                           min="0" max="59" value="0" class="time-input" required style="width: 60px;">
+                </div>
+                <div>
+                    <label for="leg_${i}_ss" style="font-size: 0.85em;">Seconds</label>
+                    <input type="number" id="leg_${i}_ss" name="leg_${i}_ss" 
+                           min="0" max="59" value="0" class="time-input" required style="width: 60px;">
+                </div>
+            </div>
         `;
         container.appendChild(div);
     }
+}
+
+// Helper function to convert HH:MM:SS to seconds
+function timeToSeconds(hours, minutes, seconds) {
+    hours = parseInt(hours || 0);
+    minutes = parseInt(minutes || 0);
+    seconds = parseInt(seconds || 0);
+    return hours * 3600 + minutes * 60 + seconds;
 }
 
 document.getElementById('prenavForm').addEventListener('submit', function(e) {
@@ -125,23 +162,45 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
         return;
     }
     
-    // Validate leg times
+    // Validate and convert leg times to seconds
     const legTimes = [];
     for (let i = 0; i < numCheckpoints; i++) {
-        const value = document.getElementById(`leg_${i}`).value;
-        if (!value) {
+        const hh = document.getElementById(`leg_${i}_hh`).value || '0';
+        const mm = document.getElementById(`leg_${i}_mm`).value || '0';
+        const ss = document.getElementById(`leg_${i}_ss`).value || '0';
+        
+        if (!hh && !mm && !ss) {
             alert(`Please enter time for Leg ${i + 1}`);
             return;
         }
-        legTimes.push(value);
+        
+        // Validate that all values are numbers
+        if (isNaN(hh) || isNaN(mm) || isNaN(ss)) {
+            alert(`Leg ${i + 1} time must contain only numbers`);
+            return;
+        }
+        
+        const totalSeconds = timeToSeconds(hh, mm, ss);
+        legTimes.push(totalSeconds);
     }
     
-    // Validate total time
-    const totalTimeStr = document.getElementById('total_time_str').value;
-    if (!totalTimeStr) {
+    // Validate total time (HH:MM:SS)
+    const totalHh = document.getElementById('total_hh').value || '0';
+    const totalMm = document.getElementById('total_mm').value || '0';
+    const totalSs = document.getElementById('total_ss').value || '0';
+    
+    if (!totalHh && !totalMm && !totalSs) {
         alert('Please enter total flight time');
         return;
     }
+    
+    // Validate that all values are numbers
+    if (isNaN(totalHh) || isNaN(totalMm) || isNaN(totalSs)) {
+        alert('Total time must contain only numbers');
+        return;
+    }
+    
+    const totalTimeSeconds = timeToSeconds(totalHh, totalMm, totalSs);
     
     // Validate fuel estimate
     const fuelEstimate = document.getElementById('fuel_estimate').value;
@@ -150,8 +209,9 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
         return;
     }
     
-    // Store leg times as JSON
+    // Store leg times and total time as JSON arrays of seconds
     document.getElementById('leg_times_str').value = JSON.stringify(legTimes);
+    document.getElementById('total_time_str').value = totalTimeSeconds.toString();
     
     // Submit form
     this.submit();

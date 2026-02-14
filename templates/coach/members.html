@@ -294,8 +294,7 @@ th, td {
             <tr>
                 <th>Email</th>
                 <th>Name</th>
-                <th>Status</th>
-                <th>Approved</th>
+                <th>Approval Status</th>
                 <th>Coach</th>
                 <th>Admin</th>
                 <th>Actions</th>
@@ -306,13 +305,6 @@ th, td {
             <tr class="user-row {% if not member.is_approved %}pending{% endif %}" data-member-id="{{ member.id }}" data-approved="{{ member.is_approved }}" data-coach="{{ member.is_coach }}" data-admin="{{ member.is_admin }}">
                 <td>{{ member.email }}</td>
                 <td>{{ member.name }}</td>
-                <td>
-                    {% if member.is_approved %}
-                        <span class="badge badge-approved">✅ Approved</span>
-                    {% else %}
-                        <span class="badge badge-pending">⏳ Pending</span>
-                    {% endif %}
-                </td>
                 <td id="approval-{{ member.id }}">
                     {% if not member.is_approved %}
                         <button class="btn-approve" onclick="approveUser({{ member.id }})">✓ Approve</button>
@@ -458,11 +450,11 @@ function updateUser(userId, field, value) {
                     checkbox.disabled = true;
                     checkbox.checked = true;
                 }
-                // Update status badge
-                const statusTd = row.cells[3];
-                statusTd.innerHTML = value 
-                    ? '<span class="badge badge-approved">✅ Approved</span>'
-                    : '<span class="badge badge-pending">⏳ Pending</span>';
+                // Update approval cell
+                const approvalTd = row.cells[2];
+                approvalTd.innerHTML = value 
+                    ? '<span class="status-approved">✓ Approved</span>'
+                    : '<button class="btn-approve" onclick="approveUser(' + userId + ')">✓ Approve</button><button class="btn-deny" onclick="denyUser(' + userId + ')">✗ Deny</button>';
                 // Update row styling
                 if (value) {
                     row.classList.remove('pending');

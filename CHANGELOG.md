@@ -2,6 +2,15 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.10] - 2026-02-14
+
+### Fixed
+- **Fuel Input Clarity** - Added helpful note to fuel input field
+  - Note displays: "Enter to the nearest 0.1 gallon (e.g., 8.5, 10.2)"
+  - Added to both coach/admin and competitor prenav forms
+  - Improves user understanding of required precision
+  - Files Modified: `templates/team/prenav.html`
+
 ## [0.3.9] - 2026-02-14
 
 ### Fixed

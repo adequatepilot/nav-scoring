@@ -2,6 +2,27 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.3.11] - 2026-02-14
+
+### Fixed
+- **Prenav Form UX Issues** - Fixed two critical UX problems
+  - **Issue 1: Competitor Route Confirmation** 
+    - Added visual confirmation message when user selects NAV route
+    - Message shows: "✓ Route Selected: [NAV NAME] - Complete the flight plan below"
+    - Styled with blue background and left border to clearly indicate same-page action
+    - Prevents user perception of "going to next page automatically"
+    - User can verify route selection before filling in leg times
+  
+  - **Issue 2: Admin Submit Button Not Working**
+    - Root cause: JavaScript form submission handler was only defined in competitor section
+    - Fix: Moved form event listener outside conditional blocks
+    - Now applies to both admin/coach and competitor forms
+    - Admin users can now successfully submit prenav forms
+    - Form validation works correctly for both user types
+  
+  - Files Modified: `templates/team/prenav.html`
+  - Testing: Both competitor and admin prenav workflows tested and verified
+
 ## [0.3.10] - 2026-02-14
 
 ### Fixed

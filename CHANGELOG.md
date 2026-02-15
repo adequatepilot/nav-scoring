@@ -2,6 +2,19 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.1] - 2026-02-14
+
+### Fixed
+- **Timezone Display Bug**: Post-flight dropdown was showing UTC timestamps (e.g., "2026-02-15 01:38 AM") instead of Central Time
+  - Added `pytz` dependency for timezone handling
+  - Updated `get_open_prenav_submissions()` in `app/database.py` to convert UTC timestamps to America/Chicago timezone
+  - Added `submitted_at_display` field with formatted CST time (e.g., "Feb 14, 2026 07:38 PM")
+  - Updated `/flight` route to use formatted CST timestamp in dropdown display
+
+### Changed
+- **Requirements**: Added `pytz==2024.1` for timezone conversion
+- **Timestamp Format in Dropdown**: Changed from ISO format with timezone awareness to readable 12-hour format with AM/PM
+
 ## [0.4.0] - 2026-02-14
 
 ### ⚠️ BREAKING CHANGE: Token-Based System Replaced with Selection List

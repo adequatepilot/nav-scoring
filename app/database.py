@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from contextlib import contextmanager
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -961,7 +962,8 @@ class Database:
             is_coach: If True, return all submissions regardless of user_id
         
         Returns:
-            List of open prenav submissions with pairing, nav, and user details
+            List of open prenav submissions with pairing, nav, and user details.
+            Includes submitted_at_display field with CST timezone conversion.
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -1004,7 +1006,29 @@ class Database:
                     ORDER BY ps.submitted_at DESC
                 """, (user_id, user_id))
             
-            return [dict(row) for row in cursor.fetchall()]
+            submissions = [dict(row) for row in cursor.fetchall()]
+            
+            # Convert UTC timestamps to CST and add submitted_at_display field
+            cst = pytz.timezone('America/Chicago')
+            for submission in submissions:
+                timestamp_str = submission.get('created_at') or submission.get('submitted_at')
+                if timestamp_str:
+                    try:
+                        # Parse the UTC timestamp from the database
+                        utc_time = datetime.fromisoformat(timestamp_str)
+                        # Localize to UTC
+                        utc_time = pytz.utc.localize(utc_time)
+                        # Convert to CST
+                        cst_time = utc_time.astimezone(cst)
+                        # Format as "Feb 14, 2026 07:38 PM"
+                        submission['submitted_at_display'] = cst_time.strftime('%b %d, %Y %I:%M %p')
+                    except Exception as e:
+                        logger.warning(f"Failed to convert timestamp {timestamp_str}: {e}")
+                        submission['submitted_at_display'] = timestamp_str
+                else:
+                    submission['submitted_at_display'] = 'Unknown'
+            
+            return submissions
 
     def mark_prenav_scored(self, prenav_id: int) -> bool:
         """Mark a prenav submission as scored. Returns success."""

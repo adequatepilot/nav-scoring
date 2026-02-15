@@ -1192,14 +1192,10 @@ async def flight_form(request: Request, user: dict = Depends(require_login)):
     # Format prenav options for dropdown
     prenav_options = []
     for prenav in open_prenavs:
-        # Format: "2026-02-14 3:30 PM - MDH 20 - Alex Johnson (Pilot) + Taylor Brown (Observer)"
-        # Use submitted_at or created_at (aliased in DB query)
-        timestamp = prenav.get("submitted_at") or prenav.get("created_at")
-        if timestamp:
-            created_at = datetime.fromisoformat(timestamp)
-            display = f"{created_at.strftime('%Y-%m-%d %I:%M %p')} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
-        else:
-            display = f"{prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
+        # Format: "Feb 14, 2026 07:38 PM - MDH 20 - Alex Johnson (Pilot) + Taylor Brown (Observer)"
+        # Use submitted_at_display (CST formatted time from database.py)
+        timestamp_display = prenav.get("submitted_at_display", "Unknown")
+        display = f"{timestamp_display} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
         prenav_options.append({
             "id": prenav["id"],
             "display": display
@@ -1488,13 +1484,9 @@ async def submit_flight(
         # Format prenav options for dropdown
         prenav_options = []
         for prenav in open_prenavs:
-            # Use submitted_at or created_at (aliased in DB query)
-            timestamp = prenav.get("submitted_at") or prenav.get("created_at")
-            if timestamp:
-                created_at = datetime.fromisoformat(timestamp)
-                display = f"{created_at.strftime('%Y-%m-%d %I:%M %p')} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
-            else:
-                display = f"{prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
+            # Use submitted_at_display (CST formatted time from database.py)
+            timestamp_display = prenav.get("submitted_at_display", "Unknown")
+            display = f"{timestamp_display} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
             prenav_options.append({
                 "id": prenav["id"],
                 "display": display

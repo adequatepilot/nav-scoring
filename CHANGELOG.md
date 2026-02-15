@@ -2,6 +2,27 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.4] - 2026-02-15
+
+### 🐛 Hotfix: Navbar Links
+
+**Overview**: Fixed navbar "Post-NAV" links in all team templates that were missed in v0.4.3.
+
+### Fixed
+- **Navbar Links**: Updated "Post-NAV" navbar links from `/flight` to `/flight/select` in all team templates
+  - `templates/team/flight.html`
+  - `templates/team/flight_select.html`
+  - `templates/team/prenav.html`
+  - `templates/team/prenav_confirmation.html` (2 links)
+  - `templates/team/profile.html`
+  - `templates/team/results.html`
+  - `templates/team/results_list.html`
+- Previous fix only updated dashboard.html, leaving navbar links broken on other pages
+
+### Benefits
+- ✅ Consistent navigation from all pages (not just dashboard)
+- ✅ Hamburger menu "Post-NAV" link now works correctly
+
 ## [0.4.3] - 2026-02-14
 
 ### 🐛 Hotfix: Post-Flight Flow Issues

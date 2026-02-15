@@ -2,6 +2,102 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.7] - 2026-02-15
+
+### 🐛 CRITICAL FIX: Timing Score Missing Total Time Penalty Component
+
+**Overview**: Fixed critical bug in timing score calculation. Was only calculating individual leg penalties, missing the total time deviation penalty. This violated NIFA Red Book rules which require TWO components for timing score.
+
+### The Bug
+**Old (WRONG):**
+```python
+total_time_deviation = sum(abs(cp["deviation"]) for cp in checkpoint_results)
+total_time_score = sum(cp["leg_score"] for cp in checkpoint_results)  # ONLY sums leg penalties!
+```
+
+Result: Scoring ignored math errors where user entered wrong total time. Example: User did bad math (entered 51:00 when legs sum to 50:00), but got no penalty for it.
+
+### The Fix
+**New (CORRECT):**
+```python
+# Component 1: Sum of individual leg penalties (1 point per second deviation per leg)
+leg_penalties = sum(cp["leg_score"] for cp in checkpoint_results)
+
+# Component 2: Total time penalty (1 point per second deviation from user-entered total time)
+actual_total_time = sum(cp["actual_time"] for cp in checkpoint_results)
+estimated_total_time = prenav["total_time"]  # Exactly as user entered (even if math is wrong!)
+total_time_deviation = abs(estimated_total_time - actual_total_time)
+total_time_penalty = total_time_deviation * timing_penalty_per_second
+
+# Total timing score = BOTH components
+total_time_score = leg_penalties + total_time_penalty
+```
+
+**Critical Point:** User-entered total time is used AS-IS. If they did bad math, they get penalized. This is correct per NIFA rules—math accuracy is part of the competition.
+
+### Examples
+
+**Test Case 1: Perfect Flight & Perfect Math**
+- Legs: Each 1 sec off → 5 points leg penalties
+- Total ETE: 50:00, Total ATE: 49:59 → 1 point total penalty
+- **Total Timing Score: 6 points** (was 5, now correct!)
+
+**Test Case 2: Math Error (User Did Bad Math)**
+- Legs: Each 1 sec off → 5 points leg penalties
+- Leg times sum to 50:00, but user typed 51:00 → 61 second penalty
+- **Total Timing Score: 66 points** (was 5, now penalizes bad math!)
+
+**Test Case 3: Everything Perfect**
+- All legs on time, total on time → 0 points
+
+### Implementation Details
+- **File:** `app/app.py` - POST /flight route (lines 1407-1432)
+- **Variables:**
+  - `leg_penalties` - sum of individual leg penalties
+  - `actual_total_time` - sum of actual leg times (from flight track)
+  - `estimated_total_time` - prenav["total_time"] (user-entered, may have errors)
+  - `total_time_deviation` - absolute difference
+  - `total_time_penalty` - deviation × timing_penalty_per_second (default 1.0)
+  - `total_time_score` - leg_penalties + total_time_penalty
+- **Logging:** Added info-level breakdown log showing leg vs total penalties
+- **PDF Report:** Updated to show breakdown:
+  - "Leg Timing Penalties: X pts"
+  - "Total Time Penalty: Y pts"
+  - "Total Time Score: X+Y pts"
+
+### Testing
+Created comprehensive test suite (`test_timing_penalty.py`) with 4 test cases:
+1. ✓ Perfect flight, perfect math → 6 points
+2. ✓ Math error (user enters wrong total) → 66 points (penalized!)
+3. ✓ Everything perfect → 0 points
+4. ✓ Leg deviations but correct total → 50 points (no penalty for correct math)
+
+All tests passing.
+
+### NIFA Compliance
+✅ Timing score now correctly implements NIFA Red Book requirements:
+- Component 1: Individual leg timing penalties
+- Component 2: Total time estimation accuracy penalty
+- Both components penalize at 1 point per second (configurable)
+- User-entered totals treated as gospel (penalizes math errors as intended)
+
+### Impact
+- ✅ Scoring now fully compliant with NIFA Red Book timing rules
+- ✅ Math accuracy is now properly scored (penalizes poor planning)
+- ✅ Users can see breakdown of where timing penalties come from
+- ✅ Fairer competition (bad math now has consequences)
+
+### Files Modified
+- `app/app.py` - Fixed timing score calculation and PDF generation
+- `test_timing_penalty.py` - NEW: Comprehensive test suite (4 test cases, all passing)
+- `CHANGELOG.md` - This entry
+
+### Notes
+- NO VERSION bump or Docker rebuild (main agent handles post-review)
+- Database schema unchanged (no migration needed)
+- Config format unchanged (timing_penalty_per_second still applies)
+- Backward compatible with existing flight results
+
 ## [0.4.6] - 2026-02-15
 
 ### ✅ NIFA Red Book v0.4.6 Compliance: Scoring Formula Fixes

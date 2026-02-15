@@ -353,6 +353,10 @@ def generate_pdf_report(
     c.setFont("Helvetica", 11)
     
     y -= 0.3*inch
+    c.drawString(1*inch, y, f"Leg Timing Penalties: {result_data['leg_penalties']:.0f} pts")
+    y -= 0.25*inch
+    c.drawString(1*inch, y, f"Total Time Penalty: {result_data['total_time_penalty']:.0f} pts")
+    y -= 0.25*inch
     c.drawString(1*inch, y, f"Total Time Score: {result_data['total_time_score']:.0f} pts")
     y -= 0.25*inch
     c.drawString(1*inch, y, f"Fuel Penalty: {result_data['fuel_penalty']:.0f} pts")
@@ -1408,8 +1412,23 @@ async def submit_flight(
         if not error:
             try:
                 # Calculate total scores
-                total_time_deviation = sum(abs(cp["deviation"]) for cp in checkpoint_results)
-                total_time_score = sum(cp["leg_score"] for cp in checkpoint_results)
+                # Sum of individual leg penalties
+                leg_penalties = sum(cp["leg_score"] for cp in checkpoint_results)
+                
+                # Calculate actual total time from checkpoint crossings
+                actual_total_time = sum(cp["actual_time"] for cp in checkpoint_results)
+                
+                # Get estimated total time from prenav (user input, may have math errors)
+                estimated_total_time = prenav["total_time"]
+                
+                # Calculate total time penalty (separate component)
+                total_time_deviation = abs(estimated_total_time - actual_total_time)
+                total_time_penalty = total_time_deviation * config["scoring"].get("timing_penalty_per_second", 1.0)
+                
+                # Total timing score = leg penalties + total time penalty
+                total_time_score = leg_penalties + total_time_penalty
+                
+                logger.info(f"Timing breakdown: leg_penalties={leg_penalties:.1f}, total_time_penalty={total_time_penalty:.1f}, total={total_time_score:.1f}")
                 
                 fuel_penalty = scoring_engine.calculate_fuel_penalty(
                     prenav["fuel_estimate"], actual_fuel
@@ -1454,6 +1473,8 @@ async def submit_flight(
                 result_data_for_pdf = {
                     "overall_score": overall_score,
                     "total_time_score": total_time_score,
+                    "leg_penalties": leg_penalties,
+                    "total_time_penalty": total_time_penalty,
                     "fuel_penalty": fuel_penalty,
                     "checkpoint_secrets_penalty": checkpoint_secrets_penalty,
                     "enroute_secrets_penalty": enroute_secrets_penalty,

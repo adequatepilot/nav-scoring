@@ -1272,14 +1272,17 @@ async def submit_flight(
     start_gate_id: int = Form(...),
     gpx_file: UploadFile = File(...)
 ):
-    """Submit post-flight GPX and process scoring. v0.4.0: Use prenav_id instead of token."""
+    """Submit post-flight GPX and process scoring. v0.4.5: Added logging for coach/admin permissions."""
     is_coach = user.get("is_coach", False)
     is_admin = user.get("is_admin", False)
+    
+    logger.info(f"POST /flight: User {user['user_id']} ({user['name']}) submitting prenav_id={prenav_id}. is_coach={is_coach}, is_admin={is_admin}")
     
     error = None
     try:
         # Validate prenav_id
         prenav = db.get_prenav(prenav_id)
+        logger.debug(f"POST /flight: prenav_id={prenav_id}, found={prenav is not None}")
         if not prenav:
             error = "Invalid prenav submission"
         
@@ -1299,6 +1302,11 @@ async def submit_flight(
             if not (is_coach or is_admin):
                 if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
                     error = "You are not authorized to score this submission"
+                    logger.warning(f"Authorization failed: competitor {user['user_id']} not in pairing {pairing['id']}")
+                else:
+                    logger.info(f"Authorization passed: competitor {user['user_id']} is in pairing {pairing['id']}")
+            else:
+                logger.info(f"Authorization passed: user {user['user_id']} is coach/admin, can submit for any pairing")
         
         # Save GPX file
         if not error:
@@ -1330,6 +1338,11 @@ async def submit_flight(
         if not error:
             nav = db.get_nav(prenav["nav_id"])
             checkpoints = nav["checkpoints"]
+            
+            # Validate leg_times count matches checkpoints
+            if len(prenav.get("leg_times", [])) != len(checkpoints):
+                error = f"Leg times count mismatch: expected {len(checkpoints)}, got {len(prenav.get('leg_times', []))}. This may indicate a data integrity issue."
+                logger.error(f"POST /flight: {error} for prenav_id={prenav_id}")
         
         # Get start gate
         if not error:
@@ -1367,6 +1380,7 @@ async def submit_flight(
                     
                     # Calculate leg score
                     estimated_time = prenav["leg_times"][i]
+                    logger.debug(f"Checkpoint {i} ({checkpoint['name']}): estimated_time={estimated_time}s, distance={distance_nm}nm, method={method}")
                     actual_time = (timing_point["time"] - previous_time).total_seconds()
                     
                     leg_score, off_course_penalty = scoring_engine.calculate_leg_score(
@@ -1506,6 +1520,7 @@ async def submit_flight(
                         logger.warning(f"Failed to send email to observer: {email_err}")
                 
                 # Redirect to results page
+                logger.info(f"POST /flight: Successfully scored prenav_id={prenav_id}, result_id={result_id}, overall_score={overall_score:.1f}. Redirecting to results page.")
                 return RedirectResponse(url=f"/results/{result_id}", status_code=303)
             except Exception as e:
                 logger.error(f"Error processing flight: {e}", exc_info=True)
@@ -1517,6 +1532,7 @@ async def submit_flight(
     
     # If there was an error, render the form with the error message
     if error:
+        logger.warning(f"POST /flight: Error processing prenav_id={prenav_id} for user {user['user_id']}: {error}")
         navs = db.list_navs()
         gates = []
         for nav in navs:
@@ -1597,7 +1613,7 @@ async def delete_prenav_submission(prenav_id: int, user: dict = Depends(require_
         raise HTTPException(status_code=500, detail="Failed to delete submission")
 
 @app.get("/results/{result_id}", response_class=HTMLResponse)
-async def view_result(request: Request, result_id: int, user: dict = Depends(require_member)):
+async def view_result(request: Request, result_id: int, user: dict = Depends(require_login)):
     """View specific result. Issue 18: Better error handling and logging."""
     try:
         logger.info(f"Fetching result {result_id} for user {user['user_id']}")
@@ -1607,11 +1623,17 @@ async def view_result(request: Request, result_id: int, user: dict = Depends(req
             logger.warning(f"Result {result_id} not found")
             raise HTTPException(status_code=404, detail="Result not found")
         
-        # Verify user is part of pairing
+        # Verify user is part of pairing (unless coach/admin)
+        is_coach = user.get("is_coach", False)
+        is_admin = user.get("is_admin", False)
+        
         pairing = db.get_pairing(result["pairing_id"])
-        if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
-            logger.warning(f"User {user['user_id']} not authorized to view result {result_id}")
-            raise HTTPException(status_code=403, detail="Not authorized to view this result")
+        if not (is_coach or is_admin):  # Only enforce pairing check for competitors
+            if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
+                logger.warning(f"Competitor user {user['user_id']} not authorized to view result {result_id}")
+                raise HTTPException(status_code=403, detail="Not authorized to view this result")
+        else:
+            logger.info(f"Coach/admin user {user['user_id']} accessing result {result_id}")
         
         # Get NAV
         nav = db.get_nav(result["nav_id"])
@@ -1659,16 +1681,20 @@ async def view_result(request: Request, result_id: int, user: dict = Depends(req
         raise HTTPException(status_code=500, detail=f"Error loading result: {str(e)}")
 
 @app.get("/results/{result_id}/pdf")
-async def download_pdf(result_id: int, user: dict = Depends(require_member)):
-    """Download PDF report."""
+async def download_pdf(result_id: int, user: dict = Depends(require_login)):
+    """Download PDF report. v0.4.5: Allow coaches/admins to download any PDF."""
     result = db.get_flight_result(result_id)
     if not result:
         raise HTTPException(status_code=404, detail="Result not found")
     
-    # Verify authorization
-    pairing = db.get_pairing(result["pairing_id"])
-    if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Verify authorization (coaches/admins can download any, competitors only their own)
+    is_coach = user.get("is_coach", False)
+    is_admin = user.get("is_admin", False)
+    
+    if not (is_coach or is_admin):
+        pairing = db.get_pairing(result["pairing_id"])
+        if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
+            raise HTTPException(status_code=403, detail="Not authorized")
     
     if not result.get("pdf_filename"):
         raise HTTPException(status_code=404, detail="PDF not found")

@@ -25,32 +25,31 @@
 
 {% if error %}
 <div class="error" style="padding: 15px; margin: 15px 0; border: 1px solid #d32f2f; background-color: #ffebee; color: #c62828; border-radius: 4px;">
-    <strong>Error:</strong> {{ error }}
+    <strong>Error:</strong> {{ error }}<br>
+    <a href="/flight/select" style="color: inherit; text-decoration: underline;">← Select a submission</a>
 </div>
 {% endif %}
 
+{% if selected_prenav %}
+<div class="info" style="margin-bottom: 1.5rem; padding: 15px; background-color: #e8f5e9; border-left: 4px solid #4caf50;">
+    <strong>📋 Selected Pre-Flight Submission:</strong><br>
+    <strong>Submitted:</strong> {{ selected_prenav.submitted_at_display }}<br>
+    <strong>NAV Route:</strong> {{ selected_prenav.nav_name }}<br>
+    <strong>Pairing:</strong> {{ selected_prenav.pilot_name }} (Pilot) + {{ selected_prenav.observer_name }} (Observer)<br>
+    <strong>Estimated Time:</strong> {{ selected_prenav.total_time_display }}<br>
+    <strong>Estimated Fuel:</strong> {{ selected_prenav.fuel_estimate }} gallons
+</div>
+
 <div class="info">
     <strong>Instructions:</strong><br>
-    1. Select your pre-flight submission<br>
-    2. Select the start gate you used<br>
-    3. Upload your GPX file from the flight<br>
-    4. Enter actual fuel burn and secrets missed<br>
-    5. Get instant score!
+    1. Select the start gate you used<br>
+    2. Upload your GPX file from the flight<br>
+    3. Enter actual fuel burn and secrets missed<br>
+    4. Get instant score!
 </div>
 
 <form method="POST" action="/flight" enctype="multipart/form-data">
-    <div class="form-group">
-        <label for="prenav_id">Select Pre-Flight Submission to Score:</label>
-        <select id="prenav_id" name="prenav_id" required>
-            <option value="">-- Select Submission --</option>
-            {% for prenav in open_prenavs %}
-            <option value="{{ prenav.id }}">{{ prenav.display }}</option>
-            {% endfor %}
-        </select>
-        {% if not open_prenavs %}
-        <small style="color: #999;">No open pre-flight submissions found. Submit a pre-flight plan first.</small>
-        {% endif %}
-    </div>
+    <input type="hidden" name="prenav_id" value="{{ selected_prenav.id }}">
     
     <div class="form-group">
         <label for="start_gate_id">Start Gate:</label>
@@ -90,4 +89,14 @@
     
     <button type="submit">Submit & Score Flight</button>
 </form>
+
+{% else %}
+<div class="info" style="margin-top: 1.5rem; padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+    <strong>No pre-flight submission selected.</strong><br>
+    Please select a submission from the selection page to continue.
+    <div style="margin-top: 1rem;">
+        <a href="/flight/select" class="button">← Select a Submission</a>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

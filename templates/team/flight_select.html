@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Select Pre-Flight to Complete - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - Select Submission</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <span>{{ member_name }}</span>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/prenav">Pre-NAV</a>
+        <a href="/flight">Post-NAV</a>
+        <a href="/results">Results</a>
+        <a href="/profile">Profile</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<h2>Select Pre-Flight Submission to Complete</h2>
+
+{% if message %}
+<div class="success" style="padding: 15px; margin: 15px 0; border: 1px solid #4caf50; background-color: #e8f5e9; color: #2e7d32; border-radius: 4px;">
+    {{ message }}
+</div>
+{% endif %}
+
+<div class="info">
+    <strong>Instructions:</strong><br>
+    Select a pre-flight submission from the table below to complete post-flight scoring. You'll be able to upload your GPX file and enter flight results.
+</div>
+
+{% if open_prenavs %}
+<table class="results-table" style="margin-top: 1.5rem;">
+    <thead>
+        <tr>
+            <th>Date/Time</th>
+            <th>NAV Route</th>
+            <th>Pairing</th>
+            <th>Total Time</th>
+            <th>Fuel Estimate</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for prenav in open_prenavs %}
+        <tr>
+            <td>{{ prenav.submitted_at_display }}</td>
+            <td>{{ prenav.nav_name }}</td>
+            <td>
+                <strong>{{ prenav.pilot_name }}</strong> (Pilot)<br>
+                <strong>{{ prenav.observer_name }}</strong> (Observer)
+            </td>
+            <td>{{ prenav.total_time_display }}</td>
+            <td>{{ prenav.fuel_estimate }} gal</td>
+            <td style="white-space: nowrap;">
+                <a href="/flight?prenav_id={{ prenav.id }}" class="button" style="font-size: 0.85rem; padding: 6px 12px; display: inline-block;">
+                    ✓ Select
+                </a>
+                {% if is_admin %}
+                <form method="POST" action="/flight/delete/{{ prenav.id }}" style="display: inline;" 
+                      onsubmit="return confirm('Delete this pre-flight submission? This cannot be undone.');">
+                    <button type="submit" class="button-danger" style="font-size: 0.85rem; padding: 6px 12px;">
+                        🗑 Delete
+                    </button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div style="margin-top: 2rem;">
+    <a href="/dashboard" class="button" style="display: inline-block; margin-right: 10px;">← Back to Dashboard</a>
+    <a href="/prenav" class="button" style="display: inline-block;">+ New Pre-Flight</a>
+</div>
+{% else %}
+<div class="info" style="margin-top: 1.5rem; padding: 20px; background-color: #e3f2fd; border-left: 4px solid #2196f3;">
+    <strong>No open pre-flight submissions found.</strong><br>
+    Submit a pre-flight plan first to complete post-flight scoring.
+    <div style="margin-top: 1rem;">
+        <a href="/prenav" class="button">Submit Pre-Flight Plan</a>
+        <a href="/dashboard" class="button" style="margin-left: 10px;">Back to Dashboard</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

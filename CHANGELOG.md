@@ -2,6 +2,47 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.2] - 2026-02-14
+
+### ⭐ Major UX Improvement: Selection Page for Post-Flight
+
+**Overview**: Replaced dropdown selector with dedicated selection page showing table of open submissions. Significantly improved usability and mobile experience.
+
+### Added
+- **New Route `/flight/select` GET**: Selection page showing table of open pre-flight submissions
+  - Columns: Date/Time, NAV Route, Pairing, Total Time, Fuel Estimate, Actions
+  - "Select to Complete" button per row
+  - Admin-only "Delete" button per row
+  - Filtered by role (competitor=own pairings, coach/admin=all)
+- **New Route `/flight/delete/<prenav_id>` POST**: Admin-only deletion of submissions
+  - Prevents deletion of scored submissions
+  - Redirects to selection page with success message
+- **New Template `templates/team/flight_select.html`**: Table-based selection interface
+- **New Database Methods**:
+  - `get_prenav_by_id(prenav_id)` - Fetch single submission with full details
+  - `delete_prenav_submission(prenav_id)` - Delete submission (admin only)
+
+### Changed
+- **Route `/flight` GET**: Now accepts optional `?prenav_id=X` query parameter
+  - Fetches selected submission by ID
+  - Validates permissions (competitor must be in pairing)
+  - Displays submission details (read-only) at top of form
+  - Removed dropdown selector
+  - Uses hidden input with prenav_id
+- **Template `templates/team/flight.html`**: 
+  - Removed dropdown selector
+  - Added read-only submission details box
+  - Added instructions and error handling
+  - Pre-filled prenav_id via hidden input
+- **Dashboard**: Post-Flight button now links to `/flight/select` instead of `/flight`
+
+### Benefits
+- ✅ Clearer visual presentation of submissions
+- ✅ More submission details visible at a glance
+- ✅ Better mobile experience (table vs dropdown)
+- ✅ Admin capability to clean up duplicate/stale submissions
+- ✅ Reduced user errors (easier to identify correct submission)
+
 ## [0.4.1] - 2026-02-14
 
 ### Fixed

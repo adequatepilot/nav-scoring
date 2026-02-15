@@ -1168,11 +1168,79 @@ async def prenav_confirmation(request: Request, user: dict = Depends(require_mem
         "member_name": user["name"]
     })
 
-@app.get("/flight", response_class=HTMLResponse)
-async def flight_form(request: Request, user: dict = Depends(require_login)):
-    """Display post-flight form. v0.4.0: Select from open prenav submissions instead of token."""
+@app.get("/flight/select", response_class=HTMLResponse)
+async def flight_select_page(request: Request, user: dict = Depends(require_login)):
+    """Display selection page with table of open pre-flight submissions. v0.4.2"""
     is_coach = user.get("is_coach", False)
     is_admin = user.get("is_admin", False)
+    
+    # Get open prenav submissions (filtered by role)
+    open_prenavs = db.get_open_prenav_submissions(
+        user_id=user["user_id"],
+        is_coach=(is_coach or is_admin)
+    )
+    
+    # Format total_time for display
+    for prenav in open_prenavs:
+        total_time = prenav.get('total_time', 0)
+        hours = int(total_time // 3600)
+        minutes = int((total_time % 3600) // 60)
+        seconds = int(total_time % 60)
+        prenav['total_time_display'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    
+    # Get message from query param if present
+    message = request.query_params.get('message', None)
+    
+    return templates.TemplateResponse("team/flight_select.html", {
+        "request": request,
+        "member_name": user["name"],
+        "open_prenavs": open_prenavs,
+        "is_admin": is_admin,
+        "is_coach": is_coach,
+        "message": message
+    })
+
+@app.get("/flight", response_class=HTMLResponse)
+async def flight_form(request: Request, user: dict = Depends(require_login)):
+    """Display post-flight form with pre-selected submission. v0.4.2: Accepts ?prenav_id=X"""
+    is_coach = user.get("is_coach", False)
+    is_admin = user.get("is_admin", False)
+    
+    # Get prenav_id from query params if provided
+    prenav_id = request.query_params.get('prenav_id', None)
+    selected_prenav = None
+    
+    if prenav_id:
+        try:
+            prenav_id = int(prenav_id)
+            selected_prenav = db.get_prenav_by_id(prenav_id)
+            
+            if not selected_prenav:
+                return templates.TemplateResponse("team/flight.html", {
+                    "request": request,
+                    "member_name": user["name"],
+                    "selected_prenav": None,
+                    "start_gates": [],
+                    "error": f"Pre-flight submission #{prenav_id} not found.",
+                    "is_admin": is_admin,
+                    "is_coach": is_coach
+                })
+            
+            # Validate permissions (competitor must be in pairing)
+            if not is_coach and not is_admin:
+                if user["user_id"] not in [selected_prenav['pilot_id'], selected_prenav['safety_observer_id']]:
+                    raise HTTPException(status_code=403, detail="You don't have permission to score this submission")
+        
+        except ValueError:
+            return templates.TemplateResponse("team/flight.html", {
+                "request": request,
+                "member_name": user["name"],
+                "selected_prenav": None,
+                "start_gates": [],
+                "error": "Invalid prenav_id parameter.",
+                "is_admin": is_admin,
+                "is_coach": is_coach
+            })
     
     # Get all start gates
     gates = []
@@ -1183,28 +1251,10 @@ async def flight_form(request: Request, user: dict = Depends(require_login)):
             if gate not in gates:
                 gates.append(gate)
     
-    # Get open prenav submissions (filtered by role)
-    open_prenavs = db.get_open_prenav_submissions(
-        user_id=user["user_id"],
-        is_coach=(is_coach or is_admin)
-    )
-    
-    # Format prenav options for dropdown
-    prenav_options = []
-    for prenav in open_prenavs:
-        # Format: "Feb 14, 2026 07:38 PM - MDH 20 - Alex Johnson (Pilot) + Taylor Brown (Observer)"
-        # Use submitted_at_display (CST formatted time from database.py)
-        timestamp_display = prenav.get("submitted_at_display", "Unknown")
-        display = f"{timestamp_display} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
-        prenav_options.append({
-            "id": prenav["id"],
-            "display": display
-        })
-    
     return templates.TemplateResponse("team/flight.html", {
         "request": request,
         "start_gates": gates,
-        "open_prenavs": prenav_options,
+        "selected_prenav": selected_prenav,
         "is_coach": is_coach,
         "is_admin": is_admin,
         "member_name": user["name"],
@@ -1501,6 +1551,31 @@ async def submit_flight(
             "member_name": user["name"],
             "error": error
         })
+
+@app.post("/flight/delete/{prenav_id}")
+async def delete_prenav_submission(prenav_id: int, user: dict = Depends(require_admin)):
+    """Delete a pre-flight submission (admin only). v0.4.2"""
+    try:
+        # Check if submission exists
+        prenav = db.get_prenav_by_id(prenav_id)
+        if not prenav:
+            raise HTTPException(status_code=404, detail="Pre-flight submission not found")
+        
+        # Check if already scored (don't allow deletion)
+        if prenav['status'] == 'scored':
+            raise HTTPException(status_code=400, detail="Cannot delete scored submission")
+        
+        # Delete
+        db.delete_prenav_submission(prenav_id)
+        logger.info(f"Admin {user['user_id']} deleted prenav submission {prenav_id}")
+        
+        return RedirectResponse(url="/flight/select?message=Submission%20deleted%20successfully", status_code=303)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting prenav {prenav_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete submission")
 
 @app.get("/results/{result_id}", response_class=HTMLResponse)
 async def view_result(request: Request, result_id: int, user: dict = Depends(require_member)):

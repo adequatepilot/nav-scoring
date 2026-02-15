@@ -1050,6 +1050,64 @@ class Database:
             )
             return cursor.rowcount > 0
 
+    def get_prenav_by_id(self, prenav_id: int) -> Optional[Dict]:
+        """Get single prenav submission by ID with full details."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at, ps.status,
+                    ps.pilot_id, ps.total_time, ps.fuel_estimate,
+                    n.name as nav_name,
+                    p.pilot_id, p.safety_observer_id,
+                    pilot.name as pilot_name,
+                    observer.name as observer_name
+                FROM prenav_submissions ps
+                JOIN navs n ON ps.nav_id = n.id
+                JOIN pairings p ON ps.pairing_id = p.id
+                JOIN users pilot ON p.pilot_id = pilot.id
+                JOIN users observer ON p.safety_observer_id = observer.id
+                WHERE ps.id = ?
+            """, (prenav_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return None
+            
+            prenav = dict(row)
+            
+            # Convert UTC timestamp to CST and add display fields
+            cst = pytz.timezone('America/Chicago')
+            timestamp_str = prenav.get('submitted_at')
+            if timestamp_str:
+                try:
+                    utc_time = datetime.fromisoformat(timestamp_str)
+                    utc_time = pytz.utc.localize(utc_time)
+                    cst_time = utc_time.astimezone(cst)
+                    prenav['submitted_at_display'] = cst_time.strftime('%b %d, %Y %I:%M %p')
+                except Exception as e:
+                    logger.warning(f"Failed to convert timestamp {timestamp_str}: {e}")
+                    prenav['submitted_at_display'] = timestamp_str
+            else:
+                prenav['submitted_at_display'] = 'Unknown'
+            
+            # Format total_time for display
+            total_time = prenav.get('total_time', 0)
+            hours = int(total_time // 3600)
+            minutes = int((total_time % 3600) // 60)
+            seconds = int(total_time % 60)
+            prenav['total_time_display'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            
+            return prenav
+
+    def delete_prenav_submission(self, prenav_id: int) -> bool:
+        """Delete a pre-flight submission (admin only). Returns success."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM prenav_submissions WHERE id = ?', (prenav_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
     # ===== FLIGHT RESULTS =====
 
     def create_flight_result(

@@ -50,6 +50,12 @@
         </select>
     </div>
     
+    <!-- Route Confirmation Message -->
+    <div id="route_confirmation" style="display: none; background: #e3f2fd; padding: 1rem; margin: 1rem 0; border-left: 4px solid #2196F3; border-radius: 4px;">
+        <strong style="font-size: 1.1em;">✓ Route Selected:</strong> <span id="selected_route_name" style="font-weight: bold; color: #1976D2;"></span><br>
+        <small style="color: #666;">Complete the flight plan below and submit when ready.</small>
+    </div>
+    
     <div id="leg_times_container" style="display: none;">
         <h3>Leg Times (HH:MM:SS format)</h3>
         <div id="leg_times_fields"></div>
@@ -117,6 +123,12 @@
         </select>
     </div>
     
+    <!-- Route Confirmation Message -->
+    <div id="route_confirmation" style="display: none; background: #e3f2fd; padding: 1rem; margin: 1rem 0; border-left: 4px solid #2196F3; border-radius: 4px;">
+        <strong style="font-size: 1.1em;">✓ Route Selected:</strong> <span id="selected_route_name" style="font-weight: bold; color: #1976D2;"></span><br>
+        <small style="color: #666;">Complete the flight plan below and submit when ready.</small>
+    </div>
+    
     <div id="leg_times_container" style="display: none;">
         <h3>Leg Times (HH:MM:SS format)</h3>
         <div id="leg_times_fields"></div>
@@ -156,23 +168,30 @@
     <button type="submit">Submit Pre-Flight Plan</button>
 </form>
 
+{% endif %}
+{% endif %}
+
 <script>
 function updateCheckpointFields() {
     const navSelect = document.getElementById('nav_id');
     const selectedOption = navSelect.options[navSelect.selectedIndex];
     const numCheckpoints = parseInt(selectedOption.dataset.checkpoints || 0);
+    const routeName = selectedOption.text;
     
     if (numCheckpoints === 0) {
         document.getElementById('leg_times_container').style.display = 'none';
         document.getElementById('total_time_group').style.display = 'none';
         document.getElementById('fuel_group').style.display = 'none';
+        document.getElementById('route_confirmation').style.display = 'none';
         return;
     }
     
-    // Show containers
+    // Show containers and confirmation
     document.getElementById('leg_times_container').style.display = 'block';
     document.getElementById('total_time_group').style.display = 'block';
     document.getElementById('fuel_group').style.display = 'block';
+    document.getElementById('route_confirmation').style.display = 'block';
+    document.getElementById('selected_route_name').innerText = routeName;
     
     // Generate leg time input fields with HH:MM:SS format
     const container = document.getElementById('leg_times_fields');
@@ -287,7 +306,4 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
     this.submit();
 });
 </script>
-
-{% endif %}
-{% endif %}
 {% endblock %}

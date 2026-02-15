@@ -255,6 +255,10 @@ class NavScoringEngine:
         """
         Calculate score for a single leg.
         Returns (leg_score, off_course_penalty)
+        
+        Off-course penalty per Red Book:
+        - 0 to checkpoint_radius: 0 points
+        - (radius + 0.01) to 5.0 NM: Linear from 100 to 600 points
         """
         cfg = self.config["scoring"]
 
@@ -262,43 +266,60 @@ class NavScoringEngine:
         deviation = actual_time - estimated_time
         leg_score = abs(deviation) * cfg.get("timing_penalty_per_second", 1.0)
 
-        # Off-course penalty
+        # Off-course penalty (Red Book v0.4.6)
         off_course_penalty = 0
         if not within_025_nm:
             off_course_cfg = cfg.get("off_course", {})
-            max_no_penalty = off_course_cfg.get("max_no_penalty_nm", 0.25)
-            max_penalty_distance = off_course_cfg.get("max_penalty_distance_nm", 5.0)
-            max_penalty_points = off_course_cfg.get("max_penalty_points", 500)
+            checkpoint_radius = off_course_cfg.get("checkpoint_radius_nm", 0.25)
+            min_penalty = off_course_cfg.get("min_penalty", 100)
+            max_penalty = off_course_cfg.get("max_penalty", 600)
+            max_distance = off_course_cfg.get("max_distance_nm", 5.0)
+            
+            # Threshold starts at (radius + 0.01)
+            threshold_distance = checkpoint_radius + 0.01
 
-            if max_no_penalty < distance_nm <= max_penalty_distance:
-                # Linear interpolation
-                fraction = (distance_nm - max_no_penalty) / (
-                    max_penalty_distance - max_no_penalty
+            if threshold_distance <= distance_nm <= max_distance:
+                # Linear interpolation from threshold to max_distance
+                fraction = (distance_nm - threshold_distance) / (
+                    max_distance - threshold_distance
                 )
-                off_course_penalty = fraction * max_penalty_points
+                off_course_penalty = min_penalty + fraction * (max_penalty - min_penalty)
+            elif distance_nm > max_distance:
+                # Beyond max distance: apply max penalty
+                off_course_penalty = max_penalty
 
         return leg_score, off_course_penalty
 
     def calculate_fuel_penalty(
         self, estimated_fuel: float, actual_fuel: float
     ) -> float:
-        """Calculate fuel burn penalty."""
+        """
+        Calculate fuel burn penalty per Red Book v0.4.6.
+        
+        Error = (estimated - actual) / estimated
+        - Underestimate (used MORE fuel, error < 0): 500 multiplier, NO threshold
+        - Overestimate (used LESS fuel, error > 0): 250 multiplier, 10% threshold
+        """
         cfg = self.config["scoring"]["fuel_burn"]
 
-        if actual_fuel == 0:
+        if estimated_fuel == 0:
             return 0
 
-        fuel_error = (actual_fuel - estimated_fuel) / actual_fuel
+        # Error calculation: (estimated - actual) / estimated
+        fuel_error = (estimated_fuel - actual_fuel) / estimated_fuel
 
-        if fuel_error > 0:
-            # Over-estimate (used more fuel)
-            multiplier = cfg.get("over_estimate_multiplier", 500)
-            penalty = multiplier * (math.exp(fuel_error) - 1)
-        elif fuel_error < -cfg.get("under_estimate_threshold", 0.1):
-            # Under-estimate significantly
-            multiplier = cfg.get("under_estimate_multiplier", 250)
+        if fuel_error < 0:
+            # Underestimate: used MORE fuel than planned (negative error)
+            # 500 multiplier, NO threshold
+            multiplier = cfg.get("under_estimate_multiplier", 500)
             penalty = multiplier * (math.exp(abs(fuel_error)) - 1)
+        elif fuel_error > cfg.get("over_estimate_threshold", 0.1):
+            # Overestimate: used LESS fuel, but error exceeds 10% threshold
+            # 250 multiplier, 10% threshold
+            multiplier = cfg.get("over_estimate_multiplier", 250)
+            penalty = multiplier * (math.exp(fuel_error) - 1)
         else:
+            # Overestimate within 10% tolerance: no penalty
             penalty = 0
 
         return penalty

@@ -21,14 +21,16 @@ email:
 prenav:
   token_expiry_hours: 48
 scoring:
+  checkpoint_radius_nm: 0.25  # Configurable per NIFA
   fuel_burn:
-    over_estimate_multiplier: 500
-    under_estimate_multiplier: 250
-    under_estimate_threshold: 0.1
+    over_estimate_multiplier: 250  # Changed from 500 (Red Book v0.4.6)
+    under_estimate_multiplier: 500  # Changed from 250 (Red Book v0.4.6)
+    over_estimate_threshold: 0.1  # 10% threshold for overestimate (new)
   off_course:
-    max_no_penalty_nm: 0.25
-    max_penalty_distance_nm: 5.0
-    max_penalty_points: 500
+    checkpoint_radius_nm: 0.25  # Radius in NM
+    min_penalty: 100  # Penalty at (radius + 0.01) NM
+    max_penalty: 600  # Penalty at 5.0 NM
+    max_distance_nm: 5.0  # Max distance for penalty calculation
   secrets:
     checkpoint_penalty: 20
     enroute_penalty: 10

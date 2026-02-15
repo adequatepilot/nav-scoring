@@ -2,6 +2,54 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.6] - 2026-02-15
+
+### ✅ NIFA Red Book v0.4.6 Compliance: Scoring Formula Fixes
+
+**Overview**: Fixed critical scoring formula mismatches with official NIFA Red Book rules. Both off-course and fuel penalty calculations now correctly implement Red Book v0.4.6 specifications.
+
+### Fixed
+- **Issue 1: Off-Course Penalty Formula**
+  - **Old (WRONG)**: Threshold at 0.25 NM, penalty range 0-500 points, linear from 0.25 to 5.0 NM
+  - **New (CORRECT)**: Threshold at (checkpoint_radius + 0.01), penalty range 100-600 points
+  - Penalty calculation now matches Red Book:
+    - 0 to checkpoint_radius NM: 0 points (within radius)
+    - (radius + 0.01) to 5.0 NM: Linear interpolation from 100 to 600 points
+    - Example with radius=0.25: at 0.26 NM → 100 pts, at 2.63 NM → 350 pts, at 5.0 NM → 600 pts
+  - **Files changed**: `app/scoring_engine.py` (calculate_leg_score method), config files
+
+- **Issue 2: Fuel Penalty Formula**
+  - **Old (WRONG)**: Error calc `(actual - estimated) / actual`, multipliers were swapped, thresholds inconsistent
+  - **New (CORRECT)**: Error calc `(estimated - actual) / estimated`, correct multipliers and thresholds
+  - Penalty logic now matches Red Book:
+    - **Underestimate** (used MORE fuel, error < 0): 500 multiplier, NO threshold
+    - **Overestimate** (used LESS fuel, error > 0): 250 multiplier, 10% threshold only
+    - Examples: Plan 10, use 9.2 → 0 pts (8% under, within threshold)
+    -           Plan 10, use 8.8 → penalty (12% under, exceeds threshold)
+    -           Plan 10, use 10.1 → penalty (1% over, always penalized)
+  - **Files changed**: `app/scoring_engine.py` (calculate_fuel_penalty method), config files
+
+### Updated Configuration
+- **data/config.yaml** and **config/config.yaml**:
+  - Updated fuel_burn multipliers: over_estimate=250 (was 500), under_estimate=500 (was 250)
+  - Added over_estimate_threshold: 0.1 (10% threshold for overestimate)
+  - Updated off_course structure: checkpoint_radius_nm, min_penalty (100), max_penalty (600)
+  - Added scoring.checkpoint_radius_nm: 0.25 (configurable per NIFA)
+
+### Testing
+- Created comprehensive test suite (test_scoring_fixes.py) verifying:
+  - Off-course penalties at key distances (0.25, 0.26, 2.63, 5.0 NM)
+  - Fuel penalties for under/over estimate scenarios
+  - All tests passing ✓
+
+### Impact
+- ✅ Scoring now fully compliant with NIFA Red Book v0.4.6
+- ✅ Fair penalty assessment for off-course navigation
+- ✅ Correct fuel efficiency grading
+- ✅ No VERSION bump or Docker rebuild (main agent handles post-review)
+
+---
+
 ## [0.4.5] - 2026-02-15
 
 ### 🐛 Critical Fixes: Post-Flight Permissions & Results Display

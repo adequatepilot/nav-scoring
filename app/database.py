@@ -885,9 +885,22 @@ class Database:
         
         Note: token and expires_at are deprecated and kept for backwards compatibility.
         New submissions use status='open' instead.
+        v0.4.0+: token is generated but not used in UI. status='open' determines workflow.
         """
+        import hashlib
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            
+            # Generate unique token if not provided (required by UNIQUE constraint)
+            # v0.4.0+ doesn't use token in UI, but it's needed for backwards compat
+            if token is None:
+                # Generate unique token based on timestamp + pairing + nav
+                token_seed = f"{datetime.utcnow().isoformat()}-{pairing_id}-{nav_id}"
+                token = hashlib.sha256(token_seed.encode()).hexdigest()[:16]
+            
+            # expires_at: use provided or 48 hours from now (backwards compat)
+            expires_value = expires_at if expires_at is not None else (datetime.utcnow() + timedelta(hours=48))
+            
             cursor.execute(
                 """
                 INSERT INTO prenav_submissions
@@ -902,7 +915,7 @@ class Database:
                     total_time,
                     fuel_estimate,
                     token,
-                    expires_at,
+                    expires_value,
                 ),
             )
             return cursor.lastrowid
@@ -957,7 +970,7 @@ class Database:
                 # Coaches/Admins see ALL open submissions
                 cursor.execute("""
                     SELECT 
-                        ps.id, ps.pairing_id, ps.nav_id, ps.created_at, ps.status,
+                        ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at as created_at, ps.status,
                         ps.pilot_id, ps.total_time, ps.fuel_estimate,
                         n.name as nav_name,
                         p.pilot_id, p.safety_observer_id,
@@ -969,13 +982,13 @@ class Database:
                     JOIN users pilot ON p.pilot_id = pilot.id
                     JOIN users observer ON p.safety_observer_id = observer.id
                     WHERE ps.status = 'open'
-                    ORDER BY ps.created_at DESC
+                    ORDER BY ps.submitted_at DESC
                 """)
             else:
                 # Competitors see only their pairing's submissions
                 cursor.execute("""
                     SELECT 
-                        ps.id, ps.pairing_id, ps.nav_id, ps.created_at, ps.status,
+                        ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at as created_at, ps.status,
                         ps.pilot_id, ps.total_time, ps.fuel_estimate,
                         n.name as nav_name,
                         p.pilot_id, p.safety_observer_id,
@@ -988,7 +1001,7 @@ class Database:
                     JOIN users observer ON p.safety_observer_id = observer.id
                     WHERE ps.status = 'open'
                     AND (p.pilot_id = ? OR p.safety_observer_id = ?)
-                    ORDER BY ps.created_at DESC
+                    ORDER BY ps.submitted_at DESC
                 """, (user_id, user_id))
             
             return [dict(row) for row in cursor.fetchall()]

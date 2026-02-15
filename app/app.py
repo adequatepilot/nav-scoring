@@ -1085,15 +1085,14 @@ async def submit_prenav(
             raise HTTPException(status_code=400, detail=f"Invalid time format: {str(e)}")
         
         # Create prenav without token (v0.4.0)
+        # token and expires_at are optional; status='open' is used instead
         prenav_id = db.create_prenav(
             pairing_id=pairing["id"],
             pilot_id=user["user_id"],
             nav_id=nav_id,
             leg_times=leg_times,
             total_time=total_time,
-            fuel_estimate=fuel_estimate,
-            token=None,
-            expires_at=None
+            fuel_estimate=fuel_estimate
         )
         
         logger.info(f"Created prenav: ID={prenav_id} (status=open, no token)")
@@ -1155,7 +1154,8 @@ async def prenav_confirmation(request: Request, user: dict = Depends(require_mem
     pilot = db.get_user_by_id(pairing["pilot_id"]) if pairing else None
     observer = db.get_user_by_id(pairing["safety_observer_id"]) if pairing else None
     
-    created_at = datetime.fromisoformat(prenav["created_at"])
+    # Use submitted_at from prenav (matching the schema)
+    created_at = datetime.fromisoformat(prenav.get("submitted_at") or datetime.utcnow().isoformat())
     
     return templates.TemplateResponse("team/prenav_confirmation.html", {
         "request": request,
@@ -1193,8 +1193,13 @@ async def flight_form(request: Request, user: dict = Depends(require_login)):
     prenav_options = []
     for prenav in open_prenavs:
         # Format: "2026-02-14 3:30 PM - MDH 20 - Alex Johnson (Pilot) + Taylor Brown (Observer)"
-        created_at = datetime.fromisoformat(prenav["created_at"])
-        display = f"{created_at.strftime('%Y-%m-%d %I:%M %p')} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
+        # Use submitted_at or created_at (aliased in DB query)
+        timestamp = prenav.get("submitted_at") or prenav.get("created_at")
+        if timestamp:
+            created_at = datetime.fromisoformat(timestamp)
+            display = f"{created_at.strftime('%Y-%m-%d %I:%M %p')} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
+        else:
+            display = f"{prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
         prenav_options.append({
             "id": prenav["id"],
             "display": display
@@ -1483,8 +1488,13 @@ async def submit_flight(
         # Format prenav options for dropdown
         prenav_options = []
         for prenav in open_prenavs:
-            created_at = datetime.fromisoformat(prenav["created_at"])
-            display = f"{created_at.strftime('%Y-%m-%d %I:%M %p')} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
+            # Use submitted_at or created_at (aliased in DB query)
+            timestamp = prenav.get("submitted_at") or prenav.get("created_at")
+            if timestamp:
+                created_at = datetime.fromisoformat(timestamp)
+                display = f"{created_at.strftime('%Y-%m-%d %I:%M %p')} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
+            else:
+                display = f"{prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
             prenav_options.append({
                 "id": prenav["id"],
                 "display": display

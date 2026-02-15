@@ -19,6 +19,10 @@ All notable changes to the NAV Scoring application.
    - Root cause: `/prenav_confirmation` route used `require_member` instead of `require_login`
    - Fix: Changed decorator to allow coaches/admins (commit b83953f)
 
+4. **Post-Flight button wrong link:** "Go to Post-Flight Form" button on prenav confirmation linked to form page instead of selection page
+   - Root cause: Button linked to `/flight` (shows "no submission selected") instead of `/flight/select` (table view)
+   - Fix: Changed button to link to `/flight/select` (commit cb9bd6f)
+
 ---
 
 ### ✨ FEATURE: Comprehensive Penalty Breakdown Tables (HTML & PDF)

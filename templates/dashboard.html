@@ -350,9 +350,11 @@
             <td><strong>{{ result.overall_score|round(0) }}</strong> pts</td>
             <td>
                 {% if is_coach or is_admin %}
-                    <a href="/coach/results/{{ result.id }}">View</a>
+                    <a href="/coach/results/{{ result.id }}">View</a> |
+                    <a href="/results/{{ result.id }}/pdf">PDF</a>
                 {% else %}
-                    <a href="/results/{{ result.id }}">View</a>
+                    <a href="/results/{{ result.id }}">View</a> |
+                    <a href="/results/{{ result.id }}/pdf">PDF</a>
                 {% endif %}
             </td>
         </tr>

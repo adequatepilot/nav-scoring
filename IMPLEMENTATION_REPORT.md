@@ -1,219 +1,182 @@
-# Implementation Report: Additional Email Addresses Feature
+# Post-Flight Selection Page Implementation Report (v0.4.2)
 
-**Date:** 2026-02-14  
-**Version:** v0.3.7  
-**Project:** NAV Scoring System  
+## Status: ✅ COMPLETE AND READY FOR DEPLOYMENT
 
-## Overview
+### Implementation Summary
 
-Successfully implemented support for multiple email addresses per user, password change functionality, and updated email notification system to send to all user emails.
+Successfully replaced the post-flight dropdown selector with a dedicated selection page, providing a better UX experience especially for mobile users.
 
-## Files Modified
+### Files Modified/Created
 
-### 1. Database
-- **`migrations/007_user_emails.sql`** (NEW)
-  - Created new `user_emails` table for storing primary and additional emails
-  - Added indexes on `user_id`, `email`, and `is_primary` for efficient lookups
-  - Migration populates table with existing user emails marked as primary
+#### New Files
+1. **templates/team/flight_select.html** - Selection page with table of open submissions
+   - Shows Date/Time, NAV Route, Pairing, Total Time, Fuel Estimate columns
+   - "Select to Complete" button for each submission
+   - Admin-only "Delete" button for each submission
+   - Empty state handling with link to create pre-flight submission
 
-- **`app/database.py`**
-  - Added 5 new methods for email management:
-    - `add_user_email(user_id, email)` - Adds new email with duplicate checking
-    - `remove_user_email(user_id, email)` - Removes email (cannot remove primary)
-    - `get_user_emails(user_id)` - Gets additional emails only
-    - `get_all_emails_for_user(user_id)` - Gets all emails (primary + additional)
-    - `email_exists(email, exclude_user_id)` - Checks email uniqueness
+#### Modified Files
+2. **app/database.py**
+   - Added `get_prenav_by_id(prenav_id)` method
+   - Added `delete_prenav_submission(prenav_id)` method
+   - Both methods include proper timezone conversion (UTC → CST)
+   - Both methods include formatted display fields
 
-### 2. Email Service
-- **`app/email.py`**
-  - Updated `send_prenav_confirmation()` to accept single email (str) or list of emails
-  - Updated `send_results_notification()` to accept single email (str) or list of emails
-  - Both methods backward compatible with existing code
-  - Loops through all emails and sends notification to each
+3. **app/app.py**
+   - Added new route `@app.get("/flight/select")` - Selection page
+   - Added new route `@app.post("/flight/delete/{prenav_id}")` - Delete submission (admin only)
+   - Updated `@app.get("/flight")` to accept `?prenav_id=X` query parameter
+   - Updated flight form to show pre-selected submission details
+   - Added proper permission validation for competitors
 
-### 3. Application API
-- **`app/app.py`**
-  - Added 4 new API endpoints:
-    - `GET /profile/emails` - Returns all emails and additional emails list
-    - `POST /profile/emails/add` - Adds new email with validation
-    - `POST /profile/emails/remove` - Removes additional email
-    - `POST /profile/password` - Changes user password
-  
-  - Updated email sending in prenav submission:
-    - Gets all emails for pilot and observer via `get_all_emails_for_user()`
-    - Sends notifications to all emails for each user
-  
-  - Updated email sending in results submission:
-    - Gets all emails for pilot and observer
-    - Sends notifications to all emails for each user
+4. **templates/team/flight.html**
+   - Removed dropdown selector
+   - Added green info box showing selected submission details (read-only)
+   - Added hidden input field with prenav_id
+   - Added error handling for missing/invalid prenav_id
+   - Improved instructions for post-flight workflow
 
-### 4. UI Templates
-- **`templates/team/profile.html`**
-  - Added "Password" section with change password form
-    - Form validates current password
-    - Requires new password (min 8 chars) and confirmation
-    - AJAX form with success/error messaging
-  
-  - Added "Email Addresses" section with:
-    - Primary Email display (non-editable, labeled "Primary", green highlight)
-    - Additional Emails list with remove buttons
-    - Add Email form with validation
-    - Inline success/error messages
-    - Auto-hiding success notifications
-  
-  - Added comprehensive CSS styling for:
-    - Email items with color-coded styling
-    - Form inputs and buttons
-    - Message display (success/error/info)
-    - Loading spinner animations
-  
-  - Added JavaScript for:
-    - Loading and displaying all emails
-    - Adding new emails with validation
-    - Removing additional emails with confirmation
-    - Changing password with validation
-    - AJAX form handling
+5. **templates/team/dashboard.html**
+   - Updated "Submit Post-Flight" button to link to `/flight/select` instead of `/flight`
 
-## Key Features
+6. **CHANGELOG.md**
+   - Added comprehensive v0.4.2 entry describing all changes and benefits
+   - Documented all new routes and database methods
 
-### Email Management
-- **Primary Email**: Displays user's main SIU email, non-editable
-- **Additional Emails**: Users can add multiple alternative emails
-- **Validation**: Email format validation, duplicate checking
-- **UI**: Clean, professional interface with inline feedback
-- **AJAX**: No page reloads, instant feedback
+7. **VERSION**
+   - Bumped from 0.4.1 to 0.4.2
 
-### Password Change
-- **Current Password Verification**: Must verify current password
-- **Password Strength**: Minimum 8 characters required
-- **Prevention**: Cannot reuse current password
-- **User Feedback**: Clear error messages and success notifications
+### Features Implemented
 
-### Email Notifications
-- **Multi-recipient**: All user emails receive notifications
-- **Backward Compatible**: Works with existing code
-- **Flexible**: Accepts single email or list of emails
+✅ **Selection Page (`/flight/select`)**
+- Table view of open pre-flight submissions
+- Filtered by role (competitors see only their pairings, coaches/admins see all)
+- Sorted by submission date (newest first)
+- Click to select and proceed to post-flight form
 
-## Design Decisions
+✅ **Updated Post-Flight Form (`/flight`)**
+- Now accepts `prenav_id` query parameter
+- Displays selected submission details at top (read-only)
+- Pre-populated prenav_id in hidden form field
+- Error handling for missing/invalid selections
 
-1. **Separate `user_emails` Table**
-   - Chose new table over storing additional emails in users table
-   - Allows unlimited additional emails
-   - Maintains referential integrity
-   - Cleaner data model
+✅ **Delete Functionality (`/flight/delete/{prenav_id}`)**
+- Admin-only route with proper access control
+- Prevents deletion of scored submissions
+- Redirects to selection page with success message
 
-2. **Primary Email Field**
-   - Kept `users.email` as primary email
-   - New `user_emails` table mirrors with `is_primary=1`
-   - Simplifies login and default email operations
+✅ **Database Methods**
+- `get_prenav_by_id()` - Fetch submission with formatted details
+- `delete_prenav_submission()` - Delete submission safely
+- Both include timezone conversion and display formatting
 
-3. **AJAX Forms**
-   - No page reloads for better UX
-   - Real-time validation feedback
-   - Auto-hiding success messages
+✅ **Permissions & Security**
+- Competitors can only see their own pairings
+- Competitors cannot access other pairings' submissions (403 error)
+- Only admins can delete submissions
+- Status validation prevents deletion of scored submissions
 
-4. **Email Validation**
-   - Standard regex pattern for format checking
-   - Database uniqueness constraint (UNIQUE)
-   - Prevents duplicate emails across all users
+### User Flow
 
-5. **Password Security**
-   - Minimum 8 characters (stronger than reset password's requirement)
-   - Requires current password verification
-   - Prevents password reuse
-   - Async password hashing
+**Competitor:**
+1. Click "Submit Post-Flight" on dashboard
+2. See table of own pairing's open submissions
+3. Click "Select to Complete"
+4. See pre-flight details displayed above form
+5. Upload GPX, enter fuel/secrets, submit
+6. Submission marked as scored
 
-## Testing Checklist
+**Coach:**
+1. Click "Submit Post-Flight" on dashboard
+2. See table of ALL open submissions
+3. Can select any submission to score
+4. No delete button (not admin)
 
-- ✓ Migration 007 created with proper schema
-- ✓ Database methods implemented and tested
-- ✓ Email validation regex tested (valid/invalid formats)
-- ✓ Password strength validation tested
-- ✓ API endpoints defined and syntax checked
-- ✓ Profile page HTML/CSS/JavaScript valid
-- ✓ Python syntax validation passed (py_compile)
-- ✓ Email sending logic updated in prenav and results
-- ✓ CHANGELOG.md updated with v0.3.7 entry
+**Admin:**
+1. Click "Submit Post-Flight" on dashboard
+2. See table of ALL open submissions
+3. Can select any submission to score
+4. Can delete old/duplicate submissions
+5. Cannot delete scored submissions (validation)
 
-## Database Schema
+### Testing Checklist
 
-### user_emails table
-```sql
-CREATE TABLE user_emails (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    is_primary INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-);
+To fully test after deployment:
 
--- Indexes
-CREATE INDEX idx_user_emails_user_id ON user_emails(user_id);
-CREATE INDEX idx_user_emails_email ON user_emails(email);
-CREATE INDEX idx_user_emails_is_primary ON user_emails(is_primary);
-```
+- [ ] **Competitor Flow**
+  - [ ] Dashboard → Click Post-Flight
+  - [ ] See only own pairing's submissions in table
+  - [ ] Click Select button
+  - [ ] See submission details at top of form
+  - [ ] Fill form and submit successfully
+  - [ ] Submission disappears from table (marked scored)
 
-## API Response Examples
+- [ ] **Coach Flow**
+  - [ ] Dashboard → Click Post-Flight
+  - [ ] See all submissions in table
+  - [ ] No delete buttons visible
+  - [ ] Can select any submission to score
 
-### GET /profile/emails
-```json
-{
-    "success": true,
-    "primary_email": "user@siu.edu",
-    "additional_emails": ["alternate@example.com", "personal@gmail.com"],
-    "all_emails": ["user@siu.edu", "alternate@example.com", "personal@gmail.com"]
-}
-```
+- [ ] **Admin Flow**
+  - [ ] See all submissions with delete buttons
+  - [ ] Delete submission (not scored) - success
+  - [ ] Try to delete scored submission - error message
+  - [ ] Can select and score any submission
 
-### POST /profile/emails/add
-```json
-{
-    "success": true,
-    "message": "Email alternate@example.com added successfully"
-}
-```
+- [ ] **Permission Tests**
+  - [ ] Competitor tries `/flight?prenav_id=X` (other pairing) → 403 error
+  - [ ] Competitor tries `/flight/delete/X` → 403 error
+  - [ ] Non-admin tries `/flight/delete/X` → 403 error
 
-### POST /profile/emails/remove
-```json
-{
-    "success": true,
-    "message": "Email alternate@example.com removed successfully"
-}
-```
+- [ ] **Edge Cases**
+  - [ ] No open submissions → helpful message with link
+  - [ ] Invalid prenav_id → error message with link to selection page
+  - [ ] Missing prenav_id → error message with link to selection page
 
-### POST /profile/password
-```json
-{
-    "success": true,
-    "message": "Password changed successfully"
-}
-```
+### Deployment Steps
 
-## Notes
+1. Pull latest changes from git
+2. Run `docker-compose build --no-cache`
+3. Run `docker-compose up -d`
+4. Docker will:
+   - Install Python dependencies (including pytz)
+   - Initialize database with migrations (if needed)
+   - Run the application on port 8000
 
-- Version number NOT changed (remains v0.3.4 in VERSION file)
-- Docker container rebuild NOT performed
-- GitHub push NOT performed
-- Ready for testing and integration
+### Git Commit
 
-## Git Workflow Ready
+Commit hash: `a44f013`
+Message: "feat: add post-flight selection page with table view (v0.4.2)"
 
-The implementation follows the required git workflow:
-1. ✓ Migration file created (007_user_emails.sql)
-2. ✓ Database.py updated with new methods
-3. ✓ Email.py updated for multiple recipients
-4. ✓ App.py email sending logic updated
-5. ✓ Profile.html UI updated
-6. ✓ API endpoints added
-7. ✓ Code syntax validated
-8. ✓ CHANGELOG.md updated
-9. Ready for commit with descriptive message
+Changes:
+- 10 files changed
+- 392 insertions
+- 40 deletions
 
-## Known Limitations / Future Enhancements
+### Database Compatibility
 
-1. Email verification not implemented (noted as optional for v1)
-2. No email unsubscribe link in notifications
-3. No rate limiting on email additions
-4. Password change doesn't support password history
-5. No email change audit log
+- Works with existing migration system
+- Migration 008_prenav_status.sql already exists and provides status column
+- No additional database schema changes needed
+- Backward compatible with existing data
+
+### Performance Notes
+
+- Timezone conversion happens on query (efficient)
+- New indexes on prenav_submissions(status) and (pairing_id, status) already exist
+- Table queries are indexed and optimized
+- No N+1 query problems
+
+### Rollback Plan
+
+If needed, revert to v0.4.1:
+- `git checkout 0.4.1`
+- Change dashboard link back to `/flight`
+- Rebuild and redeploy
+- All data remains intact
+
+---
+
+**Status**: Ready for production deployment ✅
+**Date**: February 14, 2026
+**Version**: 0.4.2

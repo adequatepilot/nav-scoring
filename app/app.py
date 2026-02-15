@@ -1832,15 +1832,26 @@ async def view_result(request: Request, result_id: int, user: dict = Depends(req
             "id": result["id"],
             "overall_score": result["overall_score"],
             "checkpoint_results": result["checkpoint_results"],
-            "total_time_score": sum(cp["leg_score"] for cp in result["checkpoint_results"]),
+            "total_time_score": result.get("total_time_score") or sum(cp["leg_score"] for cp in result["checkpoint_results"]),
             "total_deviation": sum(abs(cp["deviation"]) for cp in result["checkpoint_results"]),
             "fuel_penalty": 0,  # Calculate from prenav and actual
             "checkpoint_secrets_penalty": result["secrets_missed_checkpoint"] * config["scoring"]["secrets"]["checkpoint_penalty"],
             "enroute_secrets_penalty": result["secrets_missed_enroute"] * config["scoring"]["secrets"]["enroute_penalty"],
-            "estimated_fuel_burn": prenav["fuel_estimate"],
+            "estimated_fuel_burn": result.get("estimated_fuel_burn") or prenav["fuel_estimate"],
             "actual_fuel_burn": result["actual_fuel"],
             "pdf_filename": result.get("pdf_filename"),
-            "scored_at": result["scored_at"]
+            "scored_at": result["scored_at"],
+            # New fields from v0.4.8
+            "leg_penalties": result.get("leg_penalties", 0),
+            "total_time_penalty": result.get("total_time_penalty", 0),
+            "total_time_deviation": result.get("total_time_deviation", 0),
+            "estimated_total_time": result.get("estimated_total_time") or prenav.get("total_time", 0),
+            "actual_total_time": result.get("actual_total_time", 0),
+            "total_off_course": result.get("total_off_course", 0),
+            "fuel_error_pct": result.get("fuel_error_pct", 0),
+            "checkpoint_radius": result.get("checkpoint_radius", 0.25),
+            "secrets_missed_checkpoint": result["secrets_missed_checkpoint"],
+            "secrets_missed_enroute": result["secrets_missed_enroute"]
         }
         
         # Recalculate fuel penalty

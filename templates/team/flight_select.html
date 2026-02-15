@@ -62,12 +62,9 @@
                     ✓ Select
                 </a>
                 {% if is_admin %}
-                <form method="POST" action="/flight/delete/{{ prenav.id }}" style="display: inline;" 
-                      onsubmit="return confirm('Delete this pre-flight submission? This cannot be undone.');">
-                    <button type="submit" class="button-danger" style="font-size: 0.85rem; padding: 6px 12px;">
-                        🗑 Delete
-                    </button>
-                </form>
+                <a href="/flight/delete/{{ prenav.id }}/confirm" class="button-danger" style="font-size: 0.85rem; padding: 6px 12px; display: inline-block;">
+                    🗑 Delete
+                </a>
                 {% endif %}
             </td>
         </tr>

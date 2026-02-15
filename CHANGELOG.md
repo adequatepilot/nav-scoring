@@ -2,6 +2,31 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.3] - 2026-02-14
+
+### 🐛 Hotfix: Post-Flight Flow Issues
+
+**Overview**: Fixed two usability issues in the post-flight submission workflow:
+1. Dashboard "Submit Post-Flight" button incorrectly linked to form page instead of selection page
+2. Delete button used unreliable inline confirmation instead of dedicated confirmation page
+
+### Fixed
+- **Dashboard Navigation**: "Submit Post-Flight" button now links directly to `/flight/select` instead of `/flight`
+  - Updated navbar link (line 15)
+  - Updated quick-link button (line 288)
+  - Users now bypass the error page and go straight to submission selection table
+- **Delete Confirmation Page**: Delete button now uses proper confirmation page pattern
+  - Changed from inline `onsubmit="return confirm()"` to link-based flow
+  - Route sequence: Click Delete → GET `/flight/delete/{id}/confirm` → Shows confirmation page → POST to delete → Redirect
+  - Added new GET route `/flight/delete/{prenav_id}/confirm`
+  - Updated template `templates/team/flight_select.html`: Changed delete button from form to link
+  - Updated POST route `/flight/delete/{prenav_id}` to redirect cleanly
+
+### Benefits
+- ✅ Faster dashboard workflow (no intermediate error page)
+- ✅ More reliable delete confirmation (page-based not browser popup)
+- ✅ Consistent with existing pattern used in airports/gates deletion
+
 ## [0.4.2] - 2026-02-14
 
 ### ⭐ Major UX Improvement: Selection Page for Post-Flight

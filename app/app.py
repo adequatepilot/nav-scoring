@@ -1552,9 +1552,28 @@ async def submit_flight(
             "error": error
         })
 
+@app.get("/flight/delete/{prenav_id}/confirm", response_class=HTMLResponse)
+async def confirm_delete_prenav(request: Request, prenav_id: int, user: dict = Depends(require_admin)):
+    """Show confirmation page for pre-flight submission deletion."""
+    prenav = db.get_prenav_by_id(prenav_id)
+    if not prenav:
+        raise HTTPException(status_code=404, detail="Pre-flight submission not found")
+    
+    # Check if already scored
+    if prenav['status'] == 'scored':
+        raise HTTPException(status_code=400, detail="Cannot delete scored submission")
+    
+    return templates.TemplateResponse("coach/delete_confirm.html", {
+        "request": request,
+        "warning_message": "Are you sure you want to delete this pre-flight submission?",
+        "cascade_info": f"Submission: {prenav['submitted_at_display']} - {prenav['nav_name']} - {prenav['pilot_name']} + {prenav['observer_name']}",
+        "confirm_url": f"/flight/delete/{prenav_id}",
+        "cancel_url": "/flight/select"
+    })
+
 @app.post("/flight/delete/{prenav_id}")
 async def delete_prenav_submission(prenav_id: int, user: dict = Depends(require_admin)):
-    """Delete a pre-flight submission (admin only). v0.4.2"""
+    """Delete a pre-flight submission (admin only). v0.4.3"""
     try:
         # Check if submission exists
         prenav = db.get_prenav_by_id(prenav_id)
@@ -1569,7 +1588,7 @@ async def delete_prenav_submission(prenav_id: int, user: dict = Depends(require_
         db.delete_prenav_submission(prenav_id)
         logger.info(f"Admin {user['user_id']} deleted prenav submission {prenav_id}")
         
-        return RedirectResponse(url="/flight/select?message=Submission%20deleted%20successfully", status_code=303)
+        return RedirectResponse(url="/flight/select", status_code=303)
     
     except HTTPException:
         raise

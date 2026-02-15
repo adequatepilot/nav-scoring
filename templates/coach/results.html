@@ -89,8 +89,6 @@
             <th>Team</th>
             <th>NAV</th>
             <th>Score</th>
-            <th>Time Dev</th>
-            <th>Fuel Pen</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -98,11 +96,9 @@
         {% for result in results %}
         <tr>
             <td>{{ result.scored_at[:10] }}</td>
-            <td>{{ result.pilot_name }} / {{ result.observer_name }}</td>
+            <td>{{ result.team_name }}</td>
             <td>{{ result.nav_name }}</td>
-            <td><strong>{{ result.overall_score|round(0) }}</strong></td>
-            <td>{{ result.total_time_score|round(0) }}</td>
-            <td>{{ result.fuel_penalty|round(0) }}</td>
+            <td><strong>{{ result.overall_score|round(0) }}</strong> pts</td>
             <td>
                 <a href="/coach/results/{{ result.id }}">View</a> |
                 <a href="/results/{{ result.id }}/pdf">PDF</a>

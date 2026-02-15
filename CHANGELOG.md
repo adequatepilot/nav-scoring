@@ -4,6 +4,22 @@ All notable changes to the NAV Scoring application.
 
 ## [0.4.8] - 2026-02-15
 
+### 🐛 HOTFIX: Missing Fields in Results Display
+
+**Fixed:** Results page was crashing with "__round__ method" error when viewing old results.
+
+**Root cause:** The `view_result` route was building `result_display` dictionary manually and didn't include the new penalty breakdown fields added in v0.4.8. Template tried to use `result.leg_penalties|round(0)` but field didn't exist.
+
+**Fix:** Added all new fields to `result_display` with safe defaults using `.get()`:
+- leg_penalties, total_time_penalty, total_time_deviation
+- estimated_total_time, actual_total_time
+- total_off_course, fuel_error_pct, checkpoint_radius
+- secrets_missed_checkpoint, secrets_missed_enroute
+
+**Commit:** 6d4ad3d
+
+---
+
 ### ✨ FEATURE: Comprehensive Penalty Breakdown Tables (HTML & PDF)
 
 **Overview**: Added detailed penalty breakdown tables to results pages showing exactly where every penalty point comes from. Both HTML results page and PDF report now include comprehensive, itemized scoring details for complete transparency.

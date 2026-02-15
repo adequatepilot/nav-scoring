@@ -1282,7 +1282,7 @@ async def submit_prenav(
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/prenav_confirmation", response_class=HTMLResponse)
-async def prenav_confirmation(request: Request, user: dict = Depends(require_member), prenav_id: int = None):
+async def prenav_confirmation(request: Request, user: dict = Depends(require_login), prenav_id: int = None):
     """Display pre-flight confirmation page. v0.4.0: Use prenav_id instead of token."""
     prenav = db.get_prenav(prenav_id) if prenav_id else None
     if not prenav:

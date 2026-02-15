@@ -4,21 +4,20 @@ All notable changes to the NAV Scoring application.
 
 ## [0.4.8] - 2026-02-15
 
-### 🐛 HOTFIX: Missing Fields in Results Display
+### 🐛 HOTFIX: Missing Fields & Permission Issues
 
-**Fixed:** Results page was crashing with "__round__ method" error when viewing old results.
+**Fixed:** Multiple permission and display issues affecting coaches/admins:
 
-**Root cause:** Both `view_result` and `coach_view_result` routes were building `result_display` dictionary manually and didn't include the new penalty breakdown fields added in v0.4.8. Template tried to use `result.leg_penalties|round(0)` but field didn't exist.
+1. **Results page crash:** "__round__ method" error when viewing old results
+   - Root cause: `view_result` and `coach_view_result` routes missing new penalty breakdown fields
+   - Fix: Added all new fields with safe `.get()` defaults (commits 6d4ad3d, 5dd3866)
 
-**Fix:** Added all new fields to `result_display` with safe defaults using `.get()` in both routes:
-- leg_penalties, total_time_penalty, total_time_deviation
-- estimated_total_time, actual_total_time
-- total_off_course, fuel_error_pct, checkpoint_radius
-- secrets_missed_checkpoint, secrets_missed_enroute
+2. **Missing PDF link:** Dashboard Recent Results table missing "PDF" action
+   - Fix: Restored "View | PDF" links for all users (commit 5dd3866)
 
-**Also fixed:** Restored "PDF" link in dashboard Recent Results table (was accidentally removed)
-
-**Commits:** 6d4ad3d, 5dd3866
+3. **Prenav confirmation blocked:** Coaches/admins got "competitors only" error after submitting prenav
+   - Root cause: `/prenav_confirmation` route used `require_member` instead of `require_login`
+   - Fix: Changed decorator to allow coaches/admins (commit b83953f)
 
 ---
 

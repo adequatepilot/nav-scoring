@@ -2,6 +2,32 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.5] - 2026-02-15
+
+### 🐛 Critical Fixes: Post-Flight Permissions & Results Display
+
+**Overview**: Fixed coach/admin being blocked from post-flight submission and results viewing, plus validation and display issues.
+
+### Fixed
+- **Coach/Admin Post-Flight Permissions**: Changed `/results/{id}` and `/results/{id}/pdf` decorators from `require_member` to `require_login`
+  - Coaches/admins were being blocked before route authorization logic could run
+  - Now coaches/admins can submit post-flight for any pairing (as intended)
+  - Competitors still restricted to their own pairings (security maintained)
+- **Leg Times Validation**: Added check that prenav leg_times count matches NAV checkpoint count
+  - Prevents "list index out of range" errors from malformed submissions
+  - Shows descriptive error message instead of crash
+- **Results Table Display**: Removed non-existent columns from coach results page
+  - Removed "Time Dev" and "Fuel Pen" columns (data not stored in database)
+  - Fixed team name display (was trying to access undefined fields)
+  - Prevents "__round__ method" errors on results page
+- **Added Debugging**: 5 strategic logging points in POST /flight route for troubleshooting
+
+### Benefits
+- ✅ Coaches/admins can now submit post-flight and view results
+- ✅ Better error messages for invalid submissions  
+- ✅ Results page works reliably for all user roles
+- ✅ Improved debugging capabilities
+
 ## [0.4.4] - 2026-02-15
 
 ### 🐛 Hotfix: Navbar Links & Delete Button Styling

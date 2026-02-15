@@ -1122,6 +1122,15 @@ class Database:
         start_gate_id: int,
         overall_score: float,
         checkpoint_results: List[Dict],
+        leg_penalties: float = 0,
+        total_time_penalty: float = 0,
+        total_time_deviation: float = 0,
+        estimated_total_time: float = 0,
+        actual_total_time: float = 0,
+        total_off_course: float = 0,
+        fuel_error_pct: float = 0,
+        estimated_fuel_burn: float = 0,
+        checkpoint_radius: float = 0.25,
     ) -> int:
         """Create a flight result. Returns result ID."""
         with self.get_connection() as conn:
@@ -1131,8 +1140,10 @@ class Database:
                 INSERT INTO flight_results
                 (prenav_id, pairing_id, nav_id, gpx_filename, actual_fuel,
                  secrets_missed_checkpoint, secrets_missed_enroute, start_gate_id,
-                 overall_score, checkpoint_results)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 overall_score, checkpoint_results, leg_penalties, total_time_penalty,
+                 total_time_deviation, estimated_total_time, actual_total_time,
+                 total_off_course, fuel_error_pct, estimated_fuel_burn, checkpoint_radius)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     prenav_id,
@@ -1145,6 +1156,15 @@ class Database:
                     start_gate_id,
                     overall_score,
                     json.dumps(checkpoint_results),
+                    leg_penalties,
+                    total_time_penalty,
+                    total_time_deviation,
+                    estimated_total_time,
+                    actual_total_time,
+                    total_off_course,
+                    fuel_error_pct,
+                    estimated_fuel_burn,
+                    checkpoint_radius,
                 ),
             )
             return cursor.lastrowid

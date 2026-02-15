@@ -25,6 +25,10 @@ import matplotlib.pyplot as plt
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas as pdf_canvas
 from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 import uvicorn
 
 from app.database import Database
@@ -116,6 +120,27 @@ app = FastAPI(
 
 # Templates
 templates = Jinja2Templates(directory="templates")
+
+# Add Jinja2 filters for penalty breakdown display
+def format_time(seconds):
+    """Format seconds as MM:SS"""
+    if isinstance(seconds, (int, float)):
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{mins:02d}:{secs:02d}"
+    return str(seconds)
+
+def format_signed(value):
+    """Format number with +/- sign"""
+    if isinstance(value, (int, float)):
+        if value >= 0:
+            return f"+{value:.0f}"
+        else:
+            return f"{value:.0f}"
+    return str(value)
+
+templates.env.filters['format_time'] = format_time
+templates.env.filters['format_signed'] = format_signed
 
 # Middleware
 app.add_middleware(
@@ -319,79 +344,190 @@ def generate_pdf_report(
     plot_path: Path,
     output_path: Path
 ):
-    """Generate PDF report with results."""
-    c = pdf_canvas.Canvas(str(output_path), pagesize=letter)
-    width, height = letter
+    """Generate PDF report with results including comprehensive penalty breakdown."""
+    # Create PDF document
+    doc = SimpleDocTemplate(str(output_path), pagesize=letter)
+    story = []
+    styles = getSampleStyleSheet()
     
     # Title
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(1*inch, height - 1*inch, "NAV Scoring - Flight Results")
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.black,
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph("NAV Scoring - Flight Results", title_style))
     
     # Flight info
-    c.setFont("Helvetica", 12)
-    y = height - 1.5*inch
-    c.drawString(1*inch, y, f"NAV: {nav_data['name']}")
-    y -= 0.3*inch
-    c.drawString(1*inch, y, f"Pilot: {pairing_data['pilot_name']}")
-    y -= 0.3*inch
-    c.drawString(1*inch, y, f"Observer: {pairing_data['observer_name']}")
-    y -= 0.3*inch
-    c.drawString(1*inch, y, f"Date: {result_data['scored_at'][:10]}")
+    info_style = styles['Normal']
+    story.append(Paragraph(f"<b>NAV:</b> {nav_data['name']}", info_style))
+    story.append(Paragraph(f"<b>Pilot:</b> {pairing_data['pilot_name']}", info_style))
+    story.append(Paragraph(f"<b>Observer:</b> {pairing_data['observer_name']}", info_style))
+    story.append(Paragraph(f"<b>Date:</b> {result_data['scored_at'][:10]}", info_style))
+    story.append(Spacer(1, 0.3*inch))
     
     # Overall score
-    y -= 0.5*inch
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(1*inch, y, f"Overall Score: {result_data['overall_score']:.0f} points")
-    c.setFont("Helvetica", 10)
-    y -= 0.2*inch
-    c.drawString(1*inch, y, "(Lower is better)")
+    score_style = ParagraphStyle(
+        'ScoreStyle',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.black,
+        spaceAfter=6,
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph(f"Overall Score: {result_data['overall_score']:.0f} points (Lower is better)", score_style))
+    story.append(Spacer(1, 0.3*inch))
     
-    # Summary metrics
-    y -= 0.5*inch
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(1*inch, y, "Summary")
-    c.setFont("Helvetica", 11)
+    # Penalty Breakdown Table
+    story.append(Paragraph("<b>Penalty Breakdown</b>", styles['Heading3']))
+    story.append(Spacer(1, 0.15*inch))
     
-    y -= 0.3*inch
-    c.drawString(1*inch, y, f"Leg Timing Penalties: {result_data['leg_penalties']:.0f} pts")
-    y -= 0.25*inch
-    c.drawString(1*inch, y, f"Total Time Penalty: {result_data['total_time_penalty']:.0f} pts")
-    y -= 0.25*inch
-    c.drawString(1*inch, y, f"Total Time Score: {result_data['total_time_score']:.0f} pts")
-    y -= 0.25*inch
-    c.drawString(1*inch, y, f"Fuel Penalty: {result_data['fuel_penalty']:.0f} pts")
-    y -= 0.25*inch
-    secrets_penalty = result_data['checkpoint_secrets_penalty'] + result_data['enroute_secrets_penalty']
-    c.drawString(1*inch, y, f"Secrets Penalty: {secrets_penalty:.0f} pts")
+    # Build penalty breakdown data
+    penalty_data = [
+        ['Category', 'Estimate', 'Actual', 'Deviation', 'Points'],
+        ['TIMING PENALTIES', '', '', '', ''],
+    ]
+    
+    # Add checkpoint rows
+    for i, cp in enumerate(result_data['checkpoint_results']):
+        est_time = f"{int(cp['estimated_time']//60):02d}:{int(cp['estimated_time']%60):02d}"
+        act_time = f"{int(cp['actual_time']//60):02d}:{int(cp['actual_time']%60):02d}"
+        penalty_data.append([
+            f"Leg {i+1}: {cp['name']}",
+            est_time,
+            act_time,
+            f"{cp['deviation']:+.0f}s",
+            f"{cp['leg_score']:.0f}"
+        ])
+    
+    # Subtotal leg penalties
+    penalty_data.append([
+        'Subtotal: Leg Penalties',
+        '',
+        '',
+        '',
+        f"{result_data['leg_penalties']:.0f}"
+    ])
+    
+    # Total time penalty
+    est_total = f"{int(result_data.get('estimated_total_time', 0)//60):02d}:{int(result_data.get('estimated_total_time', 0)%60):02d}"
+    act_total = f"{int(result_data.get('actual_total_time', 0)//60):02d}:{int(result_data.get('actual_total_time', 0)%60):02d}"
+    penalty_data.append([
+        'Total Time',
+        est_total,
+        act_total,
+        f"{result_data.get('total_time_deviation', 0):+.0f}s",
+        f"{result_data['total_time_penalty']:.0f}"
+    ])
+    
+    # Timing subtotal
+    penalty_data.append([
+        'TIMING SUBTOTAL',
+        '',
+        '',
+        '',
+        f"{result_data['total_time_score']:.0f}"
+    ])
+    
+    penalty_data.append(['', '', '', '', ''])  # Blank row
+    
+    # Off-course penalties
+    penalty_data.append(['OFF-COURSE PENALTIES', '', '', '', ''])
+    for cp in result_data['checkpoint_results']:
+        within = '✓ Inside' if cp.get('within_0_25_nm') else f"{max(0, cp['distance_nm'] - 0.25):.3f} NM over"
+        penalty_data.append([
+            cp['name'],
+            'Within 0.25 NM',
+            f"{cp['distance_nm']:.3f} NM",
+            within,
+            f"{cp['off_course_penalty']:.0f}"
+        ])
+    
+    penalty_data.append([
+        'Subtotal: Off-Course',
+        '',
+        '',
+        '',
+        f"{result_data.get('total_off_course', sum(cp['off_course_penalty'] for cp in result_data['checkpoint_results'])):.0f}"
+    ])
+    
+    penalty_data.append(['', '', '', '', ''])  # Blank row
+    
+    # Fuel penalty
+    penalty_data.append(['FUEL PENALTY', '', '', '', ''])
+    fuel_pct = result_data.get('fuel_error_pct', 0)
+    fuel_diff = result_data.get('actual_fuel_burn', 0) - result_data.get('estimated_fuel_burn', 0)
+    penalty_data.append([
+        'Fuel Burn',
+        f"{result_data.get('estimated_fuel_burn', 0):.1f} gal",
+        f"{result_data.get('actual_fuel_burn', 0):.1f} gal",
+        f"{fuel_diff:+.2f} gal ({fuel_pct:+.1f}%)",
+        f"{result_data['fuel_penalty']:.0f}"
+    ])
+    
+    penalty_data.append(['', '', '', '', ''])  # Blank row
+    
+    # Secrets penalties
+    penalty_data.append(['SECRETS PENALTIES', '', '', '', ''])
+    penalty_data.append([
+        'Checkpoint secrets missed',
+        '-',
+        f"{result_data.get('secrets_missed_checkpoint', 0)}",
+        '-',
+        f"{result_data['checkpoint_secrets_penalty']:.0f}"
+    ])
+    penalty_data.append([
+        'Enroute secrets missed',
+        '-',
+        f"{result_data.get('secrets_missed_enroute', 0)}",
+        '-',
+        f"{result_data['enroute_secrets_penalty']:.0f}"
+    ])
+    
+    penalty_data.append([
+        'Subtotal: Secrets',
+        '',
+        '',
+        '',
+        f"{result_data['checkpoint_secrets_penalty'] + result_data['enroute_secrets_penalty']:.0f}"
+    ])
+    
+    # Create table
+    penalty_table = Table(penalty_data, colWidths=[2.2*inch, 1*inch, 1*inch, 1.2*inch, 0.8*inch])
+    penalty_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, 1), colors.lightgrey),
+        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('ROWBACKGROUNDS', (0, 2), (-1, -1), [colors.white, colors.white]),
+    ]))
+    
+    story.append(penalty_table)
+    story.append(Spacer(1, 0.3*inch))
     
     # Add track plot
-    y -= 0.5*inch
     if plot_path.exists():
         try:
-            c.drawImage(str(plot_path), 1*inch, y - 4*inch, width=5*inch, height=4*inch)
-            y -= 4.5*inch
+            story.append(PageBreak())
+            story.append(Paragraph("<b>Flight Track</b>", styles['Heading3']))
+            story.append(Spacer(1, 0.15*inch))
+            img = Image(str(plot_path), width=6*inch, height=4.5*inch)
+            story.append(img)
         except Exception as e:
             logger.error(f"Failed to add plot to PDF: {e}")
     
-    # Checkpoint details (new page if needed)
-    if y < 2*inch:
-        c.showPage()
-        y = height - 1*inch
-    
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(1*inch, y, "Checkpoint Details")
-    y -= 0.3*inch
-    
-    c.setFont("Helvetica", 9)
-    for cp in result_data['checkpoint_results']:
-        if y < 1*inch:
-            c.showPage()
-            y = height - 1*inch
-        
-        c.drawString(1*inch, y, f"{cp['name']}: {cp['method']} - {cp['distance_nm']:.3f} NM - Score: {cp['leg_score']:.0f} pts")
-        y -= 0.2*inch
-    
-    c.save()
+    # Build PDF
+    doc.build(story)
     logger.info(f"PDF report saved: {output_path}")
 
 # ===== PUBLIC ROUTES =====
@@ -1428,11 +1564,19 @@ async def submit_flight(
                 # Total timing score = leg penalties + total time penalty
                 total_time_score = leg_penalties + total_time_penalty
                 
+                # Calculate total off-course penalty
+                total_off_course = sum(cp["off_course_penalty"] for cp in checkpoint_results)
+                
                 logger.info(f"Timing breakdown: leg_penalties={leg_penalties:.1f}, total_time_penalty={total_time_penalty:.1f}, total={total_time_score:.1f}")
                 
                 fuel_penalty = scoring_engine.calculate_fuel_penalty(
                     prenav["fuel_estimate"], actual_fuel
                 )
+                
+                # Calculate fuel error percentage
+                fuel_error_pct = 0
+                if prenav["fuel_estimate"] > 0:
+                    fuel_error_pct = ((actual_fuel - prenav["fuel_estimate"]) / prenav["fuel_estimate"]) * 100
                 
                 checkpoint_secrets_penalty, enroute_secrets_penalty = scoring_engine.calculate_secrets_penalty(
                     secrets_checkpoint, secrets_enroute
@@ -1475,9 +1619,18 @@ async def submit_flight(
                     "total_time_score": total_time_score,
                     "leg_penalties": leg_penalties,
                     "total_time_penalty": total_time_penalty,
+                    "total_time_deviation": total_time_deviation,
+                    "estimated_total_time": estimated_total_time,
+                    "actual_total_time": actual_total_time,
+                    "total_off_course": total_off_course,
                     "fuel_penalty": fuel_penalty,
+                    "fuel_error_pct": fuel_error_pct,
+                    "estimated_fuel_burn": prenav["fuel_estimate"],
+                    "actual_fuel_burn": actual_fuel,
                     "checkpoint_secrets_penalty": checkpoint_secrets_penalty,
                     "enroute_secrets_penalty": enroute_secrets_penalty,
+                    "secrets_missed_checkpoint": secrets_checkpoint,
+                    "secrets_missed_enroute": secrets_enroute,
                     "checkpoint_results": checkpoint_results,
                     "scored_at": datetime.utcnow().isoformat()
                 }
@@ -1495,7 +1648,16 @@ async def submit_flight(
                     secrets_enroute=secrets_enroute,
                     start_gate_id=start_gate_id,
                     overall_score=overall_score,
-                    checkpoint_results=checkpoint_results
+                    checkpoint_results=checkpoint_results,
+                    leg_penalties=leg_penalties,
+                    total_time_penalty=total_time_penalty,
+                    total_time_deviation=total_time_deviation,
+                    estimated_total_time=estimated_total_time,
+                    actual_total_time=actual_total_time,
+                    total_off_course=total_off_course,
+                    fuel_error_pct=fuel_error_pct,
+                    estimated_fuel_burn=prenav["fuel_estimate"],
+                    checkpoint_radius=config["scoring"]["off_course"].get("checkpoint_radius_nm", 0.25)
                 )
                 
                 # Mark prenav as scored (v0.4.0)

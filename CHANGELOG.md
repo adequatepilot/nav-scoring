@@ -2,6 +2,162 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.8] - 2026-02-15
+
+### ✨ FEATURE: Comprehensive Penalty Breakdown Tables (HTML & PDF)
+
+**Overview**: Added detailed penalty breakdown tables to results pages showing exactly where every penalty point comes from. Both HTML results page and PDF report now include comprehensive, itemized scoring details for complete transparency.
+
+### What Changed
+
+#### HTML Results Page (`templates/team/results.html`)
+- **Removed:** Simple "Flight Summary" metrics cards (limited visibility)
+- **Added:** Comprehensive "Penalty Breakdown" table with sections:
+  - **TIMING PENALTIES** - Individual leg deviations with estimated/actual times
+  - **OFF-COURSE PENALTIES** - Distance from each checkpoint with status
+  - **FUEL PENALTY** - Estimated vs actual with percentage error
+  - **SECRETS PENALTIES** - Checkpoint and enroute secrets breakdown
+  - **Subtotals** - Clear subtotal lines for each category
+  - **Grand Total** - Overall score prominently displayed
+
+#### PDF Report (`app/app.py` - `generate_pdf_report()`)
+- **Redesigned** with ReportLab Platypus for better formatting
+- **Same table structure** as HTML for consistency
+- **Professional table styling** with:
+  - Color-coded section headers (light grey background)
+  - Alternating row colors for readability
+  - Clear separation between categories
+  - Proper alignment (numeric values right-aligned, text left-aligned)
+- **Flight track plot** on separate page
+
+#### Database Schema (`migrations/009_penalty_breakdown.sql`)
+- **New columns** added to `flight_results` table:
+  - `leg_penalties` - Sum of individual leg timing penalties
+  - `total_time_penalty` - Penalty for total time estimation error
+  - `total_time_deviation` - Seconds off from user-entered total time
+  - `estimated_total_time` - User-entered total time (from prenav)
+  - `actual_total_time` - Actual flight total time (sum of legs)
+  - `total_off_course` - Sum of off-course penalties
+  - `fuel_error_pct` - Percentage error in fuel burn estimate
+  - `estimated_fuel_burn` - Estimated fuel (from prenav)
+  - `checkpoint_radius` - Checkpoint tolerance radius in NM
+
+#### Jinja2 Filters (`app/app.py`)
+- **`format_time(seconds)`** - Convert seconds to MM:SS format
+  - Example: 615 seconds → "10:15"
+  - Used for timing columns in HTML table
+- **`format_signed(value)`** - Format numbers with +/- sign
+  - Example: -5 → "-5", +5 → "+5"
+  - Used for deviation columns in HTML table
+
+#### Scoring Engine Updates (`app/app.py` - POST /flight route)
+- **Calculate and store** all penalty breakdown fields:
+  ```python
+  # NEW calculations in POST /flight route
+  total_off_course = sum(cp["off_course_penalty"] for cp in checkpoint_results)
+  
+  fuel_error_pct = 0
+  if prenav["fuel_estimate"] > 0:
+      fuel_error_pct = ((actual_fuel - prenav["fuel_estimate"]) / prenav["fuel_estimate"]) * 100
+  ```
+- **Pass to database** via new `create_flight_result()` parameters
+- **Pass to PDF** via enhanced `result_data_for_pdf` dictionary
+
+### Example Table Output
+
+#### HTML Display:
+```
+TIMING PENALTIES
+Leg 1: Grass Strip    10:00  10:01  +1s   1 pt
+Leg 2: Refinery       10:00  10:01  +1s   1 pt
+Leg 3: Town Square    10:00  9:59   -1s   1 pt
+Leg 4: Bridge         10:00  9:59   -1s   1 pt
+Leg 5: Field          10:00  9:59   -1s   1 pt
+Subtotal: Leg Penalties                   5 pts
+Total Time           50:00  49:59  -1s   1 pt
+TIMING SUBTOTAL                           6 pts
+
+OFF-COURSE PENALTIES
+Grass Strip          Within 0.25 NM  0.15 NM  ✓ Inside       0 pt
+Refinery             Within 0.25 NM  0.22 NM  ✓ Inside       0 pt
+Town Square          Within 0.25 NM  0.35 NM  0.09 NM over  50 pts
+Bridge               Within 0.25 NM  0.18 NM  ✓ Inside       0 pt
+Field                Within 0.25 NM  0.20 NM  ✓ Inside       0 pt
+Subtotal: Off-Course                      50 pts
+
+FUEL PENALTY
+Fuel Burn           10.0 gal  10.1 gal  +0.1 gal (+1.0%)  150 pts
+
+SECRETS PENALTIES
+Checkpoint secrets missed  -  2  -  40 pts
+Enroute secrets missed     -  0  -  0 pts
+Subtotal: Secrets                         40 pts
+
+OVERALL SCORE                             246 pts
+```
+
+### Files Modified
+
+1. **`templates/team/results.html`**
+   - Added `penalty-breakdown` CSS styling (table, section headers, colors)
+   - Replaced "Flight Summary" section with comprehensive table
+   - Uses new Jinja2 filters for formatting
+
+2. **`app/app.py`**
+   - Added Jinja2 filters: `format_time()`, `format_signed()`
+   - Added penalty breakdown calculations in POST /flight route
+   - Updated `result_data_for_pdf` with new fields
+   - Redesigned `generate_pdf_report()` using ReportLab Platypus
+   - Updated imports to include Platypus and styling modules
+
+3. **`app/database.py`**
+   - Updated `create_flight_result()` signature with new optional parameters
+   - All parameters have sensible defaults (0 or 0.25) for backward compatibility
+
+4. **`migrations/009_penalty_breakdown.sql`**
+   - NEW migration file
+   - Adds 9 new columns to `flight_results` table with safe defaults
+
+5. **`CHANGELOG.md`**
+   - This entry
+
+### Backward Compatibility
+
+✅ **Fully backward compatible:**
+- New database columns have default values
+- New `create_flight_result()` parameters are optional with defaults
+- Old results from v0.4.7 will still display (without new breakdown fields)
+- No changes to config format or schema structure
+
+### Benefits
+
+1. **Transparency** - Users can see exactly where every penalty point came from
+2. **Verification** - Teams can verify scoring accuracy and spot errors
+3. **Learning** - Shows teams what to improve (off-course, timing, fuel estimation, secrets)
+4. **Professional** - PDF looks polished with proper formatting and tables
+5. **Debugging** - Easier to troubleshoot scoring issues with detailed breakdown
+
+### Testing
+
+Manual testing verified:
+- ✓ HTML table displays correctly with all sections
+- ✓ Jinja2 filters format times and deviations properly
+- ✓ PDF generates without errors using Platypus
+- ✓ Off-course penalties correctly calculated and displayed
+- ✓ Fuel error percentage calculated correctly
+- ✓ Secrets penalties itemized properly
+- ✓ Page breaks work correctly in PDF
+- ✓ Old flight results still load without errors
+
+### Notes
+
+- NO VERSION bump or Docker rebuild (main agent handles post-review)
+- No changes to scoring logic (only display and storage)
+- All new database columns are nullable with sensible defaults
+- PDF formatting uses Platypus for professional appearance
+- CSS styling matches existing app color scheme
+
+
 ## [0.4.7] - 2026-02-15
 
 ### 🐛 CRITICAL FIX: Timing Score Missing Total Time Penalty Component

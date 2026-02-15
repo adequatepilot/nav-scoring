@@ -2,6 +2,76 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.4.0] - 2026-02-14
+
+### ⚠️ BREAKING CHANGE: Token-Based System Replaced with Selection List
+
+**Overview**: Replaced 48-hour expiring token system with intuitive dropdown selection. Post-flight form now shows list of open pre-flight submissions instead of requiring users to paste tokens.
+
+### Added
+- **Database Migration 008**: Added `status` column to `prenav_submissions` (open/scored/archived)
+- **New Database Methods**:
+  - `get_open_prenav_submissions(user_id=None, is_coach=False)` - Fetch open submissions with full details
+  - `mark_prenav_scored(prenav_id)` - Mark submission as scored
+  - `archive_prenav(prenav_id)` - Archive stale submissions (admin only)
+- **Selection-Based Workflow**: Post-flight form now displays dropdown of open pre-flight submissions instead of token input field
+- **Submission Details in Email**: Email confirmations now include submission date, pairing info (pilot/observer names)
+- **Pre-flight Confirmation Page**: Shows submission details instead of token
+
+### Removed
+- **Token Generation**: Pre-flight submissions no longer create expiring tokens
+- **Token Input Field**: Post-flight form no longer requires token entry
+- **Token Expiry**: 48-hour token expiration logic removed
+
+### Changed
+- **Pre-flight Submission Form**: No longer displays/sends token to users
+- **Email Templates**: Removed token-based instructions, updated to list-based workflow
+- **Post-flight Form** (`/flight` GET): Fetches and displays dropdown of open submissions
+  - Competitors see only their pairing's submissions
+  - Coaches/Admins see all submissions
+- **Post-flight Submission** (`/flight` POST):
+  - Replaced `prenav_token` field with `prenav_id` dropdown selection
+  - Added validation: Prenav must have `status='open'`
+  - Added permission check: Can't score same submission twice
+- **Prenav Confirmation Page**: Shows submission details (date, NAV, pilot/observer) instead of token
+
+### Security
+- ✅ Competitor can only score their own pairing's submissions
+- ✅ Coach/Admin can score any submission
+- ✅ Can't score same submission twice (status check)
+- ✅ Can't score archived submissions
+
+### Files Modified
+- `migrations/008_prenav_status.sql` - NEW
+- `app/database.py` - Added methods, updated `create_prenav()`, `get_open_prenav_submissions()`
+- `app/app.py` - Updated `/prenav` POST, `/prenav_confirmation` GET, `/flight` GET/POST routes
+- `app/email.py` - Updated `send_prenav_confirmation()` template
+- `templates/team/flight.html` - Replaced token input with prenav dropdown
+- `templates/team/prenav_confirmation.html` - Shows submission details instead of token
+- `VERSION` - Bumped to 0.4.0
+
+### Testing Completed
+- ✅ Competitor: Submit prenav, see only own submissions, score with dropdown
+- ✅ Coach: See all submissions, score any submission
+- ✅ Admin: Full access, can archive submissions
+- ✅ Permission checks: Competitor can't score wrong pairing
+- ✅ Status tracking: Can't score same submission twice
+- ✅ Email templates: No token, shows submission details
+
+### Migration Notes
+- **Existing Submissions**: Marked as 'scored' if linked to flight results, 'open' otherwise
+- **No Data Loss**: All existing prenav submissions preserved with proper status
+- **Backwards Compatible**: Token field still available in database for legacy access (if needed)
+
+### Benefits
+✅ No more lost/forgotten tokens  
+✅ Coach visibility into all submissions  
+✅ Better UX (select from list vs enter code)  
+✅ No expiration pressure  
+✅ Status tracking for submissions  
+✅ More intuitive for web workflow  
+✅ Easier audit trail  
+
 ## [0.3.11] - 2026-02-14
 
 ### Fixed

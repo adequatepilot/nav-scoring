@@ -78,9 +78,12 @@ NAV Scoring System
         )
 
     async def send_prenav_confirmation(
-        self, team_emails, team_name: str, nav_name: str, token: str
+        self, team_emails, team_name: str, nav_name: str, 
+        submission_date: str, pilot_name: str = "", observer_name: str = "", 
+        token: Optional[str] = None
     ) -> bool:
-        """Send pre-flight confirmation email to team. Accepts single email (str) or list of emails."""
+        """Send pre-flight confirmation email to team. v0.4.0: No token needed.
+        Accepts single email (str) or list of emails."""
         # Handle both single email string and list of emails
         if isinstance(team_emails, str):
             team_emails = [team_emails]
@@ -92,13 +95,15 @@ NAV Scoring System
             <body style="font-family: Arial, sans-serif;">
                 <h2>Pre-Flight Plan Received</h2>
                 <p>Hi {team_name},</p>
-                <p>Your pre-flight planning data for <strong>{nav_name}</strong> has been received and recorded.</p>
-                <h3>Your Submission Token:</h3>
-                <p style="background-color: #f0f0f0; padding: 10px; font-family: monospace; font-size: 14px;">
-                    {token}
-                </p>
-                <p>After you complete the flight, go to the flight form and paste this token to submit your GPX file and receive your score.</p>
-                <p><strong>Token expires in 48 hours.</strong></p>
+                <p>Your pre-flight planning data has been received and recorded.</p>
+                <h3>Submission Details:</h3>
+                <ul style="background-color: #f0f0f0; padding: 15px; border-radius: 5px;">
+                    <li><strong>NAV Route:</strong> {nav_name}</li>
+                    <li><strong>Submitted:</strong> {submission_date}</li>
+                    <li><strong>Pilot:</strong> {pilot_name}</li>
+                    <li><strong>Observer:</strong> {observer_name}</li>
+                </ul>
+                <p>After you complete the flight, log in to the NAV Scoring portal and submit your post-flight data. You'll select this submission from your list of open plans.</p>
                 <p>Good luck!</p>
                 <p>NAV Scoring System</p>
             </body>
@@ -110,14 +115,15 @@ Pre-Flight Plan Received
 
 Hi {team_name},
 
-Your pre-flight planning data for {nav_name} has been received and recorded.
+Your pre-flight planning data has been received and recorded.
 
-Your Submission Token:
-{token}
+Submission Details:
+NAV Route: {nav_name}
+Submitted: {submission_date}
+Pilot: {pilot_name}
+Observer: {observer_name}
 
-After you complete the flight, go to the flight form and paste this token to submit your GPX file and receive your score.
-
-Token expires in 48 hours.
+After you complete the flight, log in to the NAV Scoring portal and submit your post-flight data. You'll select this submission from your list of open plans.
 
 Good luck!
 NAV Scoring System

@@ -31,7 +31,7 @@
 
 <div class="info">
     <strong>Instructions:</strong><br>
-    1. Paste your pre-flight token<br>
+    1. Select your pre-flight submission<br>
     2. Select the start gate you used<br>
     3. Upload your GPX file from the flight<br>
     4. Enter actual fuel burn and secrets missed<br>
@@ -40,9 +40,16 @@
 
 <form method="POST" action="/flight" enctype="multipart/form-data">
     <div class="form-group">
-        <label for="prenav_token">Pre-Flight Token:</label>
-        <input type="text" id="prenav_token" name="prenav_token" required 
-               placeholder="Paste your token here" style="font-family: monospace;">
+        <label for="prenav_id">Select Pre-Flight Submission to Score:</label>
+        <select id="prenav_id" name="prenav_id" required>
+            <option value="">-- Select Submission --</option>
+            {% for prenav in open_prenavs %}
+            <option value="{{ prenav.id }}">{{ prenav.display }}</option>
+            {% endfor %}
+        </select>
+        {% if not open_prenavs %}
+        <small style="color: #999;">No open pre-flight submissions found. Submit a pre-flight plan first.</small>
+        {% endif %}
     </div>
     
     <div class="form-group">

@@ -1084,10 +1084,7 @@ async def submit_prenav(
             logger.error(f"Error parsing times: {e}")
             raise HTTPException(status_code=400, detail=f"Invalid time format: {str(e)}")
         
-        # Generate token
-        token = Auth.generate_token()
-        expires_at = datetime.utcnow() + timedelta(hours=config["prenav"]["token_expiry_hours"])
-        
+        # Create prenav without token (v0.4.0)
         prenav_id = db.create_prenav(
             pairing_id=pairing["id"],
             pilot_id=user["user_id"],
@@ -1095,29 +1092,32 @@ async def submit_prenav(
             leg_times=leg_times,
             total_time=total_time,
             fuel_estimate=fuel_estimate,
-            token=token,
-            expires_at=expires_at
+            token=None,
+            expires_at=None
         )
         
-        logger.info(f"Created prenav: ID={prenav_id}, token={token}")
+        logger.info(f"Created prenav: ID={prenav_id} (status=open, no token)")
         
         # Get NAV name
         nav = db.get_nav(nav_id)
         
-        # Get observer email
+        # Get pairing details for email
+        pilot = db.get_user_by_id(pairing["pilot_id"])
         observer = db.get_user_by_id(pairing["safety_observer_id"])
         
         # Send emails to both pilot and observer (including additional emails)
-        pilot_emails = db.get_all_emails_for_user(user["user_id"])
-        observer_emails = db.get_all_emails_for_user(observer["id"]) if observer else []
+        pilot_emails = db.get_all_emails_for_user(pairing["pilot_id"]) if pilot else []
+        observer_emails = db.get_all_emails_for_user(pairing["safety_observer_id"]) if observer else []
         
         try:
             if pilot_emails:
                 await email_service.send_prenav_confirmation(
                     team_emails=pilot_emails,
-                    team_name=user["name"],
+                    team_name=pilot["name"],
                     nav_name=nav["name"],
-                    token=token
+                    submission_date=datetime.utcnow().isoformat(),
+                    pilot_name=pilot["name"],
+                    observer_name=observer["name"] if observer else "Unknown"
                 )
             
             if observer_emails:
@@ -1125,14 +1125,16 @@ async def submit_prenav(
                     team_emails=observer_emails,
                     team_name=observer["name"],
                     nav_name=nav["name"],
-                    token=token
+                    submission_date=datetime.utcnow().isoformat(),
+                    pilot_name=pilot["name"] if pilot else "Unknown",
+                    observer_name=observer["name"]
                 )
         except Exception as email_err:
             logger.warning(f"Email send failed (non-critical): {email_err}")
         
         logger.info(f"Prenav submitted successfully, redirecting to confirmation")
-        # Redirect to confirmation page instead of returning template
-        return RedirectResponse(url=f"/prenav_confirmation?token={token}", status_code=303)
+        # Redirect to confirmation page with prenav ID instead of token
+        return RedirectResponse(url=f"/prenav_confirmation?prenav_id={prenav_id}", status_code=303)
     
     except HTTPException:
         raise
@@ -1141,24 +1143,34 @@ async def submit_prenav(
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/prenav_confirmation", response_class=HTMLResponse)
-async def prenav_confirmation(request: Request, user: dict = Depends(require_member), token: str = None):
-    """Display pre-flight confirmation page."""
-    prenav = db.get_prenav_by_token(token) if token else None
+async def prenav_confirmation(request: Request, user: dict = Depends(require_member), prenav_id: int = None):
+    """Display pre-flight confirmation page. v0.4.0: Use prenav_id instead of token."""
+    prenav = db.get_prenav(prenav_id) if prenav_id else None
     if not prenav:
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
+        raise HTTPException(status_code=400, detail="Invalid prenav ID")
     
-    expires_at = datetime.fromisoformat(prenav["expires_at"])
+    # Get nav and pairing details for confirmation
+    nav = db.get_nav(prenav["nav_id"])
+    pairing = db.get_pairing(prenav["pairing_id"])
+    pilot = db.get_user_by_id(pairing["pilot_id"]) if pairing else None
+    observer = db.get_user_by_id(pairing["safety_observer_id"]) if pairing else None
+    
+    created_at = datetime.fromisoformat(prenav["created_at"])
     
     return templates.TemplateResponse("team/prenav_confirmation.html", {
         "request": request,
-        "token": token,
-        "expires_at": expires_at.strftime("%Y-%m-%d %H:%M UTC"),
+        "prenav_id": prenav_id,
+        "prenav": prenav,
+        "nav_name": nav["name"] if nav else "Unknown",
+        "pilot_name": pilot["name"] if pilot else "Unknown",
+        "observer_name": observer["name"] if observer else "Unknown",
+        "created_at": created_at.strftime("%Y-%m-%d %H:%M UTC"),
         "member_name": user["name"]
     })
 
 @app.get("/flight", response_class=HTMLResponse)
 async def flight_form(request: Request, user: dict = Depends(require_login)):
-    """Display post-flight form. Coaches can select pairing, competitors use their own."""
+    """Display post-flight form. v0.4.0: Select from open prenav submissions instead of token."""
     is_coach = user.get("is_coach", False)
     is_admin = user.get("is_admin", False)
     
@@ -1171,22 +1183,27 @@ async def flight_form(request: Request, user: dict = Depends(require_login)):
             if gate not in gates:
                 gates.append(gate)
     
-    # Get pairings for dropdown if coach
-    pairings_for_dropdown = []
-    if is_coach or is_admin:
-        all_pairings = db.list_pairings(active_only=True)
-        for p in all_pairings:
-            pilot = db.get_user_by_id(p["pilot_id"])
-            observer = db.get_user_by_id(p["safety_observer_id"])
-            pairings_for_dropdown.append({
-                "id": p["id"],
-                "display_name": f"{pilot['name'] if pilot else 'Unknown'} / {observer['name'] if observer else 'Unknown'}"
-            })
+    # Get open prenav submissions (filtered by role)
+    open_prenavs = db.get_open_prenav_submissions(
+        user_id=user["user_id"],
+        is_coach=(is_coach or is_admin)
+    )
+    
+    # Format prenav options for dropdown
+    prenav_options = []
+    for prenav in open_prenavs:
+        # Format: "2026-02-14 3:30 PM - MDH 20 - Alex Johnson (Pilot) + Taylor Brown (Observer)"
+        created_at = datetime.fromisoformat(prenav["created_at"])
+        display = f"{created_at.strftime('%Y-%m-%d %I:%M %p')} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
+        prenav_options.append({
+            "id": prenav["id"],
+            "display": display
+        })
     
     return templates.TemplateResponse("team/flight.html", {
         "request": request,
         "start_gates": gates,
-        "pairings_for_dropdown": pairings_for_dropdown,
+        "open_prenavs": prenav_options,
         "is_coach": is_coach,
         "is_admin": is_admin,
         "member_name": user["name"],
@@ -1197,23 +1214,27 @@ async def flight_form(request: Request, user: dict = Depends(require_login)):
 async def submit_flight(
     request: Request,
     user: dict = Depends(require_login),
-    prenav_token: str = Form(...),
+    prenav_id: int = Form(...),
     actual_fuel: float = Form(...),
     secrets_checkpoint: int = Form(...),
     secrets_enroute: int = Form(...),
     start_gate_id: int = Form(...),
     gpx_file: UploadFile = File(...)
 ):
-    """Submit post-flight GPX and process scoring. Competitors must be part of pairing, coaches can submit for any."""
+    """Submit post-flight GPX and process scoring. v0.4.0: Use prenav_id instead of token."""
     is_coach = user.get("is_coach", False)
     is_admin = user.get("is_admin", False)
     
     error = None
     try:
-        # Validate prenav token
-        prenav = db.get_prenav_by_token(prenav_token)
+        # Validate prenav_id
+        prenav = db.get_prenav(prenav_id)
         if not prenav:
-            error = "Invalid or expired token"
+            error = "Invalid prenav submission"
+        
+        # Check if prenav is still open
+        if not error and prenav.get("status") != "open":
+            error = f"This submission has already been scored or archived"
         
         # Get pairing
         if not error:
@@ -1226,13 +1247,7 @@ async def submit_flight(
             # Coaches/admins can submit for any pairing, competitors must be part of the pairing
             if not (is_coach or is_admin):
                 if user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
-                    error = "Token does not belong to this team"
-        
-        # Check expiry
-        if not error:
-            expires_at = datetime.fromisoformat(prenav["expires_at"])
-            if expires_at < datetime.utcnow():
-                error = "Token has expired"
+                    error = "You are not authorized to score this submission"
         
         # Save GPX file
         if not error:
@@ -1397,6 +1412,10 @@ async def submit_flight(
                     checkpoint_results=checkpoint_results
                 )
                 
+                # Mark prenav as scored (v0.4.0)
+                db.mark_prenav_scored(prenav["id"])
+                logger.info(f"Marked prenav {prenav['id']} as scored")
+                
                 # Update with PDF filename
                 from app.database import Database as DB
                 with db.get_connection() as conn:
@@ -1455,22 +1474,26 @@ async def submit_flight(
                 if gate not in gates:
                     gates.append(gate)
         
-        # Get pairings for dropdown if coach
-        pairings_for_dropdown = []
-        if is_coach or is_admin:
-            all_pairings = db.list_pairings(active_only=True)
-            for p in all_pairings:
-                pilot = db.get_user_by_id(p["pilot_id"])
-                observer = db.get_user_by_id(p["safety_observer_id"])
-                pairings_for_dropdown.append({
-                    "id": p["id"],
-                    "display_name": f"{pilot['name'] if pilot else 'Unknown'} / {observer['name'] if observer else 'Unknown'}"
-                })
+        # Get open prenav submissions (filtered by role)
+        open_prenavs = db.get_open_prenav_submissions(
+            user_id=user["user_id"],
+            is_coach=(is_coach or is_admin)
+        )
+        
+        # Format prenav options for dropdown
+        prenav_options = []
+        for prenav in open_prenavs:
+            created_at = datetime.fromisoformat(prenav["created_at"])
+            display = f"{created_at.strftime('%Y-%m-%d %I:%M %p')} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
+            prenav_options.append({
+                "id": prenav["id"],
+                "display": display
+            })
         
         return templates.TemplateResponse("team/flight.html", {
             "request": request,
             "start_gates": gates,
-            "pairings_for_dropdown": pairings_for_dropdown,
+            "open_prenavs": prenav_options,
             "is_coach": is_coach,
             "is_admin": is_admin,
             "member_name": user["name"],

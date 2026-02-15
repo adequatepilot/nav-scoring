@@ -878,17 +878,21 @@ class Database:
         leg_times: List[float],
         total_time: float,
         fuel_estimate: float,
-        token: str,
-        expires_at: datetime,
+        token: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
     ) -> int:
-        """Create a pre-NAV submission. Returns prenav ID."""
+        """Create a pre-NAV submission. Returns prenav ID.
+        
+        Note: token and expires_at are deprecated and kept for backwards compatibility.
+        New submissions use status='open' instead.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
                 INSERT INTO prenav_submissions
-                (pairing_id, pilot_id, nav_id, leg_times, total_time, fuel_estimate, token, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (pairing_id, pilot_id, nav_id, leg_times, total_time, fuel_estimate, token, expires_at, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')
                 """,
                 (
                     pairing_id,
@@ -935,6 +939,79 @@ class Database:
                 "DELETE FROM prenav_submissions WHERE expires_at < CURRENT_TIMESTAMP"
             )
             return cursor.rowcount
+
+    def get_open_prenav_submissions(self, user_id: Optional[int] = None, is_coach: bool = False) -> List[Dict]:
+        """Get open prenav submissions with full details.
+        
+        Args:
+            user_id: If provided and not coach, filter to that user's pairings only
+            is_coach: If True, return all submissions regardless of user_id
+        
+        Returns:
+            List of open prenav submissions with pairing, nav, and user details
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            if is_coach or user_id is None:
+                # Coaches/Admins see ALL open submissions
+                cursor.execute("""
+                    SELECT 
+                        ps.id, ps.pairing_id, ps.nav_id, ps.created_at, ps.status,
+                        ps.pilot_id, ps.total_time, ps.fuel_estimate,
+                        n.name as nav_name,
+                        p.pilot_id, p.safety_observer_id,
+                        pilot.name as pilot_name,
+                        observer.name as observer_name
+                    FROM prenav_submissions ps
+                    JOIN navs n ON ps.nav_id = n.id
+                    JOIN pairings p ON ps.pairing_id = p.id
+                    JOIN users pilot ON p.pilot_id = pilot.id
+                    JOIN users observer ON p.safety_observer_id = observer.id
+                    WHERE ps.status = 'open'
+                    ORDER BY ps.created_at DESC
+                """)
+            else:
+                # Competitors see only their pairing's submissions
+                cursor.execute("""
+                    SELECT 
+                        ps.id, ps.pairing_id, ps.nav_id, ps.created_at, ps.status,
+                        ps.pilot_id, ps.total_time, ps.fuel_estimate,
+                        n.name as nav_name,
+                        p.pilot_id, p.safety_observer_id,
+                        pilot.name as pilot_name,
+                        observer.name as observer_name
+                    FROM prenav_submissions ps
+                    JOIN navs n ON ps.nav_id = n.id
+                    JOIN pairings p ON ps.pairing_id = p.id
+                    JOIN users pilot ON p.pilot_id = pilot.id
+                    JOIN users observer ON p.safety_observer_id = observer.id
+                    WHERE ps.status = 'open'
+                    AND (p.pilot_id = ? OR p.safety_observer_id = ?)
+                    ORDER BY ps.created_at DESC
+                """, (user_id, user_id))
+            
+            return [dict(row) for row in cursor.fetchall()]
+
+    def mark_prenav_scored(self, prenav_id: int) -> bool:
+        """Mark a prenav submission as scored. Returns success."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE prenav_submissions SET status = 'scored' WHERE id = ?",
+                (prenav_id,)
+            )
+            return cursor.rowcount > 0
+
+    def archive_prenav(self, prenav_id: int) -> bool:
+        """Archive a prenav submission (admin only). Returns success."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE prenav_submissions SET status = 'archived' WHERE id = ?",
+                (prenav_id,)
+            )
+            return cursor.rowcount > 0
 
     # ===== FLIGHT RESULTS =====
 

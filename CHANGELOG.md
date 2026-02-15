@@ -4,9 +4,9 @@ All notable changes to the NAV Scoring application.
 
 ## [0.4.4] - 2026-02-15
 
-### 🐛 Hotfix: Navbar Links
+### 🐛 Hotfix: Navbar Links & Delete Button Styling
 
-**Overview**: Fixed navbar "Post-NAV" links in all team templates that were missed in v0.4.3.
+**Overview**: Fixed navbar "Post-NAV" links in all team templates that were missed in v0.4.3, and restored delete button styling.
 
 ### Fixed
 - **Navbar Links**: Updated "Post-NAV" navbar links from `/flight` to `/flight/select` in all team templates
@@ -18,10 +18,15 @@ All notable changes to the NAV Scoring application.
   - `templates/team/results.html`
   - `templates/team/results_list.html`
 - Previous fix only updated dashboard.html, leaving navbar links broken on other pages
+- **Delete Button Styling**: Added `.button-danger` CSS to flight_select.html
+  - Delete buttons now display with maroon background (#8B0015 - SIU color)
+  - Hover effect with darker maroon (#6B0010)
+  - Previously displayed as plain text with emoji
 
 ### Benefits
 - ✅ Consistent navigation from all pages (not just dashboard)
 - ✅ Hamburger menu "Post-NAV" link now works correctly
+- ✅ Delete buttons look like actual buttons (maroon box)
 
 ## [0.4.3] - 2026-02-14
 

@@ -2254,7 +2254,8 @@ async def coach_create_member(
             is_coach=False,
             is_admin=False,
             is_approved=1,  # Admin-created users are pre-approved
-            email_verified=True  # Coach-created accounts have verified email
+            email_verified=True,  # Coach-created accounts have verified email
+            must_reset_password=True  # Require password reset on first login
         )
         logger.info(f"New user created (pre-approved): {email} (ID: {user_id})")
         return RedirectResponse(url="/coach/members?message=User created and approved", status_code=303)
@@ -2350,6 +2351,23 @@ async def deny_user_ajax(
             return {"success": False, "message": "User not found"}
     except Exception as e:
         logger.error(f"Error denying user: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/coach/members/{user_id}/force-password-reset")
+async def force_password_reset(
+    user_id: int,
+    user: dict = Depends(require_admin)
+):
+    """Force user to reset password on next login. Admin only."""
+    try:
+        success = db.update_user(user_id, must_reset_password=1)
+        if success:
+            logger.info(f"Password reset forced for user {user_id} by admin {user.get('user_id')}")
+            return {"success": True, "message": "User will be required to reset password on next login"}
+        else:
+            return {"success": False, "message": "User not found"}
+    except Exception as e:
+        logger.error(f"Error forcing password reset: {e}")
         return {"success": False, "message": str(e)}
 
 @app.get("/coach/pairings", response_class=HTMLResponse)

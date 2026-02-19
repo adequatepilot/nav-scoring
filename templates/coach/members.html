@@ -357,6 +357,7 @@ th, td {
                     <div class="action-buttons">
                         {% if is_admin %}
                         <button onclick="openEditModal({{ member.id }}, '{{ member.name }}', '{{ member.email }}')" style="background: #2196f3;">Edit</button>
+                        <button onclick="forcePasswordReset({{ member.id }})" style="background: #ff9800;">Force Password Reset</button>
                         <a href="/coach/members/{{ member.id }}/delete" onclick="return confirm('Delete this user? This cannot be undone.');">Delete</a>
                         {% else %}
                         <span style="color: #999; font-size: 0.9rem;">View Only</span>
@@ -640,6 +641,24 @@ function denyUser(userId) {
         console.error('Error:', err);
         showNotification('Error denying user', 'error');
     });
+}
+
+function forcePasswordReset(userId) {
+    if (confirm('Force this user to reset their password on next login?')) {
+        fetch('/coach/members/' + userId + '/force-password-reset', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Password reset flag set successfully', 'success');
+            } else {
+                showNotification('Failed to set reset flag: ' + (data.message || 'Unknown error'), 'error');
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            showNotification('Error setting password reset flag', 'error');
+        });
+    }
 }
 </script>
 

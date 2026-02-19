@@ -204,6 +204,22 @@
 .avatar-color-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
 .avatar-color-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
 .avatar-color-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+
+/* Smooth pulsing animation for Assigned NAVs button */
+@keyframes pulse-yellow {
+    0%, 100% {
+        background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+        box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.4);
+    }
+    50% {
+        background: linear-gradient(135deg, #ffb840 0%, #ff9800 100%);
+        box-shadow: 0 0 0 12px rgba(255, 152, 0, 0);
+    }
+}
+
+.assigned-navs-pulse {
+    animation: pulse-yellow 2s ease-in-out infinite;
+}
 </style>
 {% endblock %}
 
@@ -269,7 +285,7 @@
         <p>Enter leg times and fuel estimate</p>
     </a>
     {% if not is_coach and not is_admin %}
-    <a href="/team/assigned-navs" class="quick-link" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">
+    <a href="/team/assigned-navs" class="quick-link assigned-navs-pulse">
         <h3>📌 Assigned NAVs</h3>
         <p>View your assigned practice NAVs</p>
     </a>

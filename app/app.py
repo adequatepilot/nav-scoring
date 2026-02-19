@@ -1830,11 +1830,15 @@ async def view_result(request: Request, result_id: int, user: dict = Depends(req
         # Get NAV
         nav = db.get_nav(result["nav_id"])
         
-        # Get prenav
+        # Get prenav - use fallback from result if prenav is missing
         prenav = db.get_prenav(result["prenav_id"])
         if not prenav:
-            logger.error(f"Prenav {result['prenav_id']} not found for result {result_id}")
-            raise HTTPException(status_code=500, detail="Prenav data not found")
+            logger.warning(f"Prenav {result['prenav_id']} not found for result {result_id}, using defaults from result")
+            # Create minimal prenav object from result data to allow viewing
+            prenav = {
+                "fuel_estimate": result.get("estimated_fuel_burn", 0),
+                "total_time": result.get("estimated_total_time", 0)
+            }
         
         # Build result display
         result_display = {
@@ -2065,46 +2069,60 @@ async def coach_results(
 @app.get("/coach/results/{result_id}", response_class=HTMLResponse)
 async def coach_view_result(request: Request, result_id: int, user: dict = Depends(require_coach)):
     """Coach view specific result (reuse member view)."""
-    result = db.get_flight_result(result_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Result not found")
-    
-    nav = db.get_nav(result["nav_id"])
-    prenav = db.get_prenav(result["prenav_id"])
-    
-    result_display = {
-        "id": result["id"],
-        "overall_score": result["overall_score"],
-        "checkpoint_results": result["checkpoint_results"],
-        "total_time_score": result.get("total_time_score") or sum(cp["leg_score"] for cp in result["checkpoint_results"]),
-        "total_deviation": sum(abs(cp["deviation"]) for cp in result["checkpoint_results"]),
-        "fuel_penalty": scoring_engine.calculate_fuel_penalty(prenav["fuel_estimate"], result["actual_fuel"]),
-        "checkpoint_secrets_penalty": result["secrets_missed_checkpoint"] * config["scoring"]["secrets"]["checkpoint_penalty"],
-        "enroute_secrets_penalty": result["secrets_missed_enroute"] * config["scoring"]["secrets"]["enroute_penalty"],
-        "estimated_fuel_burn": result.get("estimated_fuel_burn") or prenav["fuel_estimate"],
-        "actual_fuel_burn": result["actual_fuel"],
-        "pdf_filename": result.get("pdf_filename"),
-        "scored_at": result["scored_at"],
-        # New fields from v0.4.8
-        "leg_penalties": result.get("leg_penalties", 0),
-        "total_time_penalty": result.get("total_time_penalty", 0),
-        "total_time_deviation": result.get("total_time_deviation", 0),
-        "estimated_total_time": result.get("estimated_total_time") or prenav.get("total_time", 0),
-        "actual_total_time": result.get("actual_total_time", 0),
-        "total_off_course": result.get("total_off_course", 0),
-        "fuel_error_pct": result.get("fuel_error_pct", 0),
-        "checkpoint_radius": result.get("checkpoint_radius", 0.25),
-        "secrets_missed_checkpoint": result["secrets_missed_checkpoint"],
-        "secrets_missed_enroute": result["secrets_missed_enroute"]
-    }
-    
-    return templates.TemplateResponse("team/results.html", {
-        "request": request,
-        "result": result_display,
-        "nav": nav,
-        "member_name": "Coach",
-        "dashboard_url": "/coach"
-    })
+    try:
+        result = db.get_flight_result(result_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Result not found")
+        
+        nav = db.get_nav(result["nav_id"])
+        prenav = db.get_prenav(result["prenav_id"])
+        
+        # Handle missing prenav gracefully
+        if not prenav:
+            logger.warning(f"Prenav {result['prenav_id']} not found for result {result_id}, using defaults from result")
+            prenav = {
+                "fuel_estimate": result.get("estimated_fuel_burn", 0),
+                "total_time": result.get("estimated_total_time", 0)
+            }
+        
+        result_display = {
+            "id": result["id"],
+            "overall_score": result["overall_score"],
+            "checkpoint_results": result["checkpoint_results"],
+            "total_time_score": result.get("total_time_score") or sum(cp["leg_score"] for cp in result["checkpoint_results"]),
+            "total_deviation": sum(abs(cp["deviation"]) for cp in result["checkpoint_results"]),
+            "fuel_penalty": scoring_engine.calculate_fuel_penalty(prenav["fuel_estimate"], result["actual_fuel"]),
+            "checkpoint_secrets_penalty": result["secrets_missed_checkpoint"] * config["scoring"]["secrets"]["checkpoint_penalty"],
+            "enroute_secrets_penalty": result["secrets_missed_enroute"] * config["scoring"]["secrets"]["enroute_penalty"],
+            "estimated_fuel_burn": result.get("estimated_fuel_burn") or prenav["fuel_estimate"],
+            "actual_fuel_burn": result["actual_fuel"],
+            "pdf_filename": result.get("pdf_filename"),
+            "scored_at": result["scored_at"],
+            # New fields from v0.4.8
+            "leg_penalties": result.get("leg_penalties", 0),
+            "total_time_penalty": result.get("total_time_penalty", 0),
+            "total_time_deviation": result.get("total_time_deviation", 0),
+            "estimated_total_time": result.get("estimated_total_time") or prenav.get("total_time", 0),
+            "actual_total_time": result.get("actual_total_time", 0),
+            "total_off_course": result.get("total_off_course", 0),
+            "fuel_error_pct": result.get("fuel_error_pct", 0),
+            "checkpoint_radius": result.get("checkpoint_radius", 0.25),
+            "secrets_missed_checkpoint": result["secrets_missed_checkpoint"],
+            "secrets_missed_enroute": result["secrets_missed_enroute"]
+        }
+        
+        return templates.TemplateResponse("team/results.html", {
+            "request": request,
+            "result": result_display,
+            "nav": nav,
+            "member_name": "Coach",
+            "dashboard_url": "/coach"
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error viewing result {result_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error loading result: {str(e)}")
 
 @app.get("/coach/results/{result_id}/delete")
 async def coach_delete_result(result_id: int, user: dict = Depends(require_admin)):
@@ -3359,7 +3377,13 @@ async def assignment_workflow(assignment_id: int, request: Request, user: dict =
             })
         
         # Verify user has access (in the pairing or is coach/admin)
-        pairing = db.get_pairing_by_id(assignment["pairing_id"])
+        pairing = db.get_pairing(assignment["pairing_id"])
+        if not pairing:
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "user": user,
+                "error": "Pairing not found"
+            })
         is_in_pairing = (
             user["user_id"] == pairing.get("pilot_id") or
             user["user_id"] == pairing.get("safety_observer_id")

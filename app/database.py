@@ -1223,3 +1223,121 @@ class Database:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM flight_results WHERE id = ?", (result_id,))
             return cursor.rowcount > 0
+
+    # ===== ACTIVITY LOGGING =====
+
+    def log_activity(
+        self,
+        user_id: int,
+        category: str,
+        activity_type: str,
+        details: str = None,
+        entity_type: str = None,
+        entity_id: int = None,
+        ip_address: str = None,
+    ) -> int:
+        """
+        Log user activity.
+        
+        Categories: 'auth', 'nav', 'flight', 'admin', 'pairing', 'user'
+        Types: 'login', 'logout', 'create_nav', 'edit_nav', 'delete_nav',
+               'submit_prenav', 'submit_postnav', 'create_pairing', etc.
+        """
+        with self.get_connection() as conn:
+            # Get user info for logging
+            user = self.get_user_by_id(user_id)
+            user_email = user.get("email") if user else None
+            user_name = user.get("name") if user else None
+            
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO activity_log 
+                (user_id, user_email, user_name, activity_category, activity_type, 
+                 activity_details, related_entity_type, related_entity_id, ip_address)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    user_email,
+                    user_name,
+                    category,
+                    activity_type,
+                    details,
+                    entity_type,
+                    entity_id,
+                    ip_address,
+                ),
+            )
+            log_id = cursor.lastrowid
+            logger.debug(
+                f"Activity logged: user={user_id} category={category} type={activity_type}"
+            )
+            return log_id
+
+    def get_activity_log(
+        self,
+        user_id: Optional[int] = None,
+        category: Optional[str] = None,
+        activity_type: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[int] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Dict]:
+        """Get activity log entries with optional filters."""
+        query = "SELECT * FROM activity_log WHERE 1=1"
+        params = []
+
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        if category:
+            query += " AND activity_category = ?"
+            params.append(category)
+        if activity_type:
+            query += " AND activity_type = ?"
+            params.append(activity_type)
+        if entity_type:
+            query += " AND related_entity_type = ?"
+            params.append(entity_type)
+        if entity_id:
+            query += " AND related_entity_id = ?"
+            params.append(entity_id)
+        if start_date:
+            query += " AND timestamp >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND timestamp <= ?"
+            params.append(end_date)
+
+        query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_activity_count(
+        self,
+        user_id: Optional[int] = None,
+        category: Optional[str] = None,
+    ) -> int:
+        """Get total count of activity log entries."""
+        query = "SELECT COUNT(*) FROM activity_log WHERE 1=1"
+        params = []
+
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        if category:
+            query += " AND activity_category = ?"
+            params.append(category)
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.fetchone()[0]

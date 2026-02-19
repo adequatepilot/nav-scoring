@@ -2445,7 +2445,7 @@ async def force_password_reset(
         return {"success": False, "message": str(e)}
 
 @app.get("/coach/pairings", response_class=HTMLResponse)
-async def coach_pairings(request: Request, user: dict = Depends(require_coach)):
+async def coach_pairings(request: Request, user: dict = Depends(require_coach), message: Optional[str] = None, error: Optional[str] = None):
     """Pairing management. Issue 15: Names populated from DB join. Issue 24: Filter dropdowns."""
     # Get only available users for dropdown population (exclude coaches, admins, and already-paired users)
     users = db.get_available_pairing_users()
@@ -2455,12 +2455,18 @@ async def coach_pairings(request: Request, user: dict = Depends(require_coach)):
     # Names are already populated by list_pairings via JOIN
     is_admin = user.get("is_admin", False)
     
+    # Get message/error from query params
+    message = request.query_params.get("message", message)
+    error = request.query_params.get("error", error)
+    
     return templates.TemplateResponse("coach/pairings.html", {
         "request": request,
         "members": users,
         "active_pairings": active_pairings,
         "inactive_pairings": inactive_pairings,
-        "is_admin": is_admin
+        "is_admin": is_admin,
+        "message": message,
+        "error": error
     })
 
 @app.post("/coach/pairings")
@@ -2491,19 +2497,19 @@ async def coach_create_pairing(
 async def coach_break_pairing(pairing_id: int, user: dict = Depends(require_admin)):
     """Break pairing."""
     db.break_pairing(pairing_id)
-    return RedirectResponse(url="/coach/pairings", status_code=303)
+    return RedirectResponse(url="/coach/pairings?message=Pairing broken", status_code=303)
 
 @app.get("/coach/pairings/{pairing_id}/reactivate")
 async def coach_reactivate_pairing(pairing_id: int, user: dict = Depends(require_admin)):
     """Reactivate pairing."""
     db.update_pairing(pairing_id, is_active=1)
-    return RedirectResponse(url="/coach/pairings", status_code=303)
+    return RedirectResponse(url="/coach/pairings?message=Pairing reactivated", status_code=303)
 
 @app.get("/coach/pairings/{pairing_id}/delete")
 async def coach_delete_pairing(pairing_id: int, user: dict = Depends(require_admin)):
     """Delete pairing."""
     db.delete_pairing(pairing_id)
-    return RedirectResponse(url="/coach/pairings", status_code=303)
+    return RedirectResponse(url="/coach/pairings?message=Pairing deleted", status_code=303)
 
 @app.get("/coach/navs", response_class=HTMLResponse)
 async def coach_navs(request: Request, user: dict = Depends(require_coach)):

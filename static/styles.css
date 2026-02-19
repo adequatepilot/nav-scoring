@@ -272,6 +272,7 @@ tr:hover {
     
     .button-group {
         flex-direction: column;
+        gap: 0.5rem;
     }
     
     .button-group button,
@@ -282,6 +283,48 @@ tr:hover {
     
     .siu-logo img {
         max-width: 90vw;
+    }
+    
+    /* Mobile Table Responsiveness */
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    th, td {
+        padding: 0.5rem;
+        font-size: 0.9rem;
+    }
+    
+    /* Stack action buttons vertically on mobile */
+    .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .actions a,
+    .actions button {
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* Make form inputs full width on mobile */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    select,
+    textarea {
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+    
+    /* Card adjustments */
+    .card {
+        padding: 1rem;
+        margin: 0.5rem;
     }
 }
 

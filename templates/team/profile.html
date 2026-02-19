@@ -18,18 +18,23 @@
 
 {% block extra_css %}
 <style>
+/* Override base.html card constraints */
+.card {
+    max-width: 900px !important;
+    padding: 3rem !important;
+}
+
 .profile-container {
-    max-width: 600px;
+    max-width: 100%;
     margin: 0 auto;
-    padding: 2rem;
 }
 
 .profile-card {
     background: white;
     border-radius: 10px;
-    padding: 2rem;
+    padding: 2.5rem;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    margin-bottom: 2rem;
+    margin-bottom: 3rem;
 }
 
 .profile-header {
@@ -79,9 +84,15 @@
     margin-bottom: 1rem;
 }
 
+.upload-section {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 2px solid #f0f0f0;
+}
+
 .upload-section h2 {
     font-size: 1.3rem;
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
     color: #333;
 }
 
@@ -199,9 +210,15 @@
 .avatar-color-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
 
 /* Email management styles */
+.email-section {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 2px solid #f0f0f0;
+}
+
 .email-section h2 {
     font-size: 1.3rem;
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
     color: #333;
 }
 

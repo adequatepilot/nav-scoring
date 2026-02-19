@@ -366,8 +366,7 @@ th, td {
                 <td>
                     <div class="action-buttons">
                         {% if is_admin %}
-                        <button onclick="openEditModal({{ user.id }}, '{{ user.name }}', '{{ user.email }}', '{{ user.profile_picture_path or '' }}', {{ 'true' if user.can_modify_profile_picture else 'false' }})" style="background: #2196f3;">Edit</button>
-                        <button onclick="forcePasswordReset({{ user.id }})" style="background: #ff9800;">Force Password Reset</button>
+                        <button onclick="openEditModal({{ user.id }}, '{{ user.name }}', '{{ user.email }}', '{{ user.profile_picture_path or '' }}', {{ 'true' if user.can_modify_profile_picture else 'false' }}, {{ 'true' if user.must_reset_password else 'false' }})" style="background: #2196f3;">Edit</button>
                         <a href="/coach/users/{{ user.id }}/delete" onclick="return confirm('Delete this user? This cannot be undone.');">Delete</a>
                         {% else %}
                         <span style="color: #999; font-size: 0.9rem;">View Only</span>
@@ -567,12 +566,13 @@ function deleteUser(userId) {
     }
 }
 
-function openEditModal(userId, name, email, profilePicturePath = null, canModifyProfilePicture = true) {
+function openEditModal(userId, name, email, profilePicturePath = null, canModifyProfilePicture = true, mustResetPassword = false) {
     document.getElementById('editUserId').value = userId;
     document.getElementById('editName').value = name;
     document.getElementById('editEmail').value = email;
     document.getElementById('editPassword').value = '';
     document.getElementById('canModifyProfilePicture').checked = canModifyProfilePicture;
+    document.getElementById('forceReset').checked = mustResetPassword;
     
     // Show current profile picture if exists
     const currentPictureDiv = document.getElementById('currentProfilePicture');

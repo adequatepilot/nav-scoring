@@ -12,10 +12,10 @@
     <div class="navbar-links" id="navbarLinks">
         <a href="/coach">Dashboard</a>
         <a href="/coach/results">Results</a>
-        <a href="/coach/members">Users</a>
+        <a href="/coach/users">Users</a>
         <a href="/coach/pairings">Pairings</a>
         {% if is_admin %}<a href="/coach/config">Config</a>{% endif %}
-        <a href="/logout">Logout{% if is_admin %} (Admin){% endif %}</a>
+        <a href="/logout">Logout</a>
     </div>
 </div>
 {% endblock %}
@@ -82,7 +82,7 @@
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-label">Total Users</div>
-        <div class="stat-number">{{ stats.total_members }}</div>
+        <div class="stat-number">{{ stats.total_users }}</div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Active Pairings</div>
@@ -97,7 +97,7 @@
 <h3>Quick Actions</h3>
 <div class="quick-links">
     {% if is_admin and pending_count > 0 %}
-    <div class="quick-link" onclick="window.location.href='/coach/members?filter=pending'" style="background: #fff3e0; border: 2px solid #ff9800;">
+    <div class="quick-link" onclick="window.location.href='/coach/users?filter=pending'" style="background: #fff3e0; border: 2px solid #ff9800;">
         <h3>⏳ Pending Approvals</h3>
         <p>{{ pending_count }} user(s) awaiting approval</p>
     </div>
@@ -106,7 +106,7 @@
         <h3>📊 View Results</h3>
         <p>Search and filter all flight results</p>
     </div>
-    <div class="quick-link" onclick="window.location.href='/coach/members'">
+    <div class="quick-link" onclick="window.location.href='/coach/users'">
         <h3>👥 Manage Users</h3>
         <p>Add, edit, or remove team users</p>
     </div>

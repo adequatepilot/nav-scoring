@@ -243,7 +243,7 @@ th, td {
 {% if is_admin %}
 <div class="section">
     <h3>Add New User</h3>
-    <form method="POST" action="/coach/members">
+    <form method="POST" action="/coach/users">
         <div class="form-group">
             <label for="name">Full Name:</label>
             <input type="text" id="name" name="name" required autofocus>
@@ -267,7 +267,7 @@ th, td {
 
 <div class="section">
     <h3>Bulk Import Users (CSV)</h3>
-    <form method="POST" action="/coach/members/bulk" enctype="multipart/form-data">
+    <form method="POST" action="/coach/users/bulk" enctype="multipart/form-data">
         <div class="form-group">
             <label for="csv_file">CSV File:</label>
             <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
@@ -292,7 +292,7 @@ th, td {
         </select>
     </div>
     
-    {% if members %}
+    {% if users %}
     <table>
         <thead>
             <tr>
@@ -306,29 +306,29 @@ th, td {
             </tr>
         </thead>
         <tbody id="userTableBody">
-            {% for member in members %}
-            <tr class="user-row {% if not member.is_approved %}pending{% endif %}" data-member-id="{{ member.id }}" data-approved="{{ member.is_approved }}" data-coach="{{ member.is_coach }}" data-admin="{{ member.is_admin }}">
+            {% for user in users %}
+            <tr class="user-row {% if not user.is_approved %}pending{% endif %}" data-user-id="{{ user.id }}" data-approved="{{ user.is_approved }}" data-coach="{{ user.is_coach }}" data-admin="{{ user.is_admin }}">
                 <td>
-                    {% if member.profile_picture_path %}
-                    <img src="/static/{{ member.profile_picture_path }}" alt="{{ member.name }}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    {% if user.profile_picture_path %}
+                    <img src="/static/{{ user.profile_picture_path }}" alt="{{ user.name }}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
                     {% else %}
                     <div style="width: 40px; height: 40px; border-radius: 50%; background: #ddd; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666;">
-                        {{ member.name[0] if member.name else '?' }}
+                        {{ user.name[0] if user.name else '?' }}
                     </div>
                     {% endif %}
                 </td>
-                <td>{{ member.email }}</td>
-                <td>{{ member.name }}</td>
-                <td id="approval-{{ member.id }}">
+                <td>{{ user.email }}</td>
+                <td>{{ user.name }}</td>
+                <td id="approval-{{ user.id }}">
                     {% if is_admin %}
-                        {% if not member.is_approved %}
-                            <button class="btn-approve" onclick="approveUser({{ member.id }})">✓ Approve</button>
-                            <button class="btn-deny" onclick="denyUser({{ member.id }})">✗ Deny</button>
+                        {% if not user.is_approved %}
+                            <button class="btn-approve" onclick="approveUser({{ user.id }})">✓ Approve</button>
+                            <button class="btn-deny" onclick="denyUser({{ user.id }})">✗ Deny</button>
                         {% else %}
                             <span class="status-approved">✓ Approved</span>
                         {% endif %}
                     {% else %}
-                        {% if not member.is_approved %}
+                        {% if not user.is_approved %}
                             <span style="color: #ff9800; font-size: 0.9rem;">Pending</span>
                         {% else %}
                             <span class="status-approved">✓ Approved</span>
@@ -339,36 +339,36 @@ th, td {
                     {% if is_admin %}
                     <div class="checkbox-group">
                         <input type="checkbox" 
-                               id="coach_{{ member.id }}"
+                               id="coach_{{ user.id }}"
                                class="checkbox-coach"
-                               {{ 'checked' if member.is_coach else '' }}
-                               onchange="updateUser({{ member.id }}, 'is_coach', this.checked)">
-                        <span class="loading" id="loading_{{ member.id }}">Updating...</span>
+                               {{ 'checked' if user.is_coach else '' }}
+                               onchange="updateUser({{ user.id }}, 'is_coach', this.checked)">
+                        <span class="loading" id="loading_{{ user.id }}">Updating...</span>
                     </div>
                     {% else %}
-                        <span style="color: #999;">{% if member.is_coach %}Yes{% else %}No{% endif %}</span>
+                        <span style="color: #999;">{% if user.is_coach %}Yes{% else %}No{% endif %}</span>
                     {% endif %}
                 </td>
                 <td>
                     {% if is_admin %}
                     <div class="checkbox-group">
                         <input type="checkbox" 
-                               id="admin_{{ member.id }}"
+                               id="admin_{{ user.id }}"
                                class="checkbox-admin"
-                               {{ 'checked' if member.is_admin else '' }}
-                               onchange="updateUser({{ member.id }}, 'is_admin', this.checked)">
-                        <span class="loading" id="loading_{{ member.id }}">Updating...</span>
+                               {{ 'checked' if user.is_admin else '' }}
+                               onchange="updateUser({{ user.id }}, 'is_admin', this.checked)">
+                        <span class="loading" id="loading_{{ user.id }}">Updating...</span>
                     </div>
                     {% else %}
-                        <span style="color: #999;">{% if member.is_admin %}Yes{% else %}No{% endif %}</span>
+                        <span style="color: #999;">{% if user.is_admin %}Yes{% else %}No{% endif %}</span>
                     {% endif %}
                 </td>
                 <td>
                     <div class="action-buttons">
                         {% if is_admin %}
-                        <button onclick="openEditModal({{ member.id }}, '{{ member.name }}', '{{ member.email }}', '{{ member.profile_picture_path or '' }}', {{ 'true' if member.can_modify_profile_picture else 'false' }})" style="background: #2196f3;">Edit</button>
-                        <button onclick="forcePasswordReset({{ member.id }})" style="background: #ff9800;">Force Password Reset</button>
-                        <a href="/coach/members/{{ member.id }}/delete" onclick="return confirm('Delete this user? This cannot be undone.');">Delete</a>
+                        <button onclick="openEditModal({{ user.id }}, '{{ user.name }}', '{{ user.email }}', '{{ user.profile_picture_path or '' }}', {{ 'true' if user.can_modify_profile_picture else 'false' }})" style="background: #2196f3;">Edit</button>
+                        <button onclick="forcePasswordReset({{ user.id }})" style="background: #ff9800;">Force Password Reset</button>
+                        <a href="/coach/users/{{ user.id }}/delete" onclick="return confirm('Delete this user? This cannot be undone.');">Delete</a>
                         {% else %}
                         <span style="color: #999; font-size: 0.9rem;">View Only</span>
                         {% endif %}
@@ -379,7 +379,7 @@ th, td {
         </tbody>
     </table>
     {% else %}
-    <div class="info">No members yet. Add your first member above.</div>
+    <div class="info">No users yet. Add your first user above.</div>
     {% endif %}
 </div>
 
@@ -446,10 +446,10 @@ th, td {
 <script>
 // Mapping of data attributes to filter types
 const filterMap = {
-    'pending': member => member.is_approved === 0,
-    'coaches': member => member.is_coach === 1,
-    'admins': member => member.is_admin === 1,
-    'approved': member => member.is_approved === 1
+    'pending': user => user.is_approved === 0,
+    'coaches': user => user.is_coach === 1,
+    'admins': user => user.is_admin === 1,
+    'approved': user => user.is_approved === 1
 };
 
 function filterUsers() {
@@ -460,7 +460,7 @@ function filterUsers() {
         if (filterType === 'all') {
             row.style.display = '';
         } else {
-            const memberId = parseInt(row.dataset.memberId);
+            const userId = parseInt(row.dataset.userId);
             const isApproved = parseInt(row.dataset.approved) === 1;
             const isCoach = parseInt(row.dataset.coach) === 1;
             const isAdmin = parseInt(row.dataset.admin) === 1;
@@ -485,7 +485,7 @@ function updateUser(userId, field, value) {
     const loadingEl = document.getElementById(`loading_${userId}`);
     loadingEl.style.display = 'inline';
     
-    fetch('/coach/members/update', {
+    fetch('/coach/users/update', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({user_id: userId, field: field, value: value})
@@ -495,7 +495,7 @@ function updateUser(userId, field, value) {
         loadingEl.style.display = 'none';
         if (data.success) {
             // Update row data attributes
-            const row = document.querySelector(`tr[data-member-id="${userId}"]`);
+            const row = document.querySelector(`tr[data-user-id="${userId}"]`);
             if (field === 'is_approved') {
                 row.dataset.approved = value ? 1 : 0;
                 const checkbox = document.getElementById(`approved_${userId}`);
@@ -558,7 +558,7 @@ function showNotification(message, type) {
 
 function deleteUser(userId) {
     if (confirm('Are you sure you want to delete this user? This cannot be undone.')) {
-        fetch(`/coach/members/${userId}/delete`, {method: 'POST'})
+        fetch(`/coach/users/${userId}/delete`, {method: 'POST'})
         .then(() => location.reload())
         .catch(error => {
             console.error('Error:', error);
@@ -622,7 +622,7 @@ function submitEditForm(event) {
         formData.append('profile_picture', profilePictureFile);
     }
     
-    fetch('/coach/members/edit', {
+    fetch('/coach/users/edit', {
         method: 'POST',
         body: formData
     })
@@ -651,7 +651,7 @@ document.addEventListener('click', function(event) {
 });
 
 function approveUser(userId) {
-    fetch('/coach/members/' + userId + '/approve', {method: 'POST'})
+    fetch('/coach/users/' + userId + '/approve', {method: 'POST'})
     .then(r => r.json())
     .then(data => {
         if (data.success) {
@@ -659,7 +659,7 @@ function approveUser(userId) {
             const cell = document.getElementById('approval-' + userId);
             cell.innerHTML = '<span class="status-approved">✓ Approved</span>';
             // Update row styling
-            const row = document.querySelector(`tr[data-member-id="${userId}"]`);
+            const row = document.querySelector(`tr[data-user-id="${userId}"]`);
             if (row) {
                 row.classList.remove('pending');
                 row.dataset.approved = 1;
@@ -676,13 +676,13 @@ function approveUser(userId) {
 }
 
 function denyUser(userId) {
-    fetch('/coach/members/' + userId + '/deny', {method: 'POST'})
+    fetch('/coach/users/' + userId + '/deny', {method: 'POST'})
     .then(r => r.json())
     .then(data => {
         if (data.success) {
             const cell = document.getElementById('approval-' + userId);
             cell.innerHTML = '<span class="status-denied">✗ Denied</span>';
-            const row = document.querySelector(`tr[data-member-id="${userId}"]`);
+            const row = document.querySelector(`tr[data-user-id="${userId}"]`);
             if (row) {
                 row.dataset.approved = 0;
             }
@@ -699,7 +699,7 @@ function denyUser(userId) {
 
 function forcePasswordReset(userId) {
     if (confirm('Force this user to reset their password on next login?')) {
-        fetch('/coach/members/' + userId + '/force-password-reset', {method: 'POST'})
+        fetch('/coach/users/' + userId + '/force-password-reset', {method: 'POST'})
         .then(r => r.json())
         .then(data => {
             if (data.success) {
@@ -717,7 +717,7 @@ function forcePasswordReset(userId) {
 
 function removeProfilePicture(userId) {
     if (confirm('Remove this user\'s profile picture?')) {
-        fetch('/coach/members/' + userId + '/remove-profile-picture', {method: 'POST'})
+        fetch('/coach/users/' + userId + '/remove-profile-picture', {method: 'POST'})
         .then(r => r.json())
         .then(data => {
             if (data.success) {

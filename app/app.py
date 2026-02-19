@@ -732,7 +732,7 @@ async def unified_dashboard(request: Request, user: dict = Depends(require_login
             "is_coach": is_coach,
             "is_admin": is_admin,
             "stats": {
-                "total_members": len(members),
+                "total_users": len(members),
                 "active_pairings": len(pairings),
                 "recent_results": len(results)
             },
@@ -1992,7 +1992,7 @@ async def coach_dashboard(request: Request, user: dict = Depends(require_coach))
         "is_admin": user.get("is_admin", False),
         "pending_count": pending_count,
         "stats": {
-            "total_members": len(members),
+            "total_users": len(members),
             "active_pairings": len(pairings),
             "recent_results": len(results)
         },
@@ -2127,19 +2127,19 @@ async def coach_delete_result(result_id: int, user: dict = Depends(require_admin
     
     return RedirectResponse(url="/coach/results", status_code=303)
 
-@app.get("/coach/members", response_class=HTMLResponse)
-async def coach_members(request: Request, user: dict = Depends(require_coach), filter_type: str = "all"):
-    """Member management - now using unified users table."""
-    members = db.list_users(filter_type=filter_type)
+@app.get("/coach/users", response_class=HTMLResponse)
+async def coach_users(request: Request, user: dict = Depends(require_coach), filter_type: str = "all"):
+    """User management - coaches and admins can view and manage users."""
+    users = db.list_users(filter_type=filter_type)
     is_admin = user.get("is_admin", False)
-    return templates.TemplateResponse("coach/members.html", {
+    return templates.TemplateResponse("coach/users.html", {
         "request": request,
-        "members": members,
+        "users": users,
         "current_filter": filter_type,
         "is_admin": is_admin
     })
 
-@app.post("/coach/members/update")
+@app.post("/coach/users/update")
 async def update_user_role(
     request: Request,
     user: dict = Depends(require_admin)
@@ -2171,7 +2171,7 @@ async def update_user_role(
         logger.error(f"Error updating user role: {e}")
         return {"success": False, "message": str(e)}
 
-@app.post("/coach/members/edit")
+@app.post("/coach/users/edit")
 async def edit_user(
     request: Request,
     user: dict = Depends(require_admin)
@@ -2254,7 +2254,7 @@ async def edit_user(
         logger.error(f"Error editing user: {e}")
         return {"success": False, "message": str(e)}
 
-@app.post("/coach/members/{user_id}/remove-profile-picture")
+@app.post("/coach/users/{user_id}/remove-profile-picture")
 async def remove_profile_picture_admin(
     user_id: int,
     request: Request,
@@ -2287,7 +2287,7 @@ async def remove_profile_picture_admin(
         logger.error(f"Error removing profile picture for user {user_id}: {e}")
         return {"success": False, "message": str(e)}
 
-@app.post("/coach/members/{user_id}/delete")
+@app.post("/coach/users/{user_id}/delete")
 async def delete_user_route(
     user_id: int,
     request: Request,
@@ -2298,14 +2298,14 @@ async def delete_user_route(
         success = db.delete_user(user_id)
         if success:
             logger.info(f"User {user_id} deleted")
-            return RedirectResponse(url="/coach/members?message=User deleted", status_code=303)
+            return RedirectResponse(url="/coach/users?message=User deleted", status_code=303)
         else:
-            return RedirectResponse(url="/coach/members?error=User not found", status_code=303)
+            return RedirectResponse(url="/coach/users?error=User not found", status_code=303)
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
-        return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
+        return RedirectResponse(url=f"/coach/users?error={str(e)}", status_code=303)
 
-@app.post("/coach/members")
+@app.post("/coach/users")
 async def coach_create_member(
     request: Request,
     user: dict = Depends(require_admin),
@@ -2316,7 +2316,7 @@ async def coach_create_member(
     """Create new user (unified users table). Admin-created users are pre-approved."""
     try:
         if not password:
-            return RedirectResponse(url="/coach/members?error=Password is required", status_code=303)
+            return RedirectResponse(url="/coach/users?error=Password is required", status_code=303)
         
         # Create user in unified users table - admin-created users are pre-approved
         password_hash = auth.hash_password(password)
@@ -2332,12 +2332,12 @@ async def coach_create_member(
             must_reset_password=True  # Require password reset on first login
         )
         logger.info(f"New user created (pre-approved): {email} (ID: {user_id})")
-        return RedirectResponse(url="/coach/members?message=User created and approved", status_code=303)
+        return RedirectResponse(url="/coach/users?message=User created and approved", status_code=303)
     except Exception as e:
         logger.error(f"Error creating user: {e}")
-        return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
+        return RedirectResponse(url=f"/coach/users?error={str(e)}", status_code=303)
 
-@app.post("/coach/members/bulk")
+@app.post("/coach/users/bulk")
 async def coach_bulk_members(
     request: Request,
     user: dict = Depends(require_admin),
@@ -2376,24 +2376,24 @@ async def coach_bulk_members(
                 except Exception as e:
                     logger.error(f"Error creating user {email}: {e}")
         
-        return RedirectResponse(url=f"/coach/members?message=Created {count} members", status_code=303)
+        return RedirectResponse(url=f"/coach/users?message=Created {count} members", status_code=303)
     except Exception as e:
         logger.error(f"Error bulk creating members: {e}")
-        return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
+        return RedirectResponse(url=f"/coach/users?error={str(e)}", status_code=303)
 
-@app.get("/coach/members/{member_id}/deactivate")
+@app.get("/coach/users/{member_id}/deactivate")
 async def coach_deactivate_user(member_id: int, user: dict = Depends(require_admin)):
     """Deactivate user."""
     db.update_user(member_id, is_active=0)
-    return RedirectResponse(url="/coach/members", status_code=303)
+    return RedirectResponse(url="/coach/users", status_code=303)
 
-@app.get("/coach/members/{member_id}/activate")
+@app.get("/coach/users/{member_id}/activate")
 async def coach_activate_user(member_id: int, user: dict = Depends(require_admin)):
     """Activate user."""
     db.update_user(member_id, is_active=1)
-    return RedirectResponse(url="/coach/members", status_code=303)
+    return RedirectResponse(url="/coach/users", status_code=303)
 
-@app.post("/coach/members/{user_id}/approve")
+@app.post("/coach/users/{user_id}/approve")
 async def approve_user_ajax(
     user_id: int,
     user: dict = Depends(require_admin)
@@ -2410,7 +2410,7 @@ async def approve_user_ajax(
         logger.error(f"Error approving user: {e}")
         return {"success": False, "message": str(e)}
 
-@app.post("/coach/members/{user_id}/deny")
+@app.post("/coach/users/{user_id}/deny")
 async def deny_user_ajax(
     user_id: int,
     user: dict = Depends(require_admin)
@@ -2427,7 +2427,7 @@ async def deny_user_ajax(
         logger.error(f"Error denying user: {e}")
         return {"success": False, "message": str(e)}
 
-@app.post("/coach/members/{user_id}/force-password-reset")
+@app.post("/coach/users/{user_id}/force-password-reset")
 async def force_password_reset(
     user_id: int,
     user: dict = Depends(require_admin)

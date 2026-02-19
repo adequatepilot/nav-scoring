@@ -1558,10 +1558,11 @@ async def submit_flight(
                 estimated_total_time = prenav["total_time"]
                 
                 # Calculate total time penalty (separate component)
-                total_time_deviation = abs(estimated_total_time - actual_total_time)
-                total_time_penalty = total_time_deviation * config["scoring"].get("timing_penalty_per_second", 1.0)
+                # Sign convention: negative = faster than estimated (actual < estimated)
+                total_time_deviation = actual_total_time - estimated_total_time
+                total_time_penalty = abs(total_time_deviation) * config["scoring"].get("timing_penalty_per_second", 1.0)
                 
-                # Total timing score = leg penalties + total time penalty
+                # Total timing score = leg penalties + total time penalty (both are timing components)
                 total_time_score = leg_penalties + total_time_penalty
                 
                 # Calculate total off-course penalty
@@ -1584,9 +1585,11 @@ async def submit_flight(
                 
                 checkpoint_scores = [(cp["leg_score"], cp["off_course_penalty"]) for cp in checkpoint_results]
                 
+                # Pass ONLY the total_time_penalty (not leg_penalties + total_time_penalty)
+                # checkpoint_scores already contains the leg_score from each checkpoint
                 overall_score = scoring_engine.calculate_overall_score(
                     checkpoint_scores,
-                    total_time_score,
+                    total_time_penalty,  # Changed from total_time_score to total_time_penalty
                     fuel_penalty,
                     checkpoint_secrets_penalty,
                     enroute_secrets_penalty

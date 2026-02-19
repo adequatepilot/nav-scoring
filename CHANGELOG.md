@@ -2,6 +2,282 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.6.0] - 2026-02-18
+
+### 🎉 MAJOR RELEASE: Practice NAV Assignment System & Complete UI Redesign
+
+**Overview**: Complete implementation of the practice NAV assignment workflow and major navigation interface redesign. This release transforms the application from a competition-focused tool to a semester-long practice management system.
+
+---
+
+### ✨ NEW FEATURE: NAV Assignment System (Item 37)
+
+**Philosophy Change**: Application now supports practice NAVs throughout the semester (not just NIFA competition).
+
+#### Assignment Management
+- **Coach Assignment Interface**: `/coach/assignments`
+  - Assign NAVs to pairings for practice
+  - Same NAV can be assigned to multiple pairings simultaneously
+  - Prevent duplicate assignments (same NAV + pairing + semester)
+  - Bulk assignment capabilities
+  - Filter by status (active/completed) and semester
+  - Stats dashboard showing total/active/completed assignments
+
+#### Competitor Workflow
+- **Assigned NAVs Dashboard**: `/team/assigned-navs`
+  - View all assigned practice NAVs
+  - Separate active and completed sections
+  - Stats showing NAVs to complete vs completed
+- **Assignment Workflow Page**: `/assignments/{id}`
+  - Three clear action buttons:
+    - **NAV Packet** - Download PDF with all route details
+    - **Submit Pre-Flight** - Enter flight planning
+    - **Submit Post-Flight** - Upload GPX and submit results
+  - Progress tracking (not started → pre-flight submitted → completed)
+  - Workflow validation (must complete pre-flight before post-flight)
+
+#### Auto-Completion
+- Post-flight scoring automatically marks assignment as complete
+- Completed assignments move to "History" section
+- Results remain accessible after completion
+
+#### Database
+- New `nav_assignments` table with fields:
+  - `nav_id`, `pairing_id`, `assigned_by`, `assigned_at`
+  - `completed_at`, `semester`, `notes`
+  - Unique constraint on (nav_id + pairing_id + semester)
+- Indexes on nav_id, pairing_id, completed_at, semester
+
+---
+
+### 🎨 MAJOR UI REDESIGN: Navigation Flow (Item 36)
+
+**Complete restructure** of NAV management interface from flat lists to hierarchical navigation.
+
+#### Airport Selection Page (`/coach/navs`)
+- **Large Dashboard Buttons**: Each airport displayed as a clickable card
+- **"+ Add Airport" Button**: Prominent add button for admins
+- **Airport Stats**: Shows NAV count and gate count per airport
+- **Visual Design**: Hover effects, gradient backgrounds, professional styling
+
+#### Airport Detail Page (`/coach/navs/airport/{id}`)
+- **Header Section**: Airport code with stats
+- **"+ Add Start Gate" Button**: Large action button (admin only)
+- **Start Gates Grid**: Visual cards showing all start gates with coordinates
+- **NAV Routes List**: Alphabetically sorted list of NAVs
+- **"+ Add NAV Route" Button**: Create new NAV for this airport
+- **Click NAV** → Navigate to checkpoint management
+
+#### Checkpoint Management Page (`/coach/navs/route/{id}`)
+- **Stats Dashboard**: Real-time checkpoint count
+- **"+ Add Checkpoint" Button**: Creates new editable row
+- **Checkpoint Rows**: Name, Latitude, Longitude, Actions
+  - Rows locked by default (read-only)
+  - "Edit" button unlocks for editing
+  - "Save" and "Cancel" buttons when editing
+  - "Delete" button with confirmation
+- **Drag-and-Drop Reordering**: Move checkpoints by dragging
+  - Automatic sequence renumbering
+  - Visual feedback during drag
+  - Auto-save to server on drop
+- **Auto-Count**: Total checkpoints updated automatically
+- **Mobile-Responsive**: All features work on mobile
+
+#### Technical Implementation
+- New templates: `navs_airports.html`, `navs_airport_detail.html`, `navs_route_detail.html`
+- JavaScript drag-and-drop with visual feedback
+- Database methods: `update_checkpoint()`, `update_checkpoint_sequence()`
+- API endpoints: `/checkpoints/create`, `/checkpoints/{id}/update`, `/checkpoints/reorder`
+
+---
+
+### 📋 NEW FEATURE: Activity Logging UI (Item 38)
+
+**Comprehensive activity tracking** and viewing system for accountability and debugging.
+
+#### Activity Log Page (`/coach/activity-log`)
+- **Stats Dashboard**: Total entries, activity types, active users
+- **Filter System**:
+  - Filter by user (dropdown)
+  - Filter by category (auth, nav, flight, admin, user, pairing)
+  - Filter by activity type (login, nav_created, prenav_submitted, etc.)
+  - Filter by date range (start/end date pickers)
+  - Combine multiple filters
+- **Activity Table**: Timestamp, user, category, activity, details
+  - Color-coded category badges
+  - Click row to view full details in modal
+  - Pagination (50 entries per page)
+- **CSV Export**: Download filtered log as CSV file
+- **Detail Modal**: Show full activity details including:
+  - Timestamp, user info, category, activity type
+  - Full details text, related entity info
+  - IP address
+
+#### Activity Categories Tracked
+- **auth**: login, logout, signup, password_reset
+- **nav**: nav_created, nav_edited, nav_deleted, airport_created, etc.
+- **flight**: prenav_submitted, postnav_submitted
+- **admin**: user_created, user_edited, config_updated
+- **user**: email_changed, profile_picture_changed
+- **pairing**: pairing_created, pairing_broken, pairing_deleted
+
+#### Integration
+- Activity logging already implemented in database (v0.5.0)
+- New UI provides visibility into existing logs
+- Accessible from coach dashboard via "Activity Log" button
+
+---
+
+### 👤 FEATURE: Profile Pictures Admin Controls (Items 31, 32)
+
+**Admin management** of user profile pictures with abuse prevention.
+
+#### Admin Capabilities
+- **Upload for Any User**: Admins can upload profile pictures for any user
+- **Remove Pictures**: Admins can delete any user's profile picture
+- **Disable User Modification**: New `can_modify_profile_picture` flag
+  - Admin toggle in user edit modal
+  - When disabled, user cannot upload/change their own picture
+  - Displays "Profile picture modification disabled" message to user
+- **Profile Picture Display**: User list shows 40px circular thumbnail next to each name
+  - Falls back to initial letter in circle if no picture
+
+#### User Profile Page Updates
+- Respects `can_modify_profile_picture` flag
+- Shows disabled message if admin has locked modifications
+- Upload form only appears when user has permission
+
+#### Database
+- New column: `can_modify_profile_picture` (INTEGER, default 1)
+- Updated `update_user()` to accept new field
+- Migration 010 adds column and index
+
+#### Files
+- Storage: `static/profile_pictures/`
+- Format: `user_{id}_{timestamp}.{ext}`
+- Validation: Max 5MB, JPG/PNG/GIF only
+- Auto-resize on upload (existing functionality)
+
+---
+
+### 🔧 UI IMPROVEMENTS
+
+#### Dashboard Updates
+- **Assigned NAVs Button**: New orange gradient button for competitors
+- **Assignments Button**: New button for coaches (manage NAV assignments)
+- **Activity Log Button**: New button for coaches (view activity history)
+
+#### Text Cleanup
+- Removed all instances of "lower score is better" text (Item 33)
+- Clearer messaging throughout application
+
+#### Mobile Optimization
+- All new features fully responsive
+- Touch-friendly buttons and controls
+- Drag-and-drop works on touch devices
+
+---
+
+### 🗄️ DATABASE CHANGES
+
+#### New Tables
+```sql
+-- Assignment tracking
+CREATE TABLE nav_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nav_id INTEGER NOT NULL,
+    pairing_id INTEGER NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    assigned_by INTEGER NOT NULL,
+    completed_at TIMESTAMP,
+    semester TEXT,
+    notes TEXT,
+    UNIQUE(nav_id, pairing_id, semester)
+);
+```
+
+#### New Columns
+- `users.can_modify_profile_picture` (INTEGER, default 1)
+
+#### New Indexes
+- `idx_nav_assignments_nav`
+- `idx_nav_assignments_pairing`
+- `idx_nav_assignments_status`
+- `idx_nav_assignments_semester`
+- `idx_users_can_modify_profile`
+
+---
+
+### 📝 API CHANGES
+
+#### New Routes
+- `GET /coach/assignments` - View all assignments
+- `POST /coach/assignments/create` - Create assignment
+- `POST /coach/assignments/{id}/delete` - Delete assignment
+- `GET /team/assigned-navs` - View assigned NAVs (competitor)
+- `GET /assignments/{id}` - Assignment workflow page
+- `GET /coach/activity-log` - Activity log viewer
+- `GET /coach/activity-log/{id}` - Get log details (JSON)
+- `GET /coach/activity-log/export` - Export logs as CSV
+- `GET /coach/navs/airports` - Airport selection page
+- `GET /coach/navs/airport/{id}` - Airport detail page
+- `GET /coach/navs/route/{id}` - Route checkpoint management
+- `POST /coach/navs/airports/create` - Create airport
+- `POST /coach/navs/gates/create` - Create start gate
+- `POST /coach/navs/routes/create` - Create NAV route
+- `POST /coach/navs/checkpoints/create` - Create checkpoint
+- `POST /coach/navs/checkpoints/{id}/update` - Update checkpoint
+- `POST /coach/navs/checkpoints/{id}/delete` - Delete checkpoint
+- `POST /coach/navs/checkpoints/reorder` - Reorder checkpoints
+- `POST /coach/members/{id}/remove-profile-picture` - Remove user picture (admin)
+
+#### Modified Routes
+- `POST /coach/members/edit` - Now handles profile picture upload and can_modify_profile_picture
+- `POST /flight` - Auto-marks assignment complete after successful scoring
+- `GET /coach/navs` - Redirects to `/coach/navs/airports`
+
+---
+
+### 🧪 TESTING NOTES
+
+All features tested on:
+- ✅ Desktop (Chrome, Firefox)
+- ✅ Mobile (iOS Safari, Android Chrome)
+- ✅ Drag-and-drop on touch devices
+- ✅ Form validation and error handling
+- ✅ Permission checks (competitor vs coach vs admin)
+- ✅ Database transactions and rollbacks
+
+---
+
+### 📚 DOCUMENTATION
+
+Updated files:
+- `CHANGELOG.md` - Complete feature documentation
+- `VERSION` - Bumped to 0.6.0
+- Migration files 010 and 011 added
+
+---
+
+### 🚀 DEPLOYMENT
+
+- Docker image: `nav-scoring:v0.6.0`
+- Database migrations: Auto-apply on startup
+- No breaking changes to existing data
+- Backward compatible with v0.5.0 data
+
+---
+
+### 💾 COMMITS
+
+1. `6c210d3` - ITEM 33: Remove "lower score is better" text
+2. `bfa254f` - ITEMS 31, 32: Profile pictures admin
+3. `9c57a78` - ITEM 38: Activity Logging UI
+4. `f47f661` - ITEM 37: Assignment System
+5. `1364797` - ITEM 36: Navigation Flow Redesign
+
+---
+
 ## [0.4.8] - 2026-02-15
 
 ### 🐛 HOTFIX: Missing Fields & Permission Issues

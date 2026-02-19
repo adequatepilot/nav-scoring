@@ -21,14 +21,14 @@ class CheckpointMethod(str, Enum):
 
 
 # ===== Auth Models =====
-class MemberCreate(BaseModel):
+class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     name: str = Field(..., min_length=1, max_length=100)
     password: Optional[str] = None  # Set on first login if None
 
 
-class MemberLogin(BaseModel):
+class UserLogin(BaseModel):
     username: str
     password: str
 
@@ -38,7 +38,7 @@ class CoachLogin(BaseModel):
     password: str
 
 
-class MemberResponse(BaseModel):
+class UserResponse(BaseModel):
     id: int
     username: str
     email: str
@@ -54,7 +54,7 @@ class MemberResponse(BaseModel):
 class SessionData(BaseModel):
     user_id: int
     username: str
-    user_type: str  # "member" or "coach"
+    user_type: str  # "user" or "coach"
     name: Optional[str] = None
 
 
@@ -77,8 +77,8 @@ class PairingResponse(BaseModel):
 
 class PairingDetailResponse(BaseModel):
     id: int
-    pilot: MemberResponse
-    safety_observer: MemberResponse
+    pilot: UserResponse
+    safety_observer: UserResponse
     is_active: bool
     created_at: datetime
 

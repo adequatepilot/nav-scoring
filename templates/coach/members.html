@@ -11,7 +11,7 @@
     <div class="navbar-links" id="navbarLinks">
         <a href="/coach">Dashboard</a>
         <a href="/coach/results">Results</a>
-        <a href="/coach/members">Members</a>
+        <a href="/coach/members">Users</a>
         <a href="/coach/pairings">Pairings</a>
         <a href="/logout">Logout</a>
     </div>
@@ -240,7 +240,7 @@ th, td {
 
 {% if is_admin %}
 <div class="section">
-    <h3>Add New Member</h3>
+    <h3>Add New User</h3>
     <form method="POST" action="/coach/members">
         <div class="form-group">
             <label for="name">Full Name:</label>
@@ -259,12 +259,12 @@ th, td {
             <small style="color: #666;">Must set initial password for the user</small>
         </div>
         
-        <button type="submit">Add Member</button>
+        <button type="submit">Add User</button>
     </form>
 </div>
 
 <div class="section">
-    <h3>Bulk Import Members (CSV)</h3>
+    <h3>Bulk Import Users (CSV)</h3>
     <form method="POST" action="/coach/members/bulk" enctype="multipart/form-data">
         <div class="form-group">
             <label for="csv_file">CSV File:</label>

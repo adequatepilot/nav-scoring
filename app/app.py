@@ -708,7 +708,7 @@ async def unified_dashboard(request: Request, user: dict = Depends(require_login
     
     if is_coach or is_admin:
         # Coach/Admin dashboard
-        members = db.list_members()
+        members = db.list_users(filter_type="approved")
         pairings = db.list_pairings(active_only=True)
         results = db.list_flight_results()
         
@@ -1959,7 +1959,7 @@ async def list_results(request: Request, user: dict = Depends(require_login)):
 @app.get("/coach", response_class=HTMLResponse)
 async def coach_dashboard(request: Request, user: dict = Depends(require_coach)):
     """Coach main dashboard."""
-    members = db.list_members()
+    members = db.list_users(filter_type="approved")
     pairings = db.list_pairings(active_only=True)
     results = db.list_flight_results()
     
@@ -2307,15 +2307,15 @@ async def coach_bulk_members(
         return RedirectResponse(url=f"/coach/members?error={str(e)}", status_code=303)
 
 @app.get("/coach/members/{member_id}/deactivate")
-async def coach_deactivate_member(member_id: int, user: dict = Depends(require_admin)):
-    """Deactivate member."""
-    db.update_member(member_id, is_active=0)
+async def coach_deactivate_user(member_id: int, user: dict = Depends(require_admin)):
+    """Deactivate user."""
+    db.update_user(member_id, is_active=0)
     return RedirectResponse(url="/coach/members", status_code=303)
 
 @app.get("/coach/members/{member_id}/activate")
-async def coach_activate_member(member_id: int, user: dict = Depends(require_admin)):
-    """Activate member."""
-    db.update_member(member_id, is_active=1)
+async def coach_activate_user(member_id: int, user: dict = Depends(require_admin)):
+    """Activate user."""
+    db.update_user(member_id, is_active=1)
     return RedirectResponse(url="/coach/members", status_code=303)
 
 @app.post("/coach/members/{user_id}/approve")

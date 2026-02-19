@@ -2507,32 +2507,99 @@ async def coach_delete_pairing(pairing_id: int, user: dict = Depends(require_adm
 
 @app.get("/coach/navs", response_class=HTMLResponse)
 async def coach_navs(request: Request, user: dict = Depends(require_coach)):
-    """NAV management dashboard."""
-    airports = db.list_airports()
-    navs = db.list_navs()
-    is_admin = user.get("is_admin", False)
-    
-    # Enhance with counts
-    for airport in airports:
-        airport["gates_count"] = len(db.get_start_gates(airport["id"]))
-        airport["navs_count"] = len(db.list_navs_by_airport(airport["id"]))
-    
-    return templates.TemplateResponse("coach/navs.html", {
-        "request": request,
-        "airports": airports,
-        "navs": navs,
-        "is_admin": is_admin
-    })
+    """NAV management - redirect to airports page. Item 36."""
+    return RedirectResponse(url="/coach/navs/airports", status_code=303)
 
 @app.get("/coach/navs/airports", response_class=HTMLResponse)
 async def coach_manage_airports(request: Request, user: dict = Depends(require_coach)):
-    """Manage airports."""
+    """Airports selection page - redesigned navigation flow. Item 36."""
     airports = db.list_airports()
     is_admin = user.get("is_admin", False)
+    
+    # Add counts for each airport
+    for airport in airports:
+        navs = db.list_navs_by_airport(airport["id"])
+        gates = db.get_start_gates(airport["id"])
+        airport["nav_count"] = len(navs)
+        airport["gate_count"] = len(gates)
+    
     return templates.TemplateResponse("coach/navs_airports.html", {
         "request": request,
         "airports": airports,
-        "is_admin": is_admin
+        "is_admin": is_admin,
+        "message": request.query_params.get("message"),
+        "error": request.query_params.get("error")
+    })
+
+@app.post("/coach/navs/airports/create")
+async def coach_create_airport(
+    request: Request,
+    user: dict = Depends(require_admin),
+    code: str = Form(...)
+):
+    """Create airport - Item 36."""
+    try:
+        code = code.strip().upper()
+        if not code:
+            raise ValueError("Airport code cannot be empty")
+        airport_id = db.create_airport(code)
+        logger.info(f"Created airport {airport_id} with code {code}")
+        return RedirectResponse(url="/coach/navs/airports?message=Airport created", status_code=303)
+    except Exception as e:
+        logger.error(f"Error creating airport: {e}")
+        return RedirectResponse(url=f"/coach/navs/airports?error={str(e)}", status_code=303)
+
+@app.get("/coach/navs/airport/{airport_id}", response_class=HTMLResponse)
+async def coach_airport_detail(airport_id: int, request: Request, user: dict = Depends(require_coach)):
+    """Airport detail page showing gates and NAVs. Item 36."""
+    airport = db.get_airport(airport_id)
+    if not airport:
+        raise HTTPException(status_code=404, detail="Airport not found")
+    
+    gates = db.get_start_gates(airport_id)
+    navs = db.list_navs_by_airport(airport_id)
+    
+    # Add checkpoint counts to NAVs
+    for nav in navs:
+        checkpoints = db.get_checkpoints(nav["id"])
+        nav["checkpoint_count"] = len(checkpoints)
+    
+    # Sort NAVs alphabetically
+    navs.sort(key=lambda x: x["name"])
+    
+    return templates.TemplateResponse("coach/navs_airport_detail.html", {
+        "request": request,
+        "user": user,
+        "airport": airport,
+        "airport_id": airport_id,
+        "airport_code": airport["code"],
+        "gates": gates,
+        "navs": navs,
+        "is_admin": user.get("is_admin", False),
+        "message": request.query_params.get("message"),
+        "error": request.query_params.get("error")
+    })
+
+@app.get("/coach/navs/route/{nav_id}", response_class=HTMLResponse)
+async def coach_route_detail(nav_id: int, request: Request, user: dict = Depends(require_coach)):
+    """Route detail page for checkpoint management with drag-and-drop. Item 36."""
+    nav = db.get_nav(nav_id)
+    if not nav:
+        raise HTTPException(status_code=404, detail="NAV not found")
+    
+    airport = db.get_airport(nav["airport_id"])
+    checkpoints = db.get_checkpoints(nav_id)
+    
+    return templates.TemplateResponse("coach/navs_route_detail.html", {
+        "request": request,
+        "user": user,
+        "nav": nav,
+        "airport_id": nav["airport_id"],
+        "airport_code": airport["code"] if airport else "Unknown",
+        "checkpoints": checkpoints,
+        "is_admin": user.get("is_admin", False),
+        "message": request.query_params.get("message"),
+        "error": request.query_params.get("error")
     })
 
 @app.post("/coach/navs/airports")
@@ -2593,7 +2660,7 @@ async def coach_manage_gates(request: Request, airport_id: int, user: dict = Dep
         "is_admin": is_admin
     })
 
-@app.post("/coach/navs/gates")
+@app.post("/coach/navs/gates/create")
 async def coach_create_gate(
     request: Request,
     user: dict = Depends(require_admin),
@@ -2602,13 +2669,14 @@ async def coach_create_gate(
     lat: float = Form(...),
     lon: float = Form(...)
 ):
-    """Create start gate."""
+    """Create start gate - Item 36."""
     try:
         gate_id = db.create_start_gate(airport_id, name, lat, lon)
-        return RedirectResponse(url=f"/coach/navs/gates/{airport_id}?message=Gate created", status_code=303)
+        logger.info(f"Created start gate {gate_id} for airport {airport_id}")
+        return RedirectResponse(url=f"/coach/navs/airport/{airport_id}?message=Gate created", status_code=303)
     except Exception as e:
         logger.error(f"Error creating gate: {e}")
-        return RedirectResponse(url=f"/coach/navs/gates/{airport_id}?error={str(e)}", status_code=303)
+        return RedirectResponse(url=f"/coach/navs/airport/{airport_id}?error={str(e)}", status_code=303)
 
 @app.get("/coach/navs/gates/{gate_id}/delete-confirm", response_class=HTMLResponse)
 async def confirm_delete_gate(request: Request, gate_id: int, user: dict = Depends(require_admin)):
@@ -2662,23 +2730,24 @@ async def coach_manage_routes(request: Request, user: dict = Depends(require_coa
         "is_admin": is_admin
     })
 
-@app.post("/coach/navs/routes")
+@app.post("/coach/navs/routes/create")
 async def coach_create_route(
     request: Request,
     user: dict = Depends(require_admin),
     name: str = Form(...),
     airport_id: int = Form(...)
 ):
-    """Create NAV route."""
+    """Create NAV route - Item 36."""
     try:
         name = name.strip()
         if not name:
             raise ValueError("Route name cannot be empty")
         nav_id = db.create_nav(name, airport_id)
-        return RedirectResponse(url="/coach/navs/routes?message=Route created", status_code=303)
+        logger.info(f"Created NAV route {nav_id} for airport {airport_id}")
+        return RedirectResponse(url=f"/coach/navs/airport/{airport_id}?message=NAV route created", status_code=303)
     except Exception as e:
         logger.error(f"Error creating route: {e}")
-        return RedirectResponse(url=f"/coach/navs/routes?error={str(e)}", status_code=303)
+        return RedirectResponse(url=f"/coach/navs/airport/{airport_id}?error={str(e)}", status_code=303)
 
 @app.get("/coach/navs/routes/{nav_id}/delete-confirm", response_class=HTMLResponse)
 async def confirm_delete_route(request: Request, nav_id: int, user: dict = Depends(require_admin)):
@@ -3024,6 +3093,90 @@ async def coach_backup_status(request: Request, user: dict = Depends(require_adm
             "success": False,
             "message": f"Error: {str(e)}"
         }
+
+# ===== CHECKPOINT MANAGEMENT (Item 36) =====
+
+@app.post("/coach/navs/checkpoints/create")
+async def coach_create_checkpoint_new(
+    request: Request,
+    user: dict = Depends(require_admin),
+    nav_id: int = Form(...),
+    name: str = Form(...),
+    lat: float = Form(...),
+    lon: float = Form(...),
+    sequence: int = Form(...)
+):
+    """Create checkpoint - Item 36."""
+    try:
+        checkpoint_id = db.create_checkpoint(nav_id, sequence, name, lat, lon)
+        logger.info(f"Created checkpoint {checkpoint_id} for NAV {nav_id}")
+        return RedirectResponse(url=f"/coach/navs/route/{nav_id}?message=Checkpoint created", status_code=303)
+    except Exception as e:
+        logger.error(f"Error creating checkpoint: {e}")
+        return RedirectResponse(url=f"/coach/navs/route/{nav_id}?error={str(e)}", status_code=303)
+
+@app.post("/coach/navs/checkpoints/{checkpoint_id}/update")
+async def coach_update_checkpoint(
+    checkpoint_id: int,
+    request: Request,
+    user: dict = Depends(require_admin),
+    name: str = Form(...),
+    lat: float = Form(...),
+    lon: float = Form(...),
+    sequence: int = Form(...)
+):
+    """Update checkpoint - Item 36."""
+    try:
+        # Get checkpoint to find nav_id
+        checkpoint = db.get_checkpoint(checkpoint_id)
+        if not checkpoint:
+            raise HTTPException(status_code=404, detail="Checkpoint not found")
+        
+        nav_id = checkpoint["nav_id"]
+        db.update_checkpoint(checkpoint_id, sequence, name, lat, lon)
+        logger.info(f"Updated checkpoint {checkpoint_id}")
+        return RedirectResponse(url=f"/coach/navs/route/{nav_id}?message=Checkpoint updated", status_code=303)
+    except Exception as e:
+        logger.error(f"Error updating checkpoint: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/coach/navs/checkpoints/{checkpoint_id}/delete")
+async def coach_delete_checkpoint_new(
+    checkpoint_id: int,
+    request: Request,
+    user: dict = Depends(require_admin)
+):
+    """Delete checkpoint - Item 36."""
+    try:
+        checkpoint = db.get_checkpoint(checkpoint_id)
+        if not checkpoint:
+            raise HTTPException(status_code=404, detail="Checkpoint not found")
+        
+        nav_id = checkpoint["nav_id"]
+        db.delete_checkpoint(checkpoint_id)
+        logger.info(f"Deleted checkpoint {checkpoint_id}")
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error deleting checkpoint: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/coach/navs/checkpoints/reorder")
+async def coach_reorder_checkpoints(request: Request, user: dict = Depends(require_admin)):
+    """Reorder checkpoints - Item 36."""
+    try:
+        data = await request.json()
+        nav_id = data.get("nav_id")
+        checkpoints = data.get("checkpoints", [])
+        
+        # Update sequence for each checkpoint
+        for cp in checkpoints:
+            db.update_checkpoint_sequence(cp["id"], cp["sequence"])
+        
+        logger.info(f"Reordered {len(checkpoints)} checkpoints for NAV {nav_id}")
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error reordering checkpoints: {e}")
+        return {"success": False, "message": str(e)}
 
 # ===== NAV ASSIGNMENT ROUTES (Item 37) =====
 

@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}{{ nav.name }} - Checkpoints{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>{{ nav.name }} - Checkpoints</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/profile">Profile</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 1000px;
+}
+.header-section {
+    background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+.header-section h2 {
+    margin: 0;
+    font-size: 2rem;
+}
+.header-section .airport {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin-top: 0.5rem;
+}
+.checkpoint-list {
+    margin-top: 2rem;
+}
+.checkpoint-item {
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: grid;
+    grid-template-columns: 40px 50px 1fr 150px 150px auto;
+    gap: 1rem;
+    align-items: center;
+    transition: all 0.2s;
+}
+.checkpoint-item.dragging {
+    opacity: 0.5;
+    border-color: #8B0015;
+}
+.checkpoint-item:hover {
+    border-color: #8B0015;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+.checkpoint-item.locked {
+    background: #f9f9f9;
+}
+.drag-handle {
+    cursor: move;
+    font-size: 1.5rem;
+    color: #666;
+    text-align: center;
+}
+.drag-handle:hover {
+    color: #8B0015;
+}
+.sequence-num {
+    font-weight: bold;
+    color: #8B0015;
+    font-size: 1.2rem;
+}
+.checkpoint-item input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+.checkpoint-item input:disabled {
+    background: transparent;
+    border-color: transparent;
+    color: #333;
+}
+.checkpoint-item input[type="number"]:disabled {
+    -moz-appearance: textfield;
+}
+.checkpoint-item input[type="number"]:disabled::-webkit-outer-spin-button,
+.checkpoint-item input[type="number"]:disabled::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+.btn-edit {
+    background: #2196f3;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.btn-save {
+    background: #4caf50;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.btn-cancel {
+    background: #ff9800;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.btn-delete {
+    background: #8B0015;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.add-checkpoint-btn {
+    background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    margin-bottom: 2rem;
+}
+.add-checkpoint-btn:hover {
+    transform: translateY(-2px);
+}
+.stats {
+    background: #f5f5f5;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-around;
+}
+.stat-item {
+    text-align: center;
+}
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #8B0015;
+}
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.5rem;">
+    <a href="/coach/navs/airport/{{ airport_id }}" style="display: inline-block; background: #6c757d; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none;">← Back to {{ airport_code }}</a>
+</div>
+
+<div class="header-section">
+    <h2>📍 {{ nav.name }}</h2>
+    <div class="airport">{{ airport_code }}</div>
+</div>
+
+<div class="stats">
+    <div class="stat-item">
+        <div class="stat-value" id="checkpointCount">{{ checkpoints|length }}</div>
+        <div class="stat-label">Checkpoints</div>
+    </div>
+</div>
+
+{% if is_admin %}
+<button class="add-checkpoint-btn" onclick="addCheckpoint()">➕ Add Checkpoint</button>
+{% endif %}
+
+<div class="checkpoint-list" id="checkpointList">
+    {% for checkpoint in checkpoints %}
+    <div class="checkpoint-item locked" data-id="{{ checkpoint.id }}" data-sequence="{{ checkpoint.sequence }}" draggable="false">
+        <div class="drag-handle">⋮⋮</div>
+        <div class="sequence-num">{{ checkpoint.sequence }}</div>
+        <input type="text" class="checkpoint-name" value="{{ checkpoint.name }}" disabled>
+        <input type="number" step="0.0000001" class="checkpoint-lat" value="{{ checkpoint.lat }}" disabled>
+        <input type="number" step="0.0000001" class="checkpoint-lon" value="{{ checkpoint.lon }}" disabled>
+        <div class="action-buttons">
+            {% if is_admin %}
+            <button class="btn-edit" onclick="editCheckpoint(this)">Edit</button>
+            <button class="btn-save" onclick="saveCheckpoint(this)" style="display: none;">Save</button>
+            <button class="btn-cancel" onclick="cancelEdit(this)" style="display: none;">Cancel</button>
+            <button class="btn-delete" onclick="deleteCheckpoint({{ checkpoint.id }})">Delete</button>
+            {% else %}
+            <span style="color: #999; font-size: 0.9rem;">Read Only</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if not checkpoints and not is_admin %}
+<div class="info">No checkpoints configured for this NAV yet.</div>
+{% endif %}
+
+<script>
+let draggedElement = null;
+
+function addCheckpoint() {
+    const list = document.getElementById('checkpointList');
+    const count = list.children.length + 1;
+    
+    const item = document.createElement('div');
+    item.className = 'checkpoint-item';
+    item.dataset.id = 'new';
+    item.dataset.sequence = count;
+    item.draggable = true;
+    item.innerHTML = `
+        <div class="drag-handle">⋮⋮</div>
+        <div class="sequence-num">${count}</div>
+        <input type="text" class="checkpoint-name" placeholder="Checkpoint name">
+        <input type="number" step="0.0000001" class="checkpoint-lat" placeholder="Latitude">
+        <input type="number" step="0.0000001" class="checkpoint-lon" placeholder="Longitude">
+        <div class="action-buttons">
+            <button class="btn-save" onclick="saveCheckpoint(this)">Save</button>
+            <button class="btn-cancel" onclick="removeNewCheckpoint(this)">Cancel</button>
+        </div>
+    `;
+    
+    list.appendChild(item);
+    item.querySelector('.checkpoint-name').focus();
+    updateCheckpointCount();
+    setupDragAndDrop(item);
+}
+
+function editCheckpoint(btn) {
+    const item = btn.closest('.checkpoint-item');
+    item.classList.remove('locked');
+    item.draggable = true;
+    
+    item.querySelectorAll('input').forEach(input => input.disabled = false);
+    
+    btn.style.display = 'none';
+    item.querySelector('.btn-save').style.display = 'inline-block';
+    item.querySelector('.btn-cancel').style.display = 'inline-block';
+}
+
+function cancelEdit(btn) {
+    const item = btn.closest('.checkpoint-item');
+    item.classList.add('locked');
+    item.draggable = false;
+    
+    // Reload original values
+    location.reload();
+}
+
+function removeNewCheckpoint(btn) {
+    btn.closest('.checkpoint-item').remove();
+    renumberCheckpoints();
+    updateCheckpointCount();
+}
+
+async function saveCheckpoint(btn) {
+    const item = btn.closest('.checkpoint-item');
+    const id = item.dataset.id;
+    const name = item.querySelector('.checkpoint-name').value;
+    const lat = parseFloat(item.querySelector('.checkpoint-lat').value);
+    const lon = parseFloat(item.querySelector('.checkpoint-lon').value);
+    const sequence = parseInt(item.dataset.sequence);
+    
+    if (!name || isNaN(lat) || isNaN(lon)) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    try {
+        let response;
+        if (id === 'new') {
+            // Create new checkpoint
+            const formData = new FormData();
+            formData.append('nav_id', {{ nav.id }});
+            formData.append('name', name);
+            formData.append('lat', lat);
+            formData.append('lon', lon);
+            formData.append('sequence', sequence);
+            
+            response = await fetch('/coach/navs/checkpoints/create', {
+                method: 'POST',
+                body: formData
+            });
+        } else {
+            // Update existing checkpoint
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('lat', lat);
+            formData.append('lon', lon);
+            formData.append('sequence', sequence);
+            
+            response = await fetch('/coach/navs/checkpoints/' + id + '/update', {
+                method: 'POST',
+                body: formData
+            });
+        }
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Error saving checkpoint');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error saving checkpoint');
+    }
+}
+
+async function deleteCheckpoint(id) {
+    if (!confirm('Delete this checkpoint?')) return;
+    
+    try {
+        const response = await fetch('/coach/navs/checkpoints/' + id + '/delete', {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Error deleting checkpoint');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error deleting checkpoint');
+    }
+}
+
+function renumberCheckpoints() {
+    const items = document.querySelectorAll('.checkpoint-item');
+    items.forEach((item, index) => {
+        const sequence = index + 1;
+        item.dataset.sequence = sequence;
+        item.querySelector('.sequence-num').textContent = sequence;
+    });
+}
+
+function updateCheckpointCount() {
+    const count = document.querySelectorAll('.checkpoint-item').length;
+    document.getElementById('checkpointCount').textContent = count;
+}
+
+// Drag and drop functionality
+function setupDragAndDrop(item) {
+    item.addEventListener('dragstart', function(e) {
+        draggedElement = this;
+        this.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    });
+    
+    item.addEventListener('dragend', function() {
+        this.classList.remove('dragging');
+    });
+    
+    item.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        const afterElement = getDragAfterElement(this.parentElement, e.clientY);
+        if (afterElement == null) {
+            this.parentElement.appendChild(draggedElement);
+        } else {
+            this.parentElement.insertBefore(draggedElement, afterElement);
+        }
+    });
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.checkpoint-item:not(.dragging)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// Initialize drag and drop for existing items
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.checkpoint-item').forEach(item => {
+        setupDragAndDrop(item);
+        
+        // Enable dragging when in edit mode
+        item.addEventListener('dragstart', function(e) {
+            if (this.classList.contains('locked')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    });
+    
+    // Save reordered sequences
+    document.getElementById('checkpointList').addEventListener('drop', async function() {
+        renumberCheckpoints();
+        
+        // Save new sequences to server
+        const items = document.querySelectorAll('.checkpoint-item');
+        const updates = [];
+        items.forEach(item => {
+            if (item.dataset.id !== 'new') {
+                updates.push({
+                    id: parseInt(item.dataset.id),
+                    sequence: parseInt(item.dataset.sequence)
+                });
+            }
+        });
+        
+        try {
+            await fetch('/coach/navs/checkpoints/reorder', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ nav_id: {{ nav.id }}, checkpoints: updates })
+            });
+        } catch (error) {
+            console.error('Error saving sequence:', error);
+        }
+    });
+});
+</script>
+
+{% endblock %}

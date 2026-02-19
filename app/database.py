@@ -766,6 +766,24 @@ class Database:
             cursor.execute("DELETE FROM checkpoints WHERE id = ?", (checkpoint_id,))
             return cursor.rowcount > 0
 
+    def update_checkpoint(self, checkpoint_id: int, sequence: int, name: str, lat: float, lon: float) -> bool:
+        """Update checkpoint details. Item 36."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE checkpoints
+                SET sequence = ?, name = ?, lat = ?, lon = ?
+                WHERE id = ?
+            """, (sequence, name, lat, lon, checkpoint_id))
+            return cursor.rowcount > 0
+
+    def update_checkpoint_sequence(self, checkpoint_id: int, sequence: int) -> bool:
+        """Update checkpoint sequence (for drag-and-drop reordering). Item 36."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE checkpoints SET sequence = ? WHERE id = ?", (sequence, checkpoint_id))
+            return cursor.rowcount > 0
+
     def get_nav(self, nav_id: int) -> Optional[Dict]:
         """Get NAV with checkpoints."""
         with self.get_connection() as conn:

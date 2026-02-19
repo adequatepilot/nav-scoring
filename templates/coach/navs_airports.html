@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Manage Airports - NAV Management{% endblock %}
+{% block title %}Airports - NAV Management{% endblock %}
 
 {% block navbar %}
 <div class="navbar">
     <div class="navbar-brand">
         <button class="hamburger" id="hamburgerBtn">☰</button>
-        <h1>Coach Dashboard - Manage Airports</h1>
+        <h1>NAV Management - Airports</h1>
     </div>
     <div class="navbar-links" id="navbarLinks">
         <a href="/dashboard">Dashboard</a>
@@ -18,97 +18,205 @@
 
 {% block extra_css %}
 <style>
-.airport-list {
+.card {
+    max-width: 1200px;
+}
+.airport-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 2rem;
     margin-top: 2rem;
 }
-.airport-item {
-    background: #f9f9f9;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    padding: 1rem;
+.airport-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+    border: 3px solid #ddd;
+    border-radius: 15px;
+    padding: 3rem 2rem;
+    text-align: center;
+    transition: all 0.3s;
+    cursor: pointer;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.airport-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    border-color: #8B0015;
+    background: linear-gradient(135deg, #ffffff 0%, #ffe6e6 100%);
+}
+.airport-card.add-new {
+    border: 3px dashed #8B0015;
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%);
+    color: #8B0015;
+}
+.airport-card.add-new:hover {
+    background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+    color: white;
+}
+.airport-card .icon {
+    font-size: 4rem;
     margin-bottom: 1rem;
+}
+.airport-card .code {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #8B0015;
+    margin: 0;
+}
+.airport-card.add-new .code {
+    color: inherit;
+}
+.airport-card .nav-count {
+    color: #666;
+    font-size: 1rem;
+    margin-top: 0.5rem;
+}
+.message {
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 2rem;
+}
+.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-content {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    max-width: 500px;
+    width: 90%;
+}
+.modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 1.5rem;
 }
-.airport-item .code {
-    font-weight: bold;
-    font-size: 1.2rem;
-}
-.airport-item .actions {
-    display: flex;
-    gap: 0.5rem;
-}
-.button-danger {
-    background-color: #8B0015;
-    color: white;
-    padding: 0.5rem 1rem;
-    text-decoration: none;
-    border-radius: 4px;
+.close-btn {
+    background: none;
     border: none;
+    font-size: 1.5rem;
     cursor: pointer;
-    font-size: 0.85rem;
+    color: #666;
 }
-.button-danger:hover {
-    background-color: #5D000F;
+@media (max-width: 768px) {
+    .airport-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<h2>Manage Airports</h2>
+<h2>Select Airport</h2>
+
 <div style="margin-bottom: 1.5rem;">
     <a href="/dashboard" style="display: inline-block; background: #8B0015; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; transition: transform 0.2s;">← Return to Dashboard</a>
 </div>
 
-
 {% if message %}
-<div class="success">{{ message }}</div>
+<div class="message success">{{ message }}</div>
 {% endif %}
 
 {% if error %}
-<div class="error">{{ error }}</div>
+<div class="message error">{{ error }}</div>
 {% endif %}
 
-{% if is_admin %}
-<div class="card" style="max-width: 600px;">
-    <h3>Create New Airport</h3>
-    <form method="POST" action="/coach/navs/airports">
-        <div class="form-group">
-            <label for="code">Airport Code:</label>
-            <input type="text" id="code" name="code" placeholder="ORD, LAX, etc." 
-                   maxlength="10" required style="text-transform: uppercase;">
-            <small style="color: #666;">3-4 letter airport code (e.g., ORD, LAX, JFK)</small>
-        </div>
-        <button type="submit">Create Airport</button>
-    </form>
-</div>
-{% else %}
-<div class="info" style="margin: 1rem 0; padding: 1rem; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
-    <strong>Read-Only Mode</strong><br>
-    You can view airports but cannot create new ones. Contact an administrator to add airports.
-</div>
-{% endif %}
-
-<div class="airport-list">
-    <h3>Existing Airports</h3>
-    {% if airports %}
-        {% for airport in airports %}
-        <div class="airport-item">
-            <div>
-                <span class="code">{{ airport.code }}</span>
-            </div>
-            <div class="actions">
-                <a href="/coach/navs/gates/{{ airport.id }}" class="button" style="font-size: 0.85rem;">Gates</a>
-                {% if is_admin %}
-                <a href="/coach/navs/airports/{{ airport.id }}/delete-confirm" class="button-danger" style="font-size: 0.85rem;">Delete</a>
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    {% else %}
-    <p style="color: #999;">No airports yet. Create one above.</p>
+<div class="airport-grid">
+    <!-- Add New Airport Button -->
+    {% if is_admin %}
+    <div class="airport-card add-new" onclick="openAddAirportModal()">
+        <div class="icon">➕</div>
+        <h3 class="code">Add Airport</h3>
+        <div class="nav-count">Create a new airport</div>
+    </div>
+    {% endif %}
+    
+    <!-- Existing Airports -->
+    {% for airport in airports %}
+    <div class="airport-card" onclick="window.location.href='/coach/navs/airport/{{ airport.id }}'">
+        <div class="icon">✈️</div>
+        <h3 class="code">{{ airport.code }}</h3>
+        <div class="nav-count">{{ airport.nav_count }} NAV{{ 's' if airport.nav_count != 1 else '' }}</div>
+        <div class="nav-count">{{ airport.gate_count }} Gate{{ 's' if airport.gate_count != 1 else '' }}</div>
+    </div>
+    {% endfor %}
+    
+    {% if not airports and not is_admin %}
+    <div style="grid-column: 1 / -1;" class="info">
+        No airports configured yet. Contact your administrator to add airports.
+    </div>
     {% endif %}
 </div>
+
+<!-- Add Airport Modal -->
+<div id="addAirportModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add New Airport</h2>
+            <button class="close-btn" onclick="closeAddAirportModal()">×</button>
+        </div>
+        <form method="POST" action="/coach/navs/airports/create">
+            <div style="margin-bottom: 1.5rem;">
+                <label for="code" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Airport Code:</label>
+                <input type="text" id="code" name="code" required maxlength="10" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; text-transform: uppercase;" placeholder="e.g. MDH, KSUS">
+                <small style="color: #666;">Airport identifier (e.g., MDH, KSUS)</small>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" onclick="closeAddAirportModal()" style="flex: 1; background: #ccc; color: #333; padding: 0.75rem; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Cancel</button>
+                <button type="submit" style="flex: 1; background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%); color: white; padding: 0.75rem; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Create Airport</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openAddAirportModal() {
+    document.getElementById('addAirportModal').classList.add('show');
+    document.getElementById('code').focus();
+}
+
+function closeAddAirportModal() {
+    document.getElementById('addAirportModal').classList.remove('show');
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('addAirportModal');
+    if (event.target === modal) {
+        closeAddAirportModal();
+    }
+});
+
+// Auto-uppercase airport code input
+document.getElementById('code').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+</script>
 
 {% endblock %}

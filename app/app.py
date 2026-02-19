@@ -2909,19 +2909,25 @@ async def coach_delete_secret(secret_id: int, user: dict = Depends(require_admin
         return RedirectResponse(url=f"/coach/navs/secrets/{nav_id}?error={str(e)}", status_code=303)
 
 @app.get("/coach/config", response_class=HTMLResponse)
-async def coach_config(request: Request, user: dict = Depends(require_admin)):
+async def coach_config(request: Request, user: dict = Depends(require_admin), message: Optional[str] = None, error: Optional[str] = None):
     """View/edit config (admin only)."""
     config_data = config["scoring"]
     email_config = config.get("email", {})
     backup_config = config.get("backup", {})
     backup_status = backup_scheduler.get_status()
     
+    # Get message/error from query params if not provided
+    message = request.query_params.get("message", message)
+    error = request.query_params.get("error", error)
+    
     return templates.TemplateResponse("coach/config.html", {
         "request": request,
         "config": config_data,
         "email_config": email_config,
         "backup_config": backup_config,
-        "backup_status": backup_status
+        "backup_status": backup_status,
+        "message": message,
+        "error": error
     })
 
 @app.post("/coach/config")

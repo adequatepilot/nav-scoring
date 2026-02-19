@@ -10,25 +10,8 @@
         <h1>Dashboard</h1>
     </div>
     <div class="navbar-links" id="navbarLinks">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/prenav">Pre-NAV</a>
-        <a href="/flight/select">Post-NAV</a>
-        <a href="/results">Results</a>
         <a href="/profile">Profile</a>
-        {% if is_coach or is_admin %}
-        <div class="dropdown">
-            <a href="#" class="dropdown-toggle">Admin ▼</a>
-            <div class="dropdown-menu">
-                <a href="/coach/members">Users</a>
-                <a href="/coach/pairings">Pairings</a>
-                <a href="/coach/navs">NAVs</a>
-                {% if is_admin %}
-                <a href="/coach/config">System Config</a>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
-        <a href="/logout">Logout{% if is_admin %} (Admin){% endif %}</a>
+        <a href="/logout">Logout</a>
     </div>
 </div>
 {% endblock %}

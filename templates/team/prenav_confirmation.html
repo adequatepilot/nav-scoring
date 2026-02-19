@@ -9,11 +9,8 @@
         <h1>NAV Scoring - Confirmation</h1>
     </div>
     <div class="navbar-links" id="navbarLinks">
-        <span>{{ member_name }}</span>
-        <a href="/team">Dashboard</a>
-        <a href="/prenav">Pre-Flight</a>
-        <a href="/flight/select">Post-Flight</a>
-        <a href="/results">Results</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/profile">Profile</a>
         <a href="/logout">Logout</a>
     </div>
 </div>
@@ -21,6 +18,10 @@
 
 {% block content %}
 <h2>✓ Pre-Flight Plan Submitted</h2>
+<div style="margin-bottom: 1.5rem;">
+    <a href="/dashboard" style="display: inline-block; background: #8B0015; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; transition: transform 0.2s;">← Return to Dashboard</a>
+</div>
+
 
 <div class="success">
     Your pre-flight planning data has been received and recorded.

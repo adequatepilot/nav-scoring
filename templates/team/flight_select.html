@@ -32,11 +32,7 @@
         <h1>NAV Scoring - Select Submission</h1>
     </div>
     <div class="navbar-links" id="navbarLinks">
-        <span>{{ member_name }}</span>
         <a href="/dashboard">Dashboard</a>
-        <a href="/prenav">Pre-NAV</a>
-        <a href="/flight/select">Post-NAV</a>
-        <a href="/results">Results</a>
         <a href="/profile">Profile</a>
         <a href="/logout">Logout</a>
     </div>
@@ -45,6 +41,10 @@
 
 {% block content %}
 <h2>Select Pre-Flight Submission to Complete</h2>
+<div style="margin-bottom: 1.5rem;">
+    <a href="/dashboard" style="display: inline-block; background: #8B0015; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; transition: transform 0.2s;">← Return to Dashboard</a>
+</div>
+
 
 {% if message %}
 <div class="success" style="padding: 15px; margin: 15px 0; border: 1px solid #4caf50; background-color: #e8f5e9; color: #2e7d32; border-radius: 4px;">

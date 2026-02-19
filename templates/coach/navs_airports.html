@@ -9,8 +9,8 @@
         <h1>Coach Dashboard - Manage Airports</h1>
     </div>
     <div class="navbar-links" id="navbarLinks">
-        <a href="/coach">Dashboard</a>
-        <a href="/coach/navs">NAV Management</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/profile">Profile</a>
         <a href="/logout">Logout</a>
     </div>
 </div>
@@ -57,6 +57,10 @@
 
 {% block content %}
 <h2>Manage Airports</h2>
+<div style="margin-bottom: 1.5rem;">
+    <a href="/dashboard" style="display: inline-block; background: #8B0015; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; transition: transform 0.2s;">← Return to Dashboard</a>
+</div>
+
 
 {% if message %}
 <div class="success">{{ message }}</div>

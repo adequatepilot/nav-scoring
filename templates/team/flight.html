@@ -37,7 +37,7 @@
     <strong>NAV Route:</strong> {{ selected_prenav.nav_name }}<br>
     <strong>Pairing:</strong> {{ selected_prenav.pilot_name }} (Pilot) + {{ selected_prenav.observer_name }} (Observer)<br>
     <strong>Estimated Time:</strong> {{ selected_prenav.total_time_display }}<br>
-    <strong>Estimated Fuel:</strong> {{ selected_prenav.fuel_estimate }} gallons
+    <strong>Estimated Fuel:</strong> {{ selected_prenav.fuel_estimate|round(1) }} gallons
 </div>
 
 <div class="info">

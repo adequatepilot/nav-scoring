@@ -184,9 +184,9 @@
             </tr>
             <tr>
                 <td>Fuel Burn</td>
-                <td>{{ result.estimated_fuel_burn }} gal</td>
-                <td>{{ result.actual_fuel_burn }} gal</td>
-                <td>{{ (result.actual_fuel_burn - result.estimated_fuel_burn)|round(2) }} gal ({{ result.fuel_error_pct|round(1) }}%)</td>
+                <td>{{ result.estimated_fuel_burn|round(1) }} gal</td>
+                <td>{{ result.actual_fuel_burn|round(1) }} gal</td>
+                <td>{{ (result.actual_fuel_burn - result.estimated_fuel_burn)|round(1) }} gal ({{ result.fuel_error_pct|round(1) }}%)</td>
                 <td>{{ result.fuel_penalty|round(0) }} pts</td>
             </tr>
             
@@ -260,15 +260,15 @@
 <table>
     <tr>
         <td><strong>Estimated:</strong></td>
-        <td>{{ result.estimated_fuel_burn }} gal</td>
+        <td>{{ result.estimated_fuel_burn|round(1) }} gal</td>
     </tr>
     <tr>
         <td><strong>Actual:</strong></td>
-        <td>{{ result.actual_fuel_burn }} gal</td>
+        <td>{{ result.actual_fuel_burn|round(1) }} gal</td>
     </tr>
     <tr>
         <td><strong>Difference:</strong></td>
-        <td>{{ (result.actual_fuel_burn - result.estimated_fuel_burn)|round(2) }} gal</td>
+        <td>{{ (result.actual_fuel_burn - result.estimated_fuel_burn)|round(1) }} gal</td>
     </tr>
     <tr>
         <td><strong>Penalty:</strong></td>

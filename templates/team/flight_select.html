@@ -79,7 +79,7 @@
                 <strong>{{ prenav.observer_name }}</strong> (Observer)
             </td>
             <td>{{ prenav.total_time_display }}</td>
-            <td>{{ prenav.fuel_estimate }} gal</td>
+            <td>{{ prenav.fuel_estimate|round(1) }} gal</td>
             <td style="white-space: nowrap;">
                 <a href="/flight?prenav_id={{ prenav.id }}" class="button" style="font-size: 0.85rem; padding: 6px 12px; display: inline-block;">
                     ✓ Select

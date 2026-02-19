@@ -275,6 +275,19 @@
         tr:hover {
             background: #f9f9f9;
         }
+        @media (max-width: 768px) {
+            table {
+                font-size: 0.85rem;
+            }
+            th, td {
+                padding: 0.5rem;
+                word-break: break-word;
+            }
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
         .time-input {
             font-family: 'Courier New', monospace;
         }
@@ -283,8 +296,20 @@
             gap: 1rem;
             margin-top: 1.5rem;
         }
-        .button-group button {
+        .button-group button,
+        .button-group a.button {
             flex: 1;
+            min-width: 0;
+        }
+        @media (max-width: 480px) {
+            .button-group {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .button-group button,
+            .button-group a.button {
+                width: 100%;
+            }
         }
     </style>
     {% block extra_css %}{% endblock %}

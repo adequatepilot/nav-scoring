@@ -2170,7 +2170,7 @@ async def edit_user(
     request: Request,
     user: dict = Depends(require_admin)
 ):
-    """Edit user details (name, email, password). Admin only. Issue 13: Support force_reset flag."""
+    """Edit user details (name, email, password, profile picture). Admin only. Issue 13: Support force_reset flag. Items 31, 32: Profile picture admin."""
     try:
         form_data = await request.form()
         user_id = form_data.get("user_id")
@@ -2178,6 +2178,8 @@ async def edit_user(
         email = form_data.get("email")
         password = form_data.get("password")
         force_reset = form_data.get("force_reset") == "1"  # Issue 13
+        can_modify_profile_picture = form_data.get("can_modify_profile_picture") == "1"  # Item 32
+        profile_picture = form_data.get("profile_picture")  # Item 31
         
         if not user_id or not name or not email:
             return {"success": False, "message": "Missing required fields"}
@@ -2186,7 +2188,8 @@ async def edit_user(
         updates = {
             "name": name,
             "email": email,
-            "username": email  # Update username to match email
+            "username": email,  # Update username to match email
+            "can_modify_profile_picture": 1 if can_modify_profile_picture else 0  # Item 32
         }
         
         # Only update password if provided
@@ -2197,6 +2200,34 @@ async def edit_user(
         if force_reset:
             updates["must_reset_password"] = 1
         
+        # Item 31: Handle profile picture upload
+        if profile_picture and hasattr(profile_picture, 'file'):
+            # Validate file
+            max_size = 5 * 1024 * 1024  # 5MB
+            allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif']
+            
+            if profile_picture.size > max_size:
+                return {"success": False, "message": "Profile picture must be under 5MB"}
+            
+            if profile_picture.content_type not in allowed_types:
+                return {"success": False, "message": "Profile picture must be JPG, PNG, or GIF"}
+            
+            # Save the file
+            profile_pics_dir = Path("static/profile_pictures")
+            profile_pics_dir.mkdir(parents=True, exist_ok=True)
+            
+            file_content = await profile_picture.read()
+            file_ext = profile_picture.filename.split('.')[-1].lower()
+            filename = f"user_{user_id}_{int(datetime.now().timestamp())}.{file_ext}"
+            file_path = profile_pics_dir / filename
+            
+            with open(file_path, "wb") as f:
+                f.write(file_content)
+            
+            relative_path = f"profile_pictures/{filename}"
+            updates["profile_picture_path"] = relative_path
+            logger.info(f"Admin uploaded profile picture for user {user_id}: {relative_path}")
+        
         # Update user
         success = db.update_user(int(user_id), **updates)
         
@@ -2204,6 +2235,10 @@ async def edit_user(
             log_msg = f"User {user_id} edited: name={name}, email={email}"
             if force_reset:
                 log_msg += ", force_reset=true"
+            if can_modify_profile_picture:
+                log_msg += ", can_modify_profile_picture=true"
+            else:
+                log_msg += ", can_modify_profile_picture=false"
             logger.info(log_msg)
             return {"success": True, "message": "User updated successfully"}
         else:
@@ -2211,6 +2246,39 @@ async def edit_user(
     
     except Exception as e:
         logger.error(f"Error editing user: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/coach/members/{user_id}/remove-profile-picture")
+async def remove_profile_picture_admin(
+    user_id: int,
+    request: Request,
+    user: dict = Depends(require_admin)
+):
+    """Remove a user's profile picture. Admin only. Item 31."""
+    try:
+        # Get user to check if they have a profile picture
+        target_user = db.get_user_by_id(user_id)
+        if not target_user:
+            return {"success": False, "message": "User not found"}
+        
+        # Remove the profile picture file if it exists
+        if target_user.get("profile_picture_path"):
+            picture_path = Path("static") / target_user["profile_picture_path"]
+            if picture_path.exists():
+                picture_path.unlink()
+                logger.info(f"Deleted profile picture file: {picture_path}")
+        
+        # Update database
+        success = db.update_user(user_id, profile_picture_path=None)
+        
+        if success:
+            logger.info(f"Admin removed profile picture for user {user_id}")
+            return {"success": True, "message": "Profile picture removed successfully"}
+        else:
+            return {"success": False, "message": "Failed to update database"}
+    
+    except Exception as e:
+        logger.error(f"Error removing profile picture for user {user_id}: {e}")
         return {"success": False, "message": str(e)}
 
 @app.post("/coach/members/{user_id}/delete")

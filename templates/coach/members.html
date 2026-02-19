@@ -296,6 +296,7 @@ th, td {
     <table>
         <thead>
             <tr>
+                <th>Profile</th>
                 <th>Email</th>
                 <th>Name</th>
                 <th>Approval Status</th>
@@ -307,6 +308,15 @@ th, td {
         <tbody id="userTableBody">
             {% for member in members %}
             <tr class="user-row {% if not member.is_approved %}pending{% endif %}" data-member-id="{{ member.id }}" data-approved="{{ member.is_approved }}" data-coach="{{ member.is_coach }}" data-admin="{{ member.is_admin }}">
+                <td>
+                    {% if member.profile_picture_path %}
+                    <img src="/static/{{ member.profile_picture_path }}" alt="{{ member.name }}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    {% else %}
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background: #ddd; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #666;">
+                        {{ member.name[0] if member.name else '?' }}
+                    </div>
+                    {% endif %}
+                </td>
                 <td>{{ member.email }}</td>
                 <td>{{ member.name }}</td>
                 <td id="approval-{{ member.id }}">
@@ -356,7 +366,7 @@ th, td {
                 <td>
                     <div class="action-buttons">
                         {% if is_admin %}
-                        <button onclick="openEditModal({{ member.id }}, '{{ member.name }}', '{{ member.email }}')" style="background: #2196f3;">Edit</button>
+                        <button onclick="openEditModal({{ member.id }}, '{{ member.name }}', '{{ member.email }}', '{{ member.profile_picture_path or '' }}', {{ 'true' if member.can_modify_profile_picture else 'false' }})" style="background: #2196f3;">Edit</button>
                         <button onclick="forcePasswordReset({{ member.id }})" style="background: #ff9800;">Force Password Reset</button>
                         <a href="/coach/members/{{ member.id }}/delete" onclick="return confirm('Delete this user? This cannot be undone.');">Delete</a>
                         {% else %}
@@ -405,6 +415,24 @@ th, td {
                     Force user to reset password on next login
                 </label>
                 <small style="color: #666;">If checked, user must reset password before accessing the system</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="editProfilePicture">Profile Picture:</label>
+                <div id="currentProfilePicture" style="margin-bottom: 1rem;"></div>
+                <input type="file" id="editProfilePicture" name="profile_picture" accept="image/jpeg,image/png,image/jpg,image/gif">
+                <small style="color: #666;">Upload a new profile picture (optional). Max 5MB. JPG, PNG, or GIF.</small>
+                <div id="profilePicturePreview" style="margin-top: 1rem; display: none;">
+                    <img id="previewImage" src="" alt="Preview" style="max-width: 150px; max-height: 150px; border-radius: 10px;">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="canModifyProfilePicture">
+                    <input type="checkbox" id="canModifyProfilePicture" name="can_modify_profile_picture" value="1" checked>
+                    User can modify their own profile picture
+                </label>
+                <small style="color: #666;">Uncheck to prevent user from changing their profile picture (abuse prevention)</small>
             </div>
             
             <div class="modal-footer">
@@ -539,11 +567,31 @@ function deleteUser(userId) {
     }
 }
 
-function openEditModal(userId, name, email) {
+function openEditModal(userId, name, email, profilePicturePath = null, canModifyProfilePicture = true) {
     document.getElementById('editUserId').value = userId;
     document.getElementById('editName').value = name;
     document.getElementById('editEmail').value = email;
     document.getElementById('editPassword').value = '';
+    document.getElementById('canModifyProfilePicture').checked = canModifyProfilePicture;
+    
+    // Show current profile picture if exists
+    const currentPictureDiv = document.getElementById('currentProfilePicture');
+    if (profilePicturePath) {
+        currentPictureDiv.innerHTML = `
+            <div style="margin-bottom: 0.5rem;">
+                <strong>Current Picture:</strong>
+                <img src="/static/${profilePicturePath}" alt="${name}" style="width: 80px; height: 80px; border-radius: 10px; object-fit: cover; display: block; margin-top: 0.5rem;">
+                <button type="button" onclick="removeProfilePicture(${userId})" style="margin-top: 0.5rem; background: #dc3545; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer;">Remove Picture</button>
+            </div>
+        `;
+    } else {
+        currentPictureDiv.innerHTML = '<p style="color: #666;">No profile picture uploaded</p>';
+    }
+    
+    // Reset preview
+    document.getElementById('profilePicturePreview').style.display = 'none';
+    document.getElementById('editProfilePicture').value = '';
+    
     document.getElementById('editModal').classList.add('show');
 }
 
@@ -558,6 +606,8 @@ function submitEditForm(event) {
     const email = document.getElementById('editEmail').value;
     const password = document.getElementById('editPassword').value;
     const forceReset = document.getElementById('forceReset').checked ? '1' : '0';
+    const canModifyProfilePicture = document.getElementById('canModifyProfilePicture').checked ? '1' : '0';
+    const profilePictureFile = document.getElementById('editProfilePicture').files[0];
     
     const formData = new FormData();
     formData.append('user_id', userId);
@@ -567,6 +617,10 @@ function submitEditForm(event) {
         formData.append('password', password);
     }
     formData.append('force_reset', forceReset);
+    formData.append('can_modify_profile_picture', canModifyProfilePicture);
+    if (profilePictureFile) {
+        formData.append('profile_picture', profilePictureFile);
+    }
     
     fetch('/coach/members/edit', {
         method: 'POST',
@@ -660,6 +714,45 @@ function forcePasswordReset(userId) {
         });
     }
 }
+
+function removeProfilePicture(userId) {
+    if (confirm('Remove this user\'s profile picture?')) {
+        fetch('/coach/members/' + userId + '/remove-profile-picture', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Profile picture removed successfully', 'success');
+                document.getElementById('currentProfilePicture').innerHTML = '<p style="color: #666;">No profile picture uploaded</p>';
+            } else {
+                showNotification('Failed to remove picture: ' + (data.message || 'Unknown error'), 'error');
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            showNotification('Error removing profile picture', 'error');
+        });
+    }
+}
+
+// Profile picture preview when file is selected
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('editProfilePicture');
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('previewImage').src = e.target.result;
+                    document.getElementById('profilePicturePreview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                document.getElementById('profilePicturePreview').style.display = 'none';
+            }
+        });
+    }
+});
 </script>
 
 {% endblock %}

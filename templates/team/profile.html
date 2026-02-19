@@ -461,82 +461,91 @@
         <div class="upload-section">
             <h2>Upload Profile Picture</h2>
             
-            {% if message %}
-            <div class="message success">{{ message }}</div>
+            {% if user.get('can_modify_profile_picture', 1) %}
+                {% if message %}
+                <div class="message success">{{ message }}</div>
+                {% endif %}
+                
+                {% if error %}
+                <div class="message error">{{ error }}</div>
+                {% endif %}
+
+                <div class="upload-form" id="uploadForm">
+                    <label class="upload-label">
+                        <input type="file" id="fileInput" accept="image/*">
+                        <div class="upload-icon">📸</div>
+                        <div class="upload-text">Click to select or drag and drop</div>
+                        <div class="upload-hint">JPG, PNG, GIF, or WebP (max 5MB)</div>
+                    </label>
+                    <img id="preview-img" style="display: none;">
+                </div>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Uploading...</p>
+                </div>
+
+                <button class="upload-button" id="submitBtn" style="display: none;">Upload Picture</button>
+            {% else %}
+                <div class="message error">
+                    <p><strong>Profile picture modification disabled</strong></p>
+                    <p>Your administrator has disabled profile picture uploads. Please contact your coach or administrator if you need to change your profile picture.</p>
+                </div>
             {% endif %}
-            
-            {% if error %}
-            <div class="message error">{{ error }}</div>
-            {% endif %}
-
-            <div class="upload-form" id="uploadForm">
-                <label class="upload-label">
-                    <input type="file" id="fileInput" accept="image/*">
-                    <div class="upload-icon">📸</div>
-                    <div class="upload-text">Click to select or drag and drop</div>
-                    <div class="upload-hint">JPG, PNG, GIF, or WebP (max 5MB)</div>
-                </label>
-                <img id="preview-img" style="display: none;">
-            </div>
-
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>Uploading...</p>
-            </div>
-
-            <button class="upload-button" id="submitBtn" style="display: none;">Upload Picture</button>
         </div>
     </div>
 </div>
 
 <script>
+{% if user.get('can_modify_profile_picture', 1) %}
 const fileInput = document.getElementById('fileInput');
 const uploadForm = document.getElementById('uploadForm');
 const previewImg = document.getElementById('preview-img');
 const submitBtn = document.getElementById('submitBtn');
 const loading = document.getElementById('loading');
 
-// File input change handler
-fileInput.addEventListener('change', function() {
-    handleFile(this.files[0]);
-});
+if (fileInput && uploadForm) {
+    // File input change handler
+    fileInput.addEventListener('change', function() {
+        handleFile(this.files[0]);
+    });
 
-// Drag and drop
-uploadForm.addEventListener('dragover', function(e) {
-    e.preventDefault();
-    this.classList.add('drag-over');
-});
+    // Drag and drop
+    uploadForm.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('drag-over');
+    });
 
-uploadForm.addEventListener('dragleave', function() {
-    this.classList.remove('drag-over');
-});
+    uploadForm.addEventListener('dragleave', function() {
+        this.classList.remove('drag-over');
+    });
 
-uploadForm.addEventListener('drop', function(e) {
-    e.preventDefault();
-    this.classList.remove('drag-over');
-    
-    if (e.dataTransfer.files.length > 0) {
-        fileInput.files = e.dataTransfer.files;
-        handleFile(e.dataTransfer.files[0]);
+    uploadForm.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('drag-over');
+        
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            handleFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    function handleFile(file) {
+        if (!file) return;
+        
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            previewImg.style.display = 'block';
+            submitBtn.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
     }
-});
 
-function handleFile(file) {
-    if (!file) return;
-    
-    // Show preview
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        previewImg.src = e.target.result;
-        previewImg.style.display = 'block';
-        submitBtn.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
-}
-
-// Upload handler
-submitBtn.addEventListener('click', async function() {
-    if (!fileInput.files.length) return;
+    // Upload handler
+    submitBtn.addEventListener('click', async function() {
+        if (!fileInput.files.length) return;
     
     const file = fileInput.files[0];
     const formData = new FormData();
@@ -567,7 +576,9 @@ submitBtn.addEventListener('click', async function() {
         loading.style.display = 'none';
         submitBtn.style.display = 'block';
     }
-});
+    });
+}
+{% endif %}
 
 // ===== PASSWORD CHANGE =====
 

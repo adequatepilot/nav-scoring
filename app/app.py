@@ -3019,6 +3019,185 @@ async def coach_backup_status(request: Request, user: dict = Depends(require_adm
             "message": f"Error: {str(e)}"
         }
 
+# ===== ACTIVITY LOG ROUTES (Item 38) =====
+
+@app.get("/coach/activity-log", response_class=HTMLResponse)
+async def coach_activity_log(
+    request: Request,
+    user: dict = Depends(require_coach),
+    user_id: Optional[str] = None,
+    category: Optional[str] = None,
+    activity_type: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    page: int = 1
+):
+    """View activity log with filtering. Coach/Admin only. Item 38."""
+    try:
+        # Convert query params
+        filters = {
+            "user_id": int(user_id) if user_id else None,
+            "category": category,
+            "activity_type": activity_type,
+            "start_date": start_date,
+            "end_date": end_date
+        }
+        
+        # Pagination
+        limit = 50
+        offset = (page - 1) * limit
+        
+        # Get filtered logs
+        logs = db.get_activity_log(
+            user_id=filters["user_id"],
+            category=filters["category"],
+            activity_type=filters["activity_type"],
+            start_date=filters["start_date"],
+            end_date=filters["end_date"],
+            limit=limit,
+            offset=offset
+        )
+        
+        # Get total count for pagination
+        total_entries = db.get_activity_count(
+            user_id=filters["user_id"],
+            category=filters["category"]
+        )
+        total_pages = (total_entries + limit - 1) // limit
+        
+        # Get all users for filter dropdown
+        all_users = db.list_users()
+        
+        # Get unique categories and types from database
+        categories = ["auth", "nav", "flight", "admin", "user", "pairing"]
+        activity_types_list = [
+            "login", "logout", "signup", "password_reset", "email_changed",
+            "nav_created", "nav_edited", "nav_deleted",
+            "airport_created", "airport_deleted",
+            "gate_created", "gate_deleted",
+            "checkpoint_created", "checkpoint_edited", "checkpoint_deleted",
+            "secret_created", "secret_deleted",
+            "prenav_submitted", "postnav_submitted",
+            "user_created", "user_edited", "user_deleted", "user_approved", "user_denied",
+            "pairing_created", "pairing_broken", "pairing_reactivated", "pairing_deleted",
+            "config_updated", "backup_created"
+        ]
+        
+        return templates.TemplateResponse("coach/activity_log.html", {
+            "request": request,
+            "user": user,
+            "logs": logs,
+            "filters": filters,
+            "page": page,
+            "total_pages": total_pages,
+            "total_entries": total_entries,
+            "users": all_users,
+            "categories": categories,
+            "activity_types": activity_types_list,
+            "is_admin": user["is_admin"]
+        })
+    except Exception as e:
+        logger.error(f"Error displaying activity log: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user": user,
+            "error": f"Error loading activity log: {str(e)}"
+        })
+
+@app.get("/coach/activity-log/{log_id}")
+async def coach_activity_log_detail(
+    log_id: int,
+    request: Request,
+    user: dict = Depends(require_coach)
+):
+    """Get details for a single activity log entry. Returns JSON. Item 38."""
+    try:
+        logs = db.get_activity_log(limit=1, offset=0)
+        # Find the specific log by ID
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM activity_log WHERE id = ?", (log_id,))
+            row = cursor.fetchone()
+            if row:
+                log = dict(row)
+                return {"success": True, "log": log}
+            else:
+                return {"success": False, "message": "Log entry not found"}
+    except Exception as e:
+        logger.error(f"Error fetching activity log detail: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.get("/coach/activity-log/export")
+async def coach_activity_log_export(
+    request: Request,
+    user: dict = Depends(require_coach),
+    user_id: Optional[str] = None,
+    category: Optional[str] = None,
+    activity_type: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """Export activity log to CSV. Coach/Admin only. Item 38."""
+    import csv
+    from io import StringIO
+    from starlette.responses import StreamingResponse
+    
+    try:
+        # Get all matching logs (no limit)
+        logs = db.get_activity_log(
+            user_id=int(user_id) if user_id else None,
+            category=category,
+            activity_type=activity_type,
+            start_date=start_date,
+            end_date=end_date,
+            limit=10000,  # Max export limit
+            offset=0
+        )
+        
+        # Create CSV in memory
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow([
+            "Timestamp",
+            "User ID",
+            "User Name",
+            "User Email",
+            "Category",
+            "Activity Type",
+            "Details",
+            "Related Entity Type",
+            "Related Entity ID",
+            "IP Address"
+        ])
+        
+        # Write data rows
+        for log in logs:
+            writer.writerow([
+                log.get("timestamp", ""),
+                log.get("user_id", ""),
+                log.get("user_name", ""),
+                log.get("user_email", ""),
+                log.get("activity_category", ""),
+                log.get("activity_type", ""),
+                log.get("activity_details", ""),
+                log.get("related_entity_type", ""),
+                log.get("related_entity_id", ""),
+                log.get("ip_address", "")
+            ])
+        
+        # Create response
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=activity_log.csv"}
+        )
+    except Exception as e:
+        logger.error(f"Error exporting activity log: {e}")
+        return {"success": False, "message": str(e)}
+
 # ===== STARTUP/SHUTDOWN =====
 
 @app.on_event("shutdown")

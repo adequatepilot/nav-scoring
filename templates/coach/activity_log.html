@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Log - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Activity Log</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/profile">Profile</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 1400px;
+}
+.filter-section {
+    background: #f5f5f5;
+    padding: 1.5rem;
+    border-radius: 5px;
+    margin-bottom: 2rem;
+}
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.filter-group {
+    display: flex;
+    flex-direction: column;
+}
+.filter-group label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+.filter-group select,
+.filter-group input {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+.filter-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+.btn-filter {
+    background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform 0.2s;
+}
+.btn-filter:hover {
+    transform: translateY(-2px);
+}
+.btn-reset {
+    background: #6c757d;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.btn-export {
+    background: #28a745;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.log-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+.log-table th {
+    background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+    color: white;
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+}
+.log-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #eee;
+}
+.log-table tr:hover {
+    background: #f9f9f9;
+}
+.log-row {
+    cursor: pointer;
+}
+.category-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.category-auth { background: #4caf50; color: white; }
+.category-nav { background: #2196f3; color: white; }
+.category-flight { background: #ff9800; color: white; }
+.category-admin { background: #9c27b0; color: white; }
+.category-user { background: #00bcd4; color: white; }
+.category-pairing { background: #607d8b; color: white; }
+.log-timestamp {
+    color: #666;
+    font-size: 0.9rem;
+}
+.log-details {
+    color: #333;
+    font-size: 0.95rem;
+}
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 2rem;
+}
+.page-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ddd;
+    background: white;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.page-btn.active {
+    background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+    color: white;
+    border-color: #8B0015;
+}
+.page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.stat-card {
+    background: #f5f5f5;
+    padding: 1.5rem;
+    border-radius: 5px;
+    text-align: center;
+}
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #8B0015;
+}
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-content {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+}
+.detail-row {
+    display: flex;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+}
+.detail-label {
+    font-weight: 600;
+    width: 150px;
+    color: #666;
+}
+.detail-value {
+    flex: 1;
+    color: #333;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Activity Log</h2>
+
+<div style="margin-bottom: 1.5rem;">
+    <a href="/dashboard" style="display: inline-block; background: #8B0015; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; transition: transform 0.2s;">← Return to Dashboard</a>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ total_entries }}</div>
+        <div class="stat-label">Total Entries</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ activity_types|length }}</div>
+        <div class="stat-label">Activity Types</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ users|length }}</div>
+        <div class="stat-label">Active Users</div>
+    </div>
+</div>
+
+<div class="filter-section">
+    <h3>Filter Activity</h3>
+    <form method="GET" action="/coach/activity-log">
+        <div class="filter-grid">
+            <div class="filter-group">
+                <label for="filterUser">User:</label>
+                <select id="filterUser" name="user_id">
+                    <option value="">All Users</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if filters.user_id == user.id|string %}selected{% endif %}>
+                        {{ user.name }} ({{ user.email }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="filterCategory">Category:</label>
+                <select id="filterCategory" name="category">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category }}" {% if filters.category == category %}selected{% endif %}>
+                        {{ category|title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="filterType">Activity Type:</label>
+                <select id="filterType" name="activity_type">
+                    <option value="">All Types</option>
+                    {% for type in activity_types %}
+                    <option value="{{ type }}" {% if filters.activity_type == type %}selected{% endif %}>
+                        {{ type|replace('_', ' ')|title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="filterStartDate">Start Date:</label>
+                <input type="date" id="filterStartDate" name="start_date" value="{{ filters.start_date or '' }}">
+            </div>
+            
+            <div class="filter-group">
+                <label for="filterEndDate">End Date:</label>
+                <input type="date" id="filterEndDate" name="end_date" value="{{ filters.end_date or '' }}">
+            </div>
+        </div>
+        
+        <div class="filter-buttons">
+            <button type="submit" class="btn-filter">Apply Filters</button>
+            <button type="button" class="btn-reset" onclick="window.location.href='/coach/activity-log'">Reset</button>
+            <button type="button" class="btn-export" onclick="exportCSV()">Export CSV</button>
+        </div>
+    </form>
+</div>
+
+{% if logs %}
+<table class="log-table">
+    <thead>
+        <tr>
+            <th>Timestamp</th>
+            <th>User</th>
+            <th>Category</th>
+            <th>Activity</th>
+            <th>Details</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr class="log-row" onclick="showDetails({{ log.id }})">
+            <td class="log-timestamp">{{ log.timestamp }}</td>
+            <td>{{ log.user_name }}<br><small style="color: #999;">{{ log.user_email }}</small></td>
+            <td>
+                <span class="category-badge category-{{ log.activity_category }}">
+                    {{ log.activity_category|title }}
+                </span>
+            </td>
+            <td>{{ log.activity_type|replace('_', ' ')|title }}</td>
+            <td class="log-details">
+                {{ log.activity_details[:100] }}
+                {% if log.activity_details|length > 100 %}...{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="pagination">
+    <button class="page-btn" onclick="changePage(1)" {% if page == 1 %}disabled{% endif %}>First</button>
+    <button class="page-btn" onclick="changePage({{ page - 1 }})" {% if page == 1 %}disabled{% endif %}>Previous</button>
+    <span style="padding: 0.5rem 1rem;">Page {{ page }} of {{ total_pages }}</span>
+    <button class="page-btn" onclick="changePage({{ page + 1 }})" {% if page == total_pages %}disabled{% endif %}>Next</button>
+    <button class="page-btn" onclick="changePage({{ total_pages }})" {% if page == total_pages %}disabled{% endif %}>Last</button>
+</div>
+{% else %}
+<div class="info">No activity log entries found matching the current filters.</div>
+{% endif %}
+
+<!-- Details Modal -->
+<div id="detailsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Activity Details</h2>
+            <button class="close-btn" onclick="closeDetails()">×</button>
+        </div>
+        <div id="detailsContent"></div>
+    </div>
+</div>
+
+<script>
+function changePage(page) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', page);
+    window.location.href = url.toString();
+}
+
+function showDetails(logId) {
+    fetch('/coach/activity-log/' + logId)
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const log = data.log;
+            document.getElementById('detailsContent').innerHTML = `
+                <div class="detail-row">
+                    <div class="detail-label">Timestamp:</div>
+                    <div class="detail-value">${log.timestamp}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">User:</div>
+                    <div class="detail-value">${log.user_name}<br><small>${log.user_email}</small></div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Category:</div>
+                    <div class="detail-value"><span class="category-badge category-${log.activity_category}">${log.activity_category}</span></div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Activity Type:</div>
+                    <div class="detail-value">${log.activity_type.replace(/_/g, ' ')}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Details:</div>
+                    <div class="detail-value">${log.activity_details || 'N/A'}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Related Entity:</div>
+                    <div class="detail-value">${log.related_entity_type || 'N/A'}${log.related_entity_id ? ' (ID: ' + log.related_entity_id + ')' : ''}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">IP Address:</div>
+                    <div class="detail-value">${log.ip_address || 'N/A'}</div>
+                </div>
+            `;
+            document.getElementById('detailsModal').classList.add('show');
+        }
+    })
+    .catch(err => {
+        console.error('Error fetching log details:', err);
+        alert('Error loading details');
+    });
+}
+
+function closeDetails() {
+    document.getElementById('detailsModal').classList.remove('show');
+}
+
+function exportCSV() {
+    const url = new URL(window.location.href);
+    url.pathname = '/coach/activity-log/export';
+    window.location.href = url.toString();
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('detailsModal');
+    if (event.target === modal) {
+        closeDetails();
+    }
+});
+</script>
+
+{% endblock %}

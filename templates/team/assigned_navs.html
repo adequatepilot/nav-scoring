@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Assigned NAVs - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - My Assigned NAVs</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/profile">Profile</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.nav-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+.nav-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    padding: 1.5rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+.nav-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    border-color: #8B0015;
+}
+.nav-card h3 {
+    margin: 0 0 1rem 0;
+    color: #8B0015;
+    font-size: 1.3rem;
+}
+.nav-card .airport {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+.nav-card .assigned-date {
+    color: #999;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.stat-card {
+    background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+}
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #8B0015;
+}
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+.section {
+    margin-top: 3rem;
+}
+.section h2 {
+    margin-bottom: 1rem;
+    color: #333;
+}
+.completed-list {
+    background: #f9f9f9;
+    padding: 1.5rem;
+    border-radius: 10px;
+}
+.completed-item {
+    padding: 1rem;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.completed-item:last-child {
+    border-bottom: none;
+}
+.completed-date {
+    color: #4caf50;
+    font-weight: 600;
+}
+.info-box {
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>My Assigned NAVs</h2>
+
+<div style="margin-bottom: 1.5rem;">
+    <a href="/dashboard" style="display: inline-block; background: #8B0015; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; transition: transform 0.2s;">← Return to Dashboard</a>
+</div>
+
+{% if not pairing %}
+<div class="info">You are not currently in an active pairing. Contact your coach to be added to a pairing.</div>
+{% else %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ active_assignments|length }}</div>
+        <div class="stat-label">NAVs To Complete</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ completed_assignments|length }}</div>
+        <div class="stat-label">NAVs Completed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ (active_assignments|length + completed_assignments|length) }}</div>
+        <div class="stat-label">Total Assigned</div>
+    </div>
+</div>
+
+{% if active_assignments %}
+<div class="info-box">
+    <strong>📌 How it works:</strong> Click a NAV below to access the NAV Packet (PDF), submit Pre-Flight planning, and submit Post-Flight results.
+</div>
+
+<div class="nav-grid">
+    {% for assignment in active_assignments %}
+    <div class="nav-card" onclick="window.location.href='/assignments/{{ assignment.id }}'">
+        <h3>{{ assignment.nav_name }}</h3>
+        <div class="airport">📍 {{ assignment.airport_code }}</div>
+        <div class="assigned-date">Assigned: {{ assignment.assigned_at[:10] }}</div>
+        {% if assignment.notes %}
+        <div style="color: #666; font-size: 0.85rem; font-style: italic; margin-top: 0.5rem;">
+            Note: {{ assignment.notes }}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="info">No active NAV assignments. Your coach will assign NAVs for you to practice.</div>
+{% endif %}
+
+{% if completed_assignments %}
+<div class="section">
+    <h2>Completed NAVs</h2>
+    <div class="completed-list">
+        {% for assignment in completed_assignments %}
+        <div class="completed-item">
+            <div>
+                <strong>{{ assignment.nav_name }}</strong>
+                <span style="color: #999; margin-left: 1rem;">{{ assignment.airport_code }}</span>
+            </div>
+            <div class="completed-date">
+                ✓ {{ assignment.completed_at[:10] }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% endblock %}

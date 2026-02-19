@@ -1667,6 +1667,12 @@ async def submit_flight(
                 db.mark_prenav_scored(prenav["id"])
                 logger.info(f"Marked prenav {prenav['id']} as scored")
                 
+                # Mark assignment as complete if exists (Item 37)
+                assignment = db.get_assignment_by_prenav(prenav["id"])
+                if assignment:
+                    db.mark_assignment_complete(assignment["id"])
+                    logger.info(f"Marked assignment {assignment['id']} as completed (NAV {prenav['nav_id']}, Pairing {pairing['id']})")
+                
                 # Update with PDF filename
                 from app.database import Database as DB
                 with db.get_connection() as conn:
@@ -3018,6 +3024,231 @@ async def coach_backup_status(request: Request, user: dict = Depends(require_adm
             "success": False,
             "message": f"Error: {str(e)}"
         }
+
+# ===== NAV ASSIGNMENT ROUTES (Item 37) =====
+
+@app.get("/coach/assignments", response_class=HTMLResponse)
+async def coach_assignments(
+    request: Request,
+    user: dict = Depends(require_coach),
+    status: str = "all",
+    semester: str = None
+):
+    """View all NAV assignments. Coach/Admin only. Item 37."""
+    try:
+        # Get filter params
+        completed = None if status == "all" else (status == "completed")
+        
+        # Get assignments
+        assignments = db.get_all_assignments(completed=completed, semester=semester)
+        
+        # Get stats
+        all_assignments = db.get_all_assignments()
+        stats = {
+            "total": len(all_assignments),
+            "active": len([a for a in all_assignments if not a.get("completed_at")]),
+            "completed": len([a for a in all_assignments if a.get("completed_at")])
+        }
+        
+        # Get available pairings and NAVs for assignment form
+        pairings = db.list_pairings(active_only=True)
+        navs = db.list_navs()
+        
+        # Get unique semesters
+        semesters = list(set([a.get("semester", "Spring 2026") for a in all_assignments]))
+        semesters.sort(reverse=True)
+        
+        return templates.TemplateResponse("coach/assignments.html", {
+            "request": request,
+            "user": user,
+            "assignments": assignments,
+            "stats": stats,
+            "pairings": pairings,
+            "navs": navs,
+            "semesters": semesters,
+            "filter_status": status,
+            "filter_semester": semester,
+            "is_admin": user["is_admin"],
+            "message": request.query_params.get("message"),
+            "error": request.query_params.get("error")
+        })
+    except Exception as e:
+        logger.error(f"Error displaying assignments: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user": user,
+            "error": f"Error loading assignments: {str(e)}"
+        })
+
+@app.post("/coach/assignments/create")
+async def coach_create_assignment(
+    request: Request,
+    user: dict = Depends(require_admin),
+    pairing_id: int = Form(...),
+    nav_id: int = Form(...),
+    semester: str = Form("Spring 2026"),
+    notes: str = Form(None)
+):
+    """Create new NAV assignment. Admin only. Item 37."""
+    try:
+        # Check for duplicates
+        if db.check_duplicate_assignment(nav_id, pairing_id, semester):
+            return RedirectResponse(
+                url=f"/coach/assignments?error=This NAV is already assigned to this pairing for {semester}",
+                status_code=303
+            )
+        
+        # Create assignment
+        assignment_id = db.create_assignment(
+            nav_id=nav_id,
+            pairing_id=pairing_id,
+            assigned_by=user["user_id"],
+            semester=semester,
+            notes=notes
+        )
+        
+        if assignment_id:
+            logger.info(f"NAV assignment created: assignment_id={assignment_id} nav={nav_id} pairing={pairing_id} by user={user['user_id']}")
+            return RedirectResponse(
+                url="/coach/assignments?message=NAV assigned successfully",
+                status_code=303
+            )
+        else:
+            return RedirectResponse(
+                url="/coach/assignments?error=Failed to create assignment",
+                status_code=303
+            )
+    except Exception as e:
+        logger.error(f"Error creating assignment: {e}")
+        return RedirectResponse(
+            url=f"/coach/assignments?error={str(e)}",
+            status_code=303
+        )
+
+@app.post("/coach/assignments/{assignment_id}/delete")
+async def coach_delete_assignment(
+    assignment_id: int,
+    request: Request,
+    user: dict = Depends(require_admin)
+):
+    """Delete NAV assignment. Admin only. Item 37."""
+    try:
+        success = db.delete_assignment(assignment_id)
+        if success:
+            logger.info(f"NAV assignment {assignment_id} deleted by user {user['user_id']}")
+            return RedirectResponse(url="/coach/assignments?message=Assignment removed", status_code=303)
+        else:
+            return RedirectResponse(url="/coach/assignments?error=Assignment not found", status_code=303)
+    except Exception as e:
+        logger.error(f"Error deleting assignment: {e}")
+        return RedirectResponse(url=f"/coach/assignments?error={str(e)}", status_code=303)
+
+@app.get("/team/assigned-navs", response_class=HTMLResponse)
+async def team_assigned_navs(request: Request, user: dict = Depends(require_login)):
+    """View assigned NAVs for competitor. Item 37."""
+    try:
+        # Get user's pairing
+        pairing = db.get_pairing_for_user(user["user_id"])
+        
+        if not pairing:
+            return templates.TemplateResponse("team/assigned_navs.html", {
+                "request": request,
+                "user": user,
+                "pairing": None,
+                "active_assignments": [],
+                "completed_assignments": []
+            })
+        
+        # Get active and completed assignments
+        active_assignments = db.get_assignments_for_pairing(pairing["id"], completed=False)
+        completed_assignments = db.get_assignments_for_pairing(pairing["id"], completed=True)
+        
+        return templates.TemplateResponse("team/assigned_navs.html", {
+            "request": request,
+            "user": user,
+            "pairing": pairing,
+            "active_assignments": active_assignments,
+            "completed_assignments": completed_assignments
+        })
+    except Exception as e:
+        logger.error(f"Error displaying assigned NAVs: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user": user,
+            "error": f"Error loading assigned NAVs: {str(e)}"
+        })
+
+@app.get("/assignments/{assignment_id}", response_class=HTMLResponse)
+async def assignment_workflow(assignment_id: int, request: Request, user: dict = Depends(require_login)):
+    """View single assignment workflow page. Item 37."""
+    try:
+        # Get assignment details
+        assignments = db.get_all_assignments()
+        assignment = next((a for a in assignments if a["id"] == assignment_id), None)
+        
+        if not assignment:
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "user": user,
+                "error": "Assignment not found"
+            })
+        
+        # Verify user has access (in the pairing or is coach/admin)
+        pairing = db.get_pairing_by_id(assignment["pairing_id"])
+        is_in_pairing = (
+            user["user_id"] == pairing.get("pilot_id") or
+            user["user_id"] == pairing.get("safety_observer_id")
+        )
+        
+        if not is_in_pairing and not user.get("is_coach") and not user.get("is_admin"):
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "user": user,
+                "error": "You don't have access to this assignment"
+            })
+        
+        # Check if pre-flight submitted
+        prenav = db.get_open_prenav_submissions(is_coach=False)
+        has_prenav = any(
+            p.get("pairing_id") == assignment["pairing_id"] and
+            p.get("nav_id") == assignment["nav_id"]
+            for p in prenav
+        )
+        
+        # Check if post-flight submitted (assignment completed)
+        has_postnav = assignment.get("completed_at") is not None
+        
+        # Get result ID if completed
+        result_id = None
+        if has_postnav:
+            # Find the flight result for this assignment
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id FROM flight_results
+                    WHERE pairing_id = ? AND nav_id = ?
+                    ORDER BY scored_at DESC LIMIT 1
+                """, (assignment["pairing_id"], assignment["nav_id"]))
+                row = cursor.fetchone()
+                if row:
+                    result_id = row[0]
+        
+        return templates.TemplateResponse("team/assignment_workflow.html", {
+            "request": request,
+            "user": user,
+            "assignment": assignment,
+            "pairing": pairing,
+            "has_prenav": has_prenav,
+            "has_postnav": has_postnav,
+            "result_id": result_id
+        })
+    except Exception as e:
+        logger.error(f"Error displaying assignment workflow: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user": user,
+            "error": f"Error loading assignment: {str(e)}"
+        })
 
 # ===== ACTIVITY LOG ROUTES (Item 38) =====
 

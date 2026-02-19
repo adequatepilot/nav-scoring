@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}NAV Assignments - Coach Dashboard{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Coach Dashboard - Assignments</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/profile">Profile</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card {
+    max-width: 1200px;
+}
+.assignment-form {
+    background: #f5f5f5;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    align-items: end;
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.stat-card {
+    background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+}
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #8B0015;
+}
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+.filter-bar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
+}
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.badge-assigned { background: #ff9800; color: white; }
+.badge-completed { background: #4caf50; color: white; }
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+.action-buttons button {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+.message {
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+}
+.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>NAV Assignments</h2>
+
+<div style="margin-bottom: 1.5rem;">
+    <a href="/dashboard" style="display: inline-block; background: #8B0015; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; transition: transform 0.2s;">← Return to Dashboard</a>
+</div>
+
+{% if message %}
+<div class="message success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="message error">{{ error }}</div>
+{% endif %}
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">Total Assignments</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.active }}</div>
+        <div class="stat-label">Active</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.completed }}</div>
+        <div class="stat-label">Completed</div>
+    </div>
+</div>
+
+{% if is_admin %}
+<div class="assignment-form">
+    <h3>Assign NAV to Pairing</h3>
+    <form method="POST" action="/coach/assignments/create">
+        <div class="form-row">
+            <div>
+                <label for="pairing_id">Pairing:</label>
+                <select id="pairing_id" name="pairing_id" required>
+                    <option value="">Select Pairing</option>
+                    {% for pairing in pairings %}
+                    <option value="{{ pairing.id }}">
+                        {{ pairing.pilot_name }} + {{ pairing.observer_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label for="nav_id">NAV:</label>
+                <select id="nav_id" name="nav_id" required>
+                    <option value="">Select NAV</option>
+                    {% for nav in navs %}
+                    <option value="{{ nav.id }}">
+                        {{ nav.airport_code }} - {{ nav.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label for="semester">Semester:</label>
+                <input type="text" id="semester" name="semester" value="Spring 2026">
+            </div>
+            
+            <div>
+                <button type="submit" style="background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+                    Assign NAV
+                </button>
+            </div>
+        </div>
+        
+        <div style="margin-top: 1rem;">
+            <label for="notes">Notes (optional):</label>
+            <textarea id="notes" name="notes" rows="2" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;"></textarea>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+<div class="filter-bar">
+    <label>Filter:</label>
+    <select id="statusFilter" onchange="filterAssignments()">
+        <option value="all" {% if filter_status == 'all' %}selected{% endif %}>All Assignments</option>
+        <option value="active" {% if filter_status == 'active' %}selected{% endif %}>Active Only</option>
+        <option value="completed" {% if filter_status == 'completed' %}selected{% endif %}>Completed Only</option>
+    </select>
+    
+    <select id="semesterFilter" onchange="filterAssignments()">
+        <option value="">All Semesters</option>
+        {% for semester in semesters %}
+        <option value="{{ semester }}" {% if filter_semester == semester %}selected{% endif %}>{{ semester }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+{% if assignments %}
+<table>
+    <thead>
+        <tr>
+            <th>Pairing</th>
+            <th>NAV</th>
+            <th>Assigned</th>
+            <th>Semester</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for assignment in assignments %}
+        <tr>
+            <td>{{ assignment.pilot_name }} + {{ assignment.observer_name }}</td>
+            <td>{{ assignment.airport_code }} - {{ assignment.nav_name }}</td>
+            <td>{{ assignment.assigned_at[:16] }}</td>
+            <td>{{ assignment.semester }}</td>
+            <td>
+                {% if assignment.completed_at %}
+                    <span class="badge badge-completed">Completed</span>
+                    <br><small>{{ assignment.completed_at[:16] }}</small>
+                {% else %}
+                    <span class="badge badge-assigned">Active</span>
+                {% endif %}
+            </td>
+            <td>
+                <div class="action-buttons">
+                    {% if assignment.completed_at %}
+                        <button onclick="viewResults({{ assignment.id }})" style="background: #2196f3;">View Results</button>
+                    {% endif %}
+                    {% if is_admin and not assignment.completed_at %}
+                        <button onclick="deleteAssignment({{ assignment.id }})" style="background: #8B0015; color: white;">Remove</button>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="info">No assignments found.</div>
+{% endif %}
+
+<script>
+function filterAssignments() {
+    const status = document.getElementById('statusFilter').value;
+    const semester = document.getElementById('semesterFilter').value;
+    const params = new URLSearchParams();
+    if (status !== 'all') params.set('status', status);
+    if (semester) params.set('semester', semester);
+    window.location.href = '/coach/assignments?' + params.toString();
+}
+
+function deleteAssignment(assignmentId) {
+    if (confirm('Remove this assignment? The pairing can be assigned this NAV again later.')) {
+        fetch('/coach/assignments/' + assignmentId + '/delete', {method: 'POST'})
+        .then(() => location.reload())
+        .catch(err => {
+            console.error('Error:', err);
+            alert('Error removing assignment');
+        });
+    }
+}
+
+function viewResults(assignmentId) {
+    // TODO: Link to results page for this assignment
+    alert('Results view coming soon');
+}
+</script>
+
+{% endblock %}

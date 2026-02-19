@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}{{ assignment.nav_name }} - NAV Scoring{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>NAV Scoring - {{ assignment.nav_name }}</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/profile">Profile</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.assignment-header {
+    background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+.assignment-header h2 {
+    margin: 0;
+    font-size: 2rem;
+}
+.assignment-header .airport {
+    font-size: 1.2rem;
+    opacity: 0.9;
+    margin-top: 0.5rem;
+}
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+.action-card {
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.action-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    border-color: #8B0015;
+}
+.action-card .icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+.action-card h3 {
+    margin: 0 0 1rem 0;
+    color: #333;
+}
+.action-card p {
+    color: #666;
+    margin-bottom: 1.5rem;
+}
+.action-card .button {
+    display: inline-block;
+    background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
+    color: white;
+    padding: 0.75rem 2rem;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: transform 0.2s;
+}
+.action-card .button:hover {
+    transform: scale(1.05);
+}
+.action-card.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.action-card.disabled .button {
+    background: #ccc;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+.status-badge {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+.status-not-started { background: #ff9800; color: white; }
+.status-prenav-submitted { background: #2196f3; color: white; }
+.status-completed { background: #4caf50; color: white; }
+.info-box {
+    background: #f5f5f5;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #ddd;
+}
+.info-row:last-child {
+    border-bottom: none;
+}
+.info-label {
+    font-weight: 600;
+    color: #666;
+}
+.info-value {
+    color: #333;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="assignment-header">
+    <h2>{{ assignment.nav_name }}</h2>
+    <div class="airport">📍 {{ assignment.airport_code }}</div>
+    <div style="margin-top: 1rem;">
+        {% if has_prenav and has_postnav %}
+            <span class="status-badge status-completed">✓ Completed</span>
+        {% elif has_prenav %}
+            <span class="status-badge status-prenav-submitted">Pre-Flight Submitted</span>
+        {% else %}
+            <span class="status-badge status-not-started">Not Started</span>
+        {% endif %}
+    </div>
+</div>
+
+<div style="margin-bottom: 1.5rem;">
+    <a href="/team/assigned-navs" style="display: inline-block; background: #6c757d; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none;">← Back to Assignments</a>
+</div>
+
+<div class="info-box">
+    <div class="info-row">
+        <div class="info-label">Pairing:</div>
+        <div class="info-value">{{ pairing.pilot_name }} (Pilot) + {{ pairing.observer_name }} (Observer)</div>
+    </div>
+    <div class="info-row">
+        <div class="info-label">Assigned:</div>
+        <div class="info-value">{{ assignment.assigned_at[:16] }}</div>
+    </div>
+    <div class="info-row">
+        <div class="info-label">Semester:</div>
+        <div class="info-value">{{ assignment.semester }}</div>
+    </div>
+    {% if assignment.notes %}
+    <div class="info-row">
+        <div class="info-label">Coach Notes:</div>
+        <div class="info-value">{{ assignment.notes }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="action-grid">
+    <!-- NAV Packet -->
+    <div class="action-card">
+        <div class="icon">📄</div>
+        <h3>NAV Packet</h3>
+        <p>Download the full NAV route packet with checkpoints, coordinates, and navigation details.</p>
+        <a href="/coach/navs/{{ assignment.nav_id }}/pdf" class="button" target="_blank">Download PDF</a>
+    </div>
+
+    <!-- Submit Pre-Flight -->
+    <div class="action-card {% if has_prenav %}disabled{% endif %}">
+        <div class="icon">📝</div>
+        <h3>Submit Pre-Flight</h3>
+        {% if has_prenav %}
+            <p>Pre-flight planning already submitted.</p>
+            <span class="button">✓ Submitted</span>
+        {% else %}
+            <p>Enter your flight planning: leg times, total time, and fuel estimate.</p>
+            <a href="/prenav?assignment_id={{ assignment.id }}" class="button">Submit Pre-Flight</a>
+        {% endif %}
+    </div>
+
+    <!-- Submit Post-Flight -->
+    <div class="action-card {% if not has_prenav or has_postnav %}disabled{% endif %}">
+        <div class="icon">📊</div>
+        <h3>Submit Post-Flight</h3>
+        {% if not has_prenav %}
+            <p>Complete pre-flight planning first before submitting post-flight results.</p>
+            <span class="button">Pre-Flight Required</span>
+        {% elif has_postnav %}
+            <p>Flight results already submitted and scored.</p>
+            <a href="/results/{{ result_id }}" class="button">View Results</a>
+        {% else %}
+            <p>Upload your flight track (GPX) and enter actual fuel usage.</p>
+            <a href="/flight/select?assignment_id={{ assignment.id }}" class="button">Submit Post-Flight</a>
+        {% endif %}
+    </div>
+</div>
+
+{% if has_postnav %}
+<div style="margin-top: 3rem; text-align: center;">
+    <h3 style="color: #4caf50;">🎉 Assignment Complete!</h3>
+    <p>You've successfully completed this NAV. Great work!</p>
+    <a href="/team/assigned-navs" style="display: inline-block; background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%); color: white; padding: 0.75rem 2rem; border-radius: 5px; text-decoration: none; margin-top: 1rem;">
+        Back to Assignments
+    </a>
+</div>
+{% endif %}
+
+{% endblock %}

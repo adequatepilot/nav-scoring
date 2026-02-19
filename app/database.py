@@ -1341,3 +1341,193 @@ class Database:
             cursor = conn.cursor()
             cursor.execute(query, params)
             return cursor.fetchone()[0]
+
+    # ===== NAV ASSIGNMENT METHODS (Item 37) =====
+
+    def create_assignment(
+        self,
+        nav_id: int,
+        pairing_id: int,
+        assigned_by: int,
+        semester: str = None,
+        notes: str = None
+    ) -> Optional[int]:
+        """Create a new NAV assignment. Returns assignment ID or None if duplicate."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO nav_assignments (nav_id, pairing_id, assigned_by, semester, notes)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (nav_id, pairing_id, assigned_by, semester or "Spring 2026", notes))
+                return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # Duplicate assignment (same nav + pairing + semester)
+            logger.warning(f"Duplicate assignment: NAV {nav_id} already assigned to pairing {pairing_id} in semester {semester}")
+            return None
+        except Exception as e:
+            logger.error(f"Error creating assignment: {e}")
+            return None
+
+    def get_assignments_for_pairing(
+        self,
+        pairing_id: int,
+        completed: Optional[bool] = None,
+        semester: str = None
+    ) -> List[Dict]:
+        """Get all assignments for a pairing. Can filter by completed status and semester."""
+        query = """
+            SELECT 
+                a.id,
+                a.nav_id,
+                a.pairing_id,
+                a.assigned_at,
+                a.assigned_by,
+                a.completed_at,
+                a.semester,
+                a.notes,
+                n.name as nav_name,
+                n.airport_id,
+                ap.code as airport_code,
+                u.name as assigned_by_name
+            FROM nav_assignments a
+            JOIN navs n ON a.nav_id = n.id
+            JOIN airports ap ON n.airport_id = ap.id
+            LEFT JOIN users u ON a.assigned_by = u.id
+            WHERE a.pairing_id = ?
+        """
+        params = [pairing_id]
+
+        if completed is not None:
+            if completed:
+                query += " AND a.completed_at IS NOT NULL"
+            else:
+                query += " AND a.completed_at IS NULL"
+
+        if semester:
+            query += " AND a.semester = ?"
+            params.append(semester)
+
+        query += " ORDER BY a.assigned_at DESC"
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_all_assignments(
+        self,
+        completed: Optional[bool] = None,
+        semester: str = None
+    ) -> List[Dict]:
+        """Get all assignments (admin view). Can filter by completed status and semester."""
+        query = """
+            SELECT 
+                a.id,
+                a.nav_id,
+                a.pairing_id,
+                a.assigned_at,
+                a.assigned_by,
+                a.completed_at,
+                a.semester,
+                a.notes,
+                n.name as nav_name,
+                n.airport_id,
+                ap.code as airport_code,
+                p.id as pairing_id,
+                pilot.name as pilot_name,
+                observer.name as observer_name,
+                u.name as assigned_by_name
+            FROM nav_assignments a
+            JOIN navs n ON a.nav_id = n.id
+            JOIN airports ap ON n.airport_id = ap.id
+            JOIN pairings p ON a.pairing_id = p.id
+            JOIN users pilot ON p.pilot_id = pilot.id
+            JOIN users observer ON p.safety_observer_id = observer.id
+            LEFT JOIN users u ON a.assigned_by = u.id
+            WHERE 1=1
+        """
+        params = []
+
+        if completed is not None:
+            if completed:
+                query += " AND a.completed_at IS NOT NULL"
+            else:
+                query += " AND a.completed_at IS NULL"
+
+        if semester:
+            query += " AND a.semester = ?"
+            params.append(semester)
+
+        query += " ORDER BY a.assigned_at DESC"
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def mark_assignment_complete(self, assignment_id: int) -> bool:
+        """Mark an assignment as completed."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE nav_assignments
+                    SET completed_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (assignment_id,))
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error marking assignment complete: {e}")
+            return False
+
+    def get_assignment_by_prenav(self, prenav_id: int) -> Optional[Dict]:
+        """Get assignment associated with a pre-nav submission."""
+        query = """
+            SELECT 
+                a.id,
+                a.nav_id,
+                a.pairing_id,
+                a.assigned_at,
+                a.assigned_by,
+                a.completed_at,
+                a.semester,
+                a.notes
+            FROM nav_assignments a
+            JOIN prenav_submissions p ON p.nav_id = a.nav_id AND p.pairing_id = a.pairing_id
+            WHERE p.id = ? AND a.completed_at IS NULL
+            LIMIT 1
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (prenav_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def delete_assignment(self, assignment_id: int) -> bool:
+        """Delete an assignment (admin only)."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM nav_assignments WHERE id = ?", (assignment_id,))
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error deleting assignment: {e}")
+            return False
+
+    def check_duplicate_assignment(
+        self,
+        nav_id: int,
+        pairing_id: int,
+        semester: str = None
+    ) -> bool:
+        """Check if an assignment already exists (including completed ones)."""
+        query = """
+            SELECT COUNT(*) FROM nav_assignments
+            WHERE nav_id = ? AND pairing_id = ? AND semester = ?
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (nav_id, pairing_id, semester or "Spring 2026"))
+            count = cursor.fetchone()[0]
+            return count > 0

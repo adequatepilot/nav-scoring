@@ -268,6 +268,12 @@
         <h3>📝 Submit Pre-Flight Plan</h3>
         <p>Enter leg times and fuel estimate</p>
     </a>
+    {% if not is_coach and not is_admin %}
+    <a href="/team/assigned-navs" class="quick-link" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">
+        <h3>📌 Assigned NAVs</h3>
+        <p>View your assigned practice NAVs</p>
+    </a>
+    {% endif %}
     <a href="/flight/select" class="quick-link">
         <h3>✈️ Submit Post-Flight</h3>
         <p>Upload GPX and report actuals</p>
@@ -297,6 +303,10 @@
     <a href="/coach/pairings" class="quick-link">
         <h3>🔗 Pairings</h3>
         <p>{% if is_admin %}Manage pairings{% else %}View pairings (read-only){% endif %}</p>
+    </a>
+    <a href="/coach/assignments" class="quick-link">
+        <h3>📋 Assignments</h3>
+        <p>{% if is_admin %}Assign NAVs to pairings{% else %}View assignments (read-only){% endif %}</p>
     </a>
     <a href="/coach/navs" class="quick-link">
         <h3>🗺️ NAVs</h3>

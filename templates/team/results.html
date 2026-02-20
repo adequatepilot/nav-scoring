@@ -19,7 +19,7 @@
 {% block extra_css %}
 <style>
 .card {
-    max-width: 1000px;
+    max-width: 1200px;
 }
 .score-header {
     background: linear-gradient(135deg, #B0B0B0 0%, #4A4A4A 100%);
@@ -61,44 +61,79 @@
 .penalty-breakdown {
     overflow-x: auto;
     margin-bottom: 2rem;
+    -webkit-overflow-scrolling: touch;
 }
 .penalty-breakdown table {
     width: 100%;
     border-collapse: collapse;
     border: 1px solid #ddd;
+    font-size: 0.95rem;
 }
 .penalty-breakdown th,
 .penalty-breakdown td {
     padding: 10px;
     text-align: right;
     border: 1px solid #ddd;
+    white-space: nowrap;
 }
 .penalty-breakdown th {
     background: #333;
     color: white;
     font-weight: bold;
+    padding: 12px 10px;
 }
 .penalty-breakdown td:first-child,
 .penalty-breakdown th:first-child {
     text-align: left;
+    white-space: normal;
+    min-width: 140px;
 }
-.penalty-breakdown tr[style*="background: #f0f0f0"] {
-    background: #f0f0f0 !important;
+.penalty-breakdown thead tr:first-child th {
+    background: #f0f0f0;
+    color: #333;
     font-weight: bold;
+    text-align: left;
+    padding: 12px 10px;
 }
-.penalty-breakdown tr[style*="background: #e8e8e8"] {
-    background: #e8e8e8 !important;
-    font-weight: bold;
-}
-.penalty-breakdown tr[style*="background: #d0d0d0"] {
-    background: #d0d0d0 !important;
-    font-weight: bold;
-}
-.penalty-breakdown tr[style*="background: #8B0015"] {
-    background: #8B0015 !important;
+.penalty-breakdown tbody tr:nth-child(2) th:first-child {
+    background: #333;
     color: white;
-    font-weight: bold;
-    font-size: 1.1rem;
+}
+.penalty-breakdown tbody tr:nth-child(2) th {
+    background: #333;
+    color: white;
+    text-align: right;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .penalty-breakdown table {
+        font-size: 0.85rem;
+    }
+    .penalty-breakdown th,
+    .penalty-breakdown td {
+        padding: 8px 5px;
+    }
+    .penalty-breakdown td:first-child,
+    .penalty-breakdown th:first-child {
+        min-width: 100px;
+    }
+    .score-header h1 {
+        font-size: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .penalty-breakdown table {
+        font-size: 0.75rem;
+    }
+    .penalty-breakdown th,
+    .penalty-breakdown td {
+        padding: 6px 3px;
+    }
+    .card {
+        max-width: 100%;
+    }
 }
 </style>
 {% endblock %}
@@ -113,119 +148,101 @@
 <div class="penalty-breakdown">
     <table>
         <thead>
+            <tr style="background: #f0f0f0;">
+                <th colspan="8" style="text-align: left; padding: 12px 10px; font-weight: bold;">TIMING PENALTIES</th>
+            </tr>
             <tr>
-                <th>Item</th>
-                <th>Method</th>
-                <th>Estimate</th>
+                <th>Leg</th>
+                <th>Estimated</th>
                 <th>Actual</th>
                 <th>Deviation</th>
-                <th>Points</th>
+                <th>Time Points</th>
+                <th>Method</th>
+                <th>Off Course (NM)</th>
+                <th>Off Course Pts</th>
+                <th>Total Points</th>
             </tr>
         </thead>
         <tbody>
-            <!-- TIMING PENALTIES -->
-            <tr style="background: #f0f0f0; font-weight: bold;">
-                <td colspan="6">TIMING PENALTIES</td>
-            </tr>
+            <!-- LEG ROWS -->
             {% for cp in result.checkpoint_results %}
             <tr>
-                <td>Leg {{ loop.index }}: {{ cp.name }}</td>
-                <td>
-                    {% if cp.within_0_25_nm %}
-                        <span style="color: green;">{{ cp.method }}</span>
-                    {% else %}
-                        <span style="color: orange;">{{ cp.method }}</span>
-                    {% endif %}
-                </td>
+                <td><strong>Leg {{ loop.index }}: {{ cp.name }}</strong></td>
                 <td>{{ cp.estimated_time|format_time }}</td>
                 <td>{{ cp.actual_time|format_time }}</td>
                 <td>{{ cp.deviation|format_signed }}s</td>
                 <td>{{ cp.leg_score|round(0) }} pts</td>
+                <td>{{ cp.method }}</td>
+                <td>
+                    {% if cp.within_0_25_nm %}
+                        <span style="color: green;">{{ cp.distance_nm|round(3) }} ✓</span>
+                    {% else %}
+                        <span style="color: orange;">{{ cp.distance_nm|round(3) }} ({{ (cp.distance_nm - result.checkpoint_radius|default(0.25))|round(3) }} over)</span>
+                    {% endif %}
+                </td>
+                <td>{{ cp.off_course_penalty|round(0) }} pts</td>
+                <td><strong>{{ (cp.leg_score + cp.off_course_penalty)|round(0) }} pts</strong></td>
             </tr>
             {% endfor %}
-            <tr style="background: #e8e8e8; font-weight: bold;">
-                <td colspan="5">Subtotal: Leg Penalties</td>
-                <td>{{ result.leg_penalties|round(0) }} pts</td>
-            </tr>
-            <tr>
-                <td style="font-weight: bold;">Total Time</td>
-                <td>-</td>
+            
+            <!-- TOTAL TIME ROW -->
+            <tr style="background: #e8e8e8; font-weight: bold; border-top: 2px solid #333;">
+                <td>Total Time</td>
                 <td>{{ result.estimated_total_time|format_time }}</td>
                 <td>{{ result.actual_total_time|format_time }}</td>
                 <td>{{ result.total_time_deviation|format_signed }}s</td>
                 <td>{{ result.total_time_penalty|round(0) }} pts</td>
+                <td style="text-align: center;">—</td>
+                <td colspan="2" style="text-align: center;">—</td>
+                <td>{{ result.total_time_penalty|round(0) }} pts</td>
             </tr>
+            
+            <!-- TIMING SUBTOTAL -->
             <tr style="background: #d0d0d0; font-weight: bold;">
-                <td colspan="5">TIMING SUBTOTAL</td>
+                <td colspan="8">TIMING SUBTOTAL</td>
                 <td>{{ result.total_time_score|round(0) }} pts</td>
             </tr>
             
-            <!-- OFF-COURSE PENALTIES -->
-            <tr style="background: #f0f0f0; font-weight: bold;">
-                <td colspan="6">OFF-COURSE PENALTIES (Required: Within {{ result.checkpoint_radius|default('0.25') }} NM)</td>
+            <!-- ADDITIONAL PENALTIES SECTION -->
+            <tr style="background: #f0f0f0; height: 8px;">
+                <td colspan="9"></td>
             </tr>
-            {% for cp in result.checkpoint_results %}
-            <tr>
-                <td>{{ cp.name }}</td>
-                <td>-</td>
-                <td>-</td>
-                <td>{{ cp.distance_nm|round(3) }} NM</td>
-                <td>
-                    {% if cp.within_0_25_nm %}
-                        <span style="color: green;">✓ Inside</span>
-                    {% else %}
-                        <span style="color: orange;">{{ (cp.distance_nm - result.checkpoint_radius|default(0.25))|round(3) }} NM over</span>
-                    {% endif %}
-                </td>
-                <td>{{ cp.off_course_penalty|round(0) }} pts</td>
-            </tr>
-            {% endfor %}
-            <tr style="background: #d0d0d0; font-weight: bold;">
-                <td colspan="5">Subtotal: Off-Course</td>
-                <td>{{ result.total_off_course|round(0) }} pts</td>
+            <tr style="background: #f0f0f0;">
+                <th colspan="9" style="text-align: left; padding: 12px 10px; font-weight: bold;">ADDITIONAL PENALTIES</th>
             </tr>
             
-            <!-- FUEL PENALTY -->
-            <tr style="background: #f0f0f0; font-weight: bold;">
-                <td colspan="6">FUEL PENALTY</td>
-            </tr>
+            <!-- FUEL ROW -->
             <tr>
-                <td>Fuel Burn</td>
-                <td>-</td>
+                <td><strong>Fuel Burn</strong></td>
+                <td style="text-align: center;">—</td>
                 <td>{{ result.estimated_fuel_burn|round(1) }} gal</td>
                 <td>{{ result.actual_fuel_burn|round(1) }} gal</td>
-                <td>{{ (result.actual_fuel_burn - result.estimated_fuel_burn)|round(1) }} gal ({{ result.fuel_error_pct|round(1) }}%)</td>
+                <td>{{ result.fuel_error_pct|round(1) }}%</td>
+                <td colspan="3" style="text-align: center;">—</td>
                 <td>{{ result.fuel_penalty|round(0) }} pts</td>
             </tr>
             
-            <!-- SECRETS PENALTIES -->
-            <tr style="background: #f0f0f0; font-weight: bold;">
-                <td colspan="6">SECRETS PENALTIES</td>
-            </tr>
+            <!-- CHECKPOINT SECRETS ROW -->
             <tr>
-                <td>Checkpoint secrets missed</td>
-                <td>-</td>
-                <td>-</td>
-                <td>{{ result.secrets_missed_checkpoint }}</td>
-                <td>-</td>
+                <td><strong>Checkpoint Secrets Missed</strong></td>
+                <td style="text-align: center;">—</td>
+                <td colspan="2" style="text-align: center;">{{ result.secrets_missed_checkpoint }}</td>
+                <td colspan="4" style="text-align: center;">—</td>
                 <td>{{ result.checkpoint_secrets_penalty|round(0) }} pts</td>
             </tr>
+            
+            <!-- ENROUTE SECRETS ROW -->
             <tr>
-                <td>Enroute secrets missed</td>
-                <td>-</td>
-                <td>-</td>
-                <td>{{ result.secrets_missed_enroute }}</td>
-                <td>-</td>
+                <td><strong>Enroute Secrets Missed</strong></td>
+                <td style="text-align: center;">—</td>
+                <td colspan="2" style="text-align: center;">{{ result.secrets_missed_enroute }}</td>
+                <td colspan="4" style="text-align: center;">—</td>
                 <td>{{ result.enroute_secrets_penalty|round(0) }} pts</td>
             </tr>
-            <tr style="background: #d0d0d0; font-weight: bold;">
-                <td colspan="5">Subtotal: Secrets</td>
-                <td>{{ (result.checkpoint_secrets_penalty + result.enroute_secrets_penalty)|round(0) }} pts</td>
-            </tr>
             
-            <!-- OVERALL -->
-            <tr style="background: #8B0015; color: white; font-weight: bold; font-size: 1.1rem;">
-                <td colspan="5">OVERALL SCORE</td>
+            <!-- OVERALL SCORE -->
+            <tr style="background: #8B0015; color: white; font-weight: bold; font-size: 1.1rem; border-top: 2px solid #8B0015;">
+                <td colspan="8">OVERALL SCORE</td>
                 <td>{{ result.overall_score|round(0) }} pts</td>
             </tr>
         </tbody>

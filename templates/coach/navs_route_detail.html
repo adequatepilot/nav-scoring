@@ -44,44 +44,33 @@
     background: white;
     border: 2px solid #ddd;
     border-radius: 8px;
-    padding: 1rem;
+    padding: 1.25rem;
     margin-bottom: 1rem;
     display: grid;
-    grid-template-columns: 40px 50px 1fr 150px 150px auto;
-    gap: 1rem;
+    grid-template-columns: 60px 1fr 180px 180px auto;
+    gap: 1.25rem;
     align-items: center;
     transition: all 0.2s;
-}
-.checkpoint-item.dragging {
-    opacity: 0.5;
-    border-color: #8B0015;
 }
 .checkpoint-item:hover {
     border-color: #8B0015;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
-.checkpoint-item.locked {
-    background: #f9f9f9;
-}
 .drag-handle {
-    cursor: move;
-    font-size: 1.5rem;
-    color: #666;
-    text-align: center;
-}
-.drag-handle:hover {
-    color: #8B0015;
+    display: none;
 }
 .sequence-num {
     font-weight: bold;
     color: #8B0015;
-    font-size: 1.2rem;
+    font-size: 1.4rem;
+    text-align: center;
 }
 .checkpoint-item input {
     width: 100%;
-    padding: 0.5rem;
+    padding: 0.75rem;
     border: 1px solid #ddd;
     border-radius: 4px;
+    font-size: 1rem;
 }
 .checkpoint-item input:disabled {
     background: transparent;
@@ -98,43 +87,64 @@
 }
 .action-buttons {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 .btn-edit {
     background: #2196f3;
     color: white;
     border: none;
-    padding: 0.5rem 1rem;
+    padding: 0.6rem 1rem;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.85rem;
+    font-weight: 500;
 }
 .btn-save {
     background: #4caf50;
     color: white;
     border: none;
-    padding: 0.5rem 1rem;
+    padding: 0.6rem 1rem;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.85rem;
+    font-weight: 500;
 }
 .btn-cancel {
     background: #ff9800;
     color: white;
     border: none;
-    padding: 0.5rem 1rem;
+    padding: 0.6rem 1rem;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.85rem;
+    font-weight: 500;
 }
 .btn-delete {
     background: #8B0015;
     color: white;
     border: none;
-    padding: 0.5rem 1rem;
+    padding: 0.6rem 1rem;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.85rem;
+    font-weight: 500;
+}
+.btn-move {
+    background: #666;
+    color: white;
+    border: none;
+    padding: 0.6rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    min-width: 36px;
+}
+.btn-move:disabled {
+    background: #ccc;
+    cursor: not-allowed;
 }
 .add-checkpoint-btn {
     background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%);
@@ -175,8 +185,8 @@
 {% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 1.5rem;">
-    <a href="/coach/navs/airport/{{ airport_id }}" style="display: inline-block; background: #6c757d; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none;">← Back to {{ airport_code }}</a>
+<div style="margin-bottom: 2rem;">
+    <a href="/coach/navs/airport/{{ airport_id }}" style="display: inline-block; background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%); color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; font-weight: 500; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">← Back to {{ airport_code }}</a>
 </div>
 
 <div class="header-section">
@@ -190,6 +200,51 @@
         <div class="stat-label">Checkpoints</div>
     </div>
 </div>
+
+<!-- PDF Packet Section -->
+{% if is_admin %}
+<div style="background: #f9f9f9; padding: 1.5rem; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 2rem;">
+    <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem; color: #333;">📄 NAV Packet PDF</h3>
+    {% if nav.get('pdf_path') %}
+    <div style="background: white; padding: 1rem; border-radius: 6px; border: 1px solid #ddd; margin-bottom: 1rem;">
+        <p style="margin: 0 0 0.75rem 0; color: #666; font-size: 0.9rem;">
+            <strong>Current PDF:</strong> <span id="current-pdf-name">{{ nav['pdf_path'].split('/')[-1] }}</span>
+        </p>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="/nav-packets/{{ nav['pdf_path'].split('/')[-1] }}" target="_blank" style="background: #2196f3; color: white; padding: 0.6rem 1rem; text-decoration: none; border-radius: 4px; font-size: 0.85rem;">
+                ⬇️ Download Current PDF
+            </a>
+            <button onclick="document.getElementById('pdf-upload-form').style.display = 'block'" style="background: #8B0015; color: white; border: none; padding: 0.6rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                🔄 Replace PDF
+            </button>
+            <button onclick="deletePdf({{ nav.id }})" style="background: #999; color: white; border: none; padding: 0.6rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                🗑️ Remove PDF
+            </button>
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #666; margin: 0 0 1rem 0; font-size: 0.95rem;">No PDF uploaded yet. Upload one to provide students with the NAV packet.</p>
+    {% endif %}
+    
+    <div id="pdf-upload-form" style="{% if nav.get('pdf_path') %}display: none;{% endif %} background: white; padding: 1rem; border-radius: 6px; border: 1px solid #ddd;">
+        <form onsubmit="uploadPdf(event, {{ nav.id }})">
+            <div style="margin-bottom: 1rem;">
+                <label for="pdf-file" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Select PDF File:</label>
+                <input type="file" id="pdf-file" accept=".pdf" required style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <small style="color: #999; display: block; margin-top: 0.5rem;">Max 50MB. PDF format only.</small>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="submit" style="background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    Upload PDF
+                </button>
+                <button type="button" onclick="cancelPdfUpload()" style="background: #ccc; color: #333; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer;">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 {% if is_admin %}
 <button class="add-checkpoint-btn" onclick="addCheckpoint()">➕ Add Checkpoint</button>
@@ -205,6 +260,8 @@
         <input type="number" step="0.0000001" class="checkpoint-lon" value="{{ checkpoint.lon }}" disabled>
         <div class="action-buttons">
             {% if is_admin %}
+            <button class="btn-move" id="moveup-{{ checkpoint.id }}" onclick="moveCheckpointUp(this)" title="Move up">↑</button>
+            <button class="btn-move" id="movedown-{{ checkpoint.id }}" onclick="moveCheckpointDown(this)" title="Move down">↓</button>
             <button class="btn-edit" onclick="editCheckpoint(this)">Edit</button>
             <button class="btn-save" onclick="saveCheckpoint(this)" style="display: none;">Save</button>
             <button class="btn-cancel" onclick="cancelEdit(this)" style="display: none;">Cancel</button>
@@ -222,8 +279,6 @@
 {% endif %}
 
 <script>
-let draggedElement = null;
-
 function addCheckpoint() {
     const list = document.getElementById('checkpointList');
     const count = list.children.length + 1;
@@ -232,9 +287,7 @@ function addCheckpoint() {
     item.className = 'checkpoint-item';
     item.dataset.id = 'new';
     item.dataset.sequence = count;
-    item.draggable = true;
     item.innerHTML = `
-        <div class="drag-handle">⋮⋮</div>
         <div class="sequence-num">${count}</div>
         <input type="text" class="checkpoint-name" placeholder="Checkpoint name">
         <input type="number" step="0.0000001" class="checkpoint-lat" placeholder="Latitude">
@@ -248,13 +301,10 @@ function addCheckpoint() {
     list.appendChild(item);
     item.querySelector('.checkpoint-name').focus();
     updateCheckpointCount();
-    setupDragAndDrop(item);
 }
 
 function editCheckpoint(btn) {
     const item = btn.closest('.checkpoint-item');
-    item.classList.remove('locked');
-    item.draggable = true;
     
     item.querySelectorAll('input').forEach(input => input.disabled = false);
     
@@ -264,10 +314,6 @@ function editCheckpoint(btn) {
 }
 
 function cancelEdit(btn) {
-    const item = btn.closest('.checkpoint-item');
-    item.classList.add('locked');
-    item.draggable = false;
-    
     // Reload original values
     location.reload();
 }
@@ -362,87 +408,140 @@ function renumberCheckpoints() {
 function updateCheckpointCount() {
     const count = document.querySelectorAll('.checkpoint-item').length;
     document.getElementById('checkpointCount').textContent = count;
+    updateMoveButtons();
 }
 
-// Drag and drop functionality
-function setupDragAndDrop(item) {
-    item.addEventListener('dragstart', function(e) {
-        draggedElement = this;
-        this.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-    });
-    
-    item.addEventListener('dragend', function() {
-        this.classList.remove('dragging');
-    });
-    
-    item.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        const afterElement = getDragAfterElement(this.parentElement, e.clientY);
-        if (afterElement == null) {
-            this.parentElement.appendChild(draggedElement);
-        } else {
-            this.parentElement.insertBefore(draggedElement, afterElement);
+function updateMoveButtons() {
+    const items = document.querySelectorAll('.checkpoint-item');
+    items.forEach((item, index) => {
+        const id = item.dataset.id;
+        const moveUpBtn = document.getElementById(`moveup-${id}`);
+        const moveDownBtn = document.getElementById(`movedown-${id}`);
+        
+        if (moveUpBtn) {
+            moveUpBtn.disabled = index === 0;
+        }
+        if (moveDownBtn) {
+            moveDownBtn.disabled = index === items.length - 1;
         }
     });
 }
 
-function getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('.checkpoint-item:not(.dragging)')];
-    
-    return draggableElements.reduce((closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-        
-        if (offset < 0 && offset > closest.offset) {
-            return { offset: offset, element: child };
-        } else {
-            return closest;
-        }
-    }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
-
-// Initialize drag and drop for existing items
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.checkpoint-item').forEach(item => {
-        setupDragAndDrop(item);
-        
-        // Enable dragging when in edit mode
-        item.addEventListener('dragstart', function(e) {
-            if (this.classList.contains('locked')) {
-                e.preventDefault();
-                return false;
-            }
-        });
-    });
-    
-    // Save reordered sequences
-    document.getElementById('checkpointList').addEventListener('drop', async function() {
+function moveCheckpointUp(btn) {
+    const item = btn.closest('.checkpoint-item');
+    const prevItem = item.previousElementSibling;
+    if (prevItem) {
+        item.parentElement.insertBefore(item, prevItem);
         renumberCheckpoints();
-        
-        // Save new sequences to server
-        const items = document.querySelectorAll('.checkpoint-item');
-        const updates = [];
-        items.forEach(item => {
-            if (item.dataset.id !== 'new') {
-                updates.push({
-                    id: parseInt(item.dataset.id),
-                    sequence: parseInt(item.dataset.sequence)
-                });
-            }
-        });
-        
-        try {
-            await fetch('/coach/navs/checkpoints/reorder', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ nav_id: {{ nav.id }}, checkpoints: updates })
+        saveCheckpointOrder();
+    }
+}
+
+function moveCheckpointDown(btn) {
+    const item = btn.closest('.checkpoint-item');
+    const nextItem = item.nextElementSibling;
+    if (nextItem && nextItem.nextElementSibling) {
+        item.parentElement.insertBefore(nextItem, item);
+    } else if (nextItem) {
+        item.parentElement.appendChild(nextItem);
+    }
+    renumberCheckpoints();
+    saveCheckpointOrder();
+}
+
+async function saveCheckpointOrder() {
+    const items = document.querySelectorAll('.checkpoint-item');
+    const updates = [];
+    items.forEach(item => {
+        if (item.dataset.id !== 'new') {
+            updates.push({
+                id: parseInt(item.dataset.id),
+                sequence: parseInt(item.dataset.sequence)
             });
-        } catch (error) {
-            console.error('Error saving sequence:', error);
         }
     });
+    
+    try {
+        await fetch('/coach/navs/checkpoints/reorder', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ nav_id: {{ nav.id }}, checkpoints: updates })
+        });
+    } catch (error) {
+        console.error('Error saving sequence:', error);
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    updateMoveButtons();
 });
+
+// PDF Upload functions
+async function uploadPdf(event, navId) {
+    event.preventDefault();
+    const fileInput = document.getElementById('pdf-file');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert('Please select a file');
+        return;
+    }
+    
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+        alert('Only PDF files are allowed');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('pdf_file', file);
+    
+    try {
+        const response = await fetch(`/coach/navs/${navId}/upload-pdf`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            alert('PDF uploaded successfully!');
+            location.reload();
+        } else {
+            alert('Error uploading PDF: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error uploading PDF');
+    }
+}
+
+function cancelPdfUpload() {
+    document.getElementById('pdf-upload-form').style.display = 'none';
+    document.getElementById('pdf-file').value = '';
+}
+
+async function deletePdf(navId) {
+    if (!confirm('Delete the NAV packet PDF? Members will no longer be able to download it.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/coach/navs/${navId}/delete-pdf`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            alert('PDF deleted successfully!');
+            location.reload();
+        } else {
+            alert('Error deleting PDF: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error deleting PDF');
+    }
+}
 </script>
 
 {% endblock %}

@@ -182,10 +182,10 @@
                 <th colspan="8" style="text-align: left; padding: 12px 10px; font-weight: bold;">TIMING PENALTIES</th>
             </tr>
             <tr>
-                <th>Leg</th>
                 <th>Estimated</th>
                 <th>Actual</th>
                 <th>Deviation</th>
+                <th>Leg</th>
                 <th>Time Points</th>
                 <th>Method</th>
                 <th>Off Course (NM)</th>
@@ -197,10 +197,10 @@
             <!-- LEG ROWS -->
             {% for cp in result.checkpoint_results %}
             <tr>
-                <td><strong>Leg {{ loop.index }}: {{ cp.name }}</strong></td>
                 <td>{{ cp.estimated_time|format_time }}</td>
                 <td>{{ cp.actual_time|format_time }}</td>
                 <td>{{ cp.deviation|format_signed }}s</td>
+                <td><strong>Leg {{ loop.index }}: {{ cp.name }}</strong></td>
                 <td>{{ cp.leg_score|round(0) }} pts</td>
                 <td>{{ cp.method }}</td>
                 <td>
@@ -217,10 +217,10 @@
             
             <!-- TOTAL TIME ROW -->
             <tr style="background: #e8e8e8; font-weight: bold; border-top: 2px solid #333;">
-                <td>Total Time</td>
                 <td>{{ result.estimated_total_time|format_time }}</td>
                 <td>{{ result.actual_total_time|format_time }}</td>
                 <td>{{ result.total_time_deviation|format_signed }}s</td>
+                <td>Total Time</td>
                 <td>{{ result.total_time_penalty|round(0) }} pts</td>
                 <td style="text-align: center;">—</td>
                 <td colspan="2" style="text-align: center;">—</td>

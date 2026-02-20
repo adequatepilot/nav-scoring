@@ -1714,7 +1714,13 @@ async def submit_flight(
                 for i, checkpoint in enumerate(checkpoints):
                     map_filename = f"checkpoint_map_{i+1}_{pairing['id']}_{prenav['nav_id']}_{timestamp}.png"
                     map_path = pdf_storage / map_filename
-                    generate_checkpoint_detail_map(track_points, checkpoint, i+1, map_path)
+                    # Determine previous checkpoint or start gate
+                    prev_checkpoint = checkpoints[i-1] if i > 0 else None
+                    generate_checkpoint_detail_map(
+                        track_points, checkpoint, i+1, map_path,
+                        start_gate=start_gate,
+                        previous_checkpoint=prev_checkpoint
+                    )
                     checkpoint_maps_paths.append(map_path)
                 
                 # Generate PDF
@@ -1752,13 +1758,18 @@ async def submit_flight(
                     "flight_started_at": prenav.get("submitted_at", datetime.utcnow().isoformat())
                 }
                 
-                # Call enhanced PDF generator
-                generate_enhanced_pdf_report(
-                    result_data_for_pdf, nav, pairing_display,
-                    start_gate, checkpoints, track_points,
-                    full_route_map_path, checkpoint_maps_paths,
-                    pdf_path
-                )
+                # Call enhanced PDF generator (wrapped to prevent crashes)
+                try:
+                    generate_enhanced_pdf_report(
+                        result_data_for_pdf, nav, pairing_display,
+                        start_gate, checkpoints, track_points,
+                        full_route_map_path, checkpoint_maps_paths,
+                        pdf_path
+                    )
+                except Exception as pdf_err:
+                    logger.error(f"PDF generation failed for prenav_id={prenav_id}: {pdf_err}", exc_info=True)
+                    # Continue anyway - PDF is optional, scoring results are what matters
+                    pdf_filename = None  # Mark as no PDF available
                 
                 # Save result to database
                 result_id = db.create_flight_result(
@@ -2010,7 +2021,7 @@ async def view_result(request: Request, result_id: int, user: dict = Depends(req
             "id": result["id"],
             "overall_score": result["overall_score"],
             "checkpoint_results": result["checkpoint_results"],
-            "total_time_score": result.get("total_time_score") or sum(cp["leg_score"] for cp in result["checkpoint_results"]),
+            "total_time_score": result.get("leg_penalties", 0) + result.get("total_time_penalty", 0),
             "total_deviation": sum(abs(cp["deviation"]) for cp in result["checkpoint_results"]),
             "fuel_penalty": 0,  # Calculate from prenav and actual
             "checkpoint_secrets_penalty": result["secrets_missed_checkpoint"] * config["scoring"]["secrets"]["checkpoint_penalty"],
@@ -2264,7 +2275,7 @@ async def coach_results(
                 prenav["fuel_estimate"], result["actual_fuel"]
             )
             result["fuel_penalty"] = fuel_penalty
-            result["total_time_score"] = sum(cp["leg_score"] for cp in result["checkpoint_results"])
+            result["total_time_score"] = result.get("leg_penalties", 0) + result.get("total_time_penalty", 0)
     
     # Get all pairings and NAVs for filter dropdowns
     pairings = db.list_pairings(active_only=False)
@@ -2322,7 +2333,7 @@ async def coach_view_result(request: Request, result_id: int, user: dict = Depen
             "id": result["id"],
             "overall_score": result["overall_score"],
             "checkpoint_results": result["checkpoint_results"],
-            "total_time_score": result.get("total_time_score") or sum(cp["leg_score"] for cp in result["checkpoint_results"]),
+            "total_time_score": result.get("leg_penalties", 0) + result.get("total_time_penalty", 0),
             "total_deviation": sum(abs(cp["deviation"]) for cp in result["checkpoint_results"]),
             "fuel_penalty": scoring_engine.calculate_fuel_penalty(prenav["fuel_estimate"], result["actual_fuel"]),
             "checkpoint_secrets_penalty": result["secrets_missed_checkpoint"] * config["scoring"]["secrets"]["checkpoint_penalty"],

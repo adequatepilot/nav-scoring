@@ -99,6 +99,68 @@
         grid-template-columns: 1fr;
     }
 }
+.pairings-table-container {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+}
+.pairings-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.pairings-table thead {
+    background: #f5f5f5;
+    border-bottom: 2px solid #8B0015;
+}
+.pairings-table thead th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+}
+.pairings-table tbody tr {
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+.pairings-table tbody tr:hover {
+    background-color: #f9f9f9;
+}
+.pairings-table tbody tr:last-child {
+    border-bottom: none;
+}
+.pairings-table tbody td {
+    padding: 0.75rem 1rem;
+}
+.pairing-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #8B0015;
+}
+.pairing-label {
+    color: #333;
+}
+.select-all-btn {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #333;
+    transition: all 0.2s;
+}
+.select-all-btn:hover {
+    background: #e8e8e8;
+    border-color: #8B0015;
+}
+.select-all-btn.all-selected {
+    background: #8B0015;
+    color: white;
+    border-color: #8B0015;
+}
 </style>
 {% endblock %}
 
@@ -135,20 +197,47 @@
 {% if is_admin %}
 <div class="assignment-form">
     <h3>Assign NAV to Pairing</h3>
-    <form method="POST" action="/coach/assignments/create">
-        <div class="form-row">
-            <div>
-                <label for="pairing_id">Pairing:</label>
-                <select id="pairing_id" name="pairing_id" required>
-                    <option value="">Select Pairing</option>
-                    {% for pairing in pairings %}
-                    <option value="{{ pairing.id }}">
-                        {{ pairing.pilot_name }} + {{ pairing.observer_name }}
-                    </option>
-                    {% endfor %}
-                </select>
+    <form method="POST" action="/coach/assignments/create" id="assignmentForm">
+        <div style="margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <label style="font-weight: 600; font-size: 1rem;">Select Pairing(s):</label>
+                <button type="button" class="select-all-btn" onclick="toggleSelectAll()">
+                    ☐ Select All
+                </button>
             </div>
             
+            <div class="pairings-table-container">
+                <table class="pairings-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px; text-align: center;">Select</th>
+                            <th>Pairing</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pairingsList">
+                        {% for pairing in pairings %}
+                        <tr class="pairing-row">
+                            <td style="text-align: center;">
+                                <input type="checkbox" class="pairing-checkbox" name="pairing_ids" value="{{ pairing.id }}" data-pairing-id="{{ pairing.id }}">
+                            </td>
+                            <td>
+                                <label class="pairing-label" for="pairing-{{ pairing.id }}" style="cursor: pointer; font-weight: 500;">
+                                    {{ pairing.pilot_name }} + {{ pairing.observer_name }}
+                                </label>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if not pairings %}
+            <div class="info" style="padding: 1rem; background: #f5f5f5; border-radius: 5px; color: #666;">
+                No pairings available. Create pairings first before assigning NAVs.
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="form-row" style="grid-template-columns: 1fr 1fr auto; align-items: end;">
             <div>
                 <label for="nav_id">NAV:</label>
                 <select id="nav_id" name="nav_id" required>
@@ -167,7 +256,7 @@
             </div>
             
             <div>
-                <button type="submit" style="background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+                <button type="submit" style="background: linear-gradient(135deg, #8B0015 0%, #5D000F 100%); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
                     Assign NAV
                 </button>
             </div>
@@ -267,6 +356,86 @@ function viewResults(assignmentId) {
     // TODO: Link to results page for this assignment
     alert('Results view coming soon');
 }
+
+// Pairing checkbox management
+function toggleSelectAll() {
+    const checkboxes = document.querySelectorAll('.pairing-checkbox');
+    const button = document.querySelector('.select-all-btn');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(cb => {
+        cb.checked = !allChecked;
+    });
+    
+    updateSelectAllButton();
+}
+
+function updateSelectAllButton() {
+    const checkboxes = document.querySelectorAll('.pairing-checkbox');
+    const button = document.querySelector('.select-all-btn');
+    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+    const totalCount = checkboxes.length;
+    
+    if (checkedCount === 0) {
+        button.textContent = '☐ Select All';
+        button.classList.remove('all-selected');
+    } else if (checkedCount === totalCount) {
+        button.textContent = '☑ All Selected';
+        button.classList.add('all-selected');
+    } else {
+        button.textContent = `☑ ${checkedCount}/${totalCount} Selected`;
+        button.classList.remove('all-selected');
+    }
+}
+
+function validateFormSubmission(event) {
+    const checkedPairings = document.querySelectorAll('.pairing-checkbox:checked');
+    const navId = document.getElementById('nav_id').value;
+    
+    if (checkedPairings.length === 0) {
+        event.preventDefault();
+        alert('Please select at least one pairing');
+        return false;
+    }
+    
+    if (!navId) {
+        event.preventDefault();
+        alert('Please select a NAV');
+        return false;
+    }
+    
+    return true;
+}
+
+// Initialize event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Add change listeners to all checkboxes
+    const checkboxes = document.querySelectorAll('.pairing-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectAllButton);
+        
+        // Make rows clickable for better UX
+        const row = checkbox.closest('tr');
+        const label = row.querySelector('.pairing-label');
+        if (label) {
+            label.addEventListener('click', function(e) {
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    updateSelectAllButton();
+                }
+            });
+        }
+    });
+    
+    // Add form submission validation
+    const form = document.getElementById('assignmentForm');
+    if (form) {
+        form.addEventListener('submit', validateFormSubmission);
+    }
+    
+    // Initialize button state
+    updateSelectAllButton();
+});
 </script>
 
 {% endblock %}

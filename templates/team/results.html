@@ -179,17 +179,17 @@
     <table>
         <thead>
             <tr style="background: #f0f0f0;">
-                <th colspan="8" style="text-align: left; padding: 12px 10px; font-weight: bold;">TIMING PENALTIES</th>
+                <th colspan="9" style="text-align: left; padding: 12px 10px; font-weight: bold;">TIMING PENALTIES</th>
             </tr>
             <tr>
+                <th>Leg Name</th>
                 <th>Estimated</th>
                 <th>Actual</th>
                 <th>Deviation</th>
-                <th>Leg</th>
                 <th>Time Points</th>
                 <th>Method</th>
-                <th>Off Course (NM)</th>
-                <th>Off Course Pts</th>
+                <th>Distance (NM)</th>
+                <th>Off Course Penalty</th>
                 <th>Total Points</th>
             </tr>
         </thead>
@@ -197,10 +197,10 @@
             <!-- LEG ROWS -->
             {% for cp in result.checkpoint_results %}
             <tr>
+                <td><strong>Leg {{ loop.index }}: {{ cp.name }}</strong></td>
                 <td>{{ cp.estimated_time|format_time }}</td>
                 <td>{{ cp.actual_time|format_time }}</td>
                 <td>{{ cp.deviation|format_signed }}s</td>
-                <td><strong>Leg {{ loop.index }}: {{ cp.name }}</strong></td>
                 <td>{{ cp.leg_score|round(0) }} pts</td>
                 <td>{{ cp.method }}</td>
                 <td>
@@ -217,10 +217,10 @@
             
             <!-- TOTAL TIME ROW -->
             <tr style="background: #e8e8e8; font-weight: bold; border-top: 2px solid #333;">
+                <td>Total Time</td>
                 <td>{{ result.estimated_total_time|format_time }}</td>
                 <td>{{ result.actual_total_time|format_time }}</td>
                 <td>{{ result.total_time_deviation|format_signed }}s</td>
-                <td>Total Time</td>
                 <td>{{ result.total_time_penalty|round(0) }} pts</td>
                 <td style="text-align: center;">—</td>
                 <td colspan="2" style="text-align: center;">—</td>
@@ -229,7 +229,7 @@
             
             <!-- TIMING SUBTOTAL -->
             <tr style="background: #d0d0d0; font-weight: bold;">
-                <td colspan="8">TIMING SUBTOTAL</td>
+                <td colspan="9">TIMING SUBTOTAL</td>
                 <td>{{ result.total_time_score|round(0) }} pts</td>
             </tr>
             
@@ -244,19 +244,17 @@
             <!-- FUEL ROW -->
             <tr>
                 <td><strong>Fuel Burn</strong></td>
-                <td style="text-align: center;">—</td>
                 <td>{{ result.estimated_fuel_burn|round(1) }} gal</td>
                 <td>{{ result.actual_fuel_burn|round(1) }} gal</td>
                 <td>{{ result.fuel_error_pct|round(1) }}%</td>
-                <td colspan="3" style="text-align: center;">—</td>
+                <td colspan="4" style="text-align: center;">—</td>
                 <td>{{ result.fuel_penalty|round(0) }} pts</td>
             </tr>
             
             <!-- CHECKPOINT SECRETS ROW -->
             <tr>
                 <td><strong>Checkpoint Secrets Missed</strong></td>
-                <td style="text-align: center;">—</td>
-                <td colspan="2" style="text-align: center;">{{ result.secrets_missed_checkpoint }}</td>
+                <td colspan="3" style="text-align: center;">{{ result.secrets_missed_checkpoint }}</td>
                 <td colspan="4" style="text-align: center;">—</td>
                 <td>{{ result.checkpoint_secrets_penalty|round(0) }} pts</td>
             </tr>
@@ -264,8 +262,7 @@
             <!-- ENROUTE SECRETS ROW -->
             <tr>
                 <td><strong>Enroute Secrets Missed</strong></td>
-                <td style="text-align: center;">—</td>
-                <td colspan="2" style="text-align: center;">{{ result.secrets_missed_enroute }}</td>
+                <td colspan="3" style="text-align: center;">{{ result.secrets_missed_enroute }}</td>
                 <td colspan="4" style="text-align: center;">—</td>
                 <td>{{ result.enroute_secrets_penalty|round(0) }} pts</td>
             </tr>

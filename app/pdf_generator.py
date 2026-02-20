@@ -388,42 +388,83 @@ def generate_checkpoint_detail_map(
             intended_start = previous_checkpoint
         
         if intended_start:
-            perpendicular_distance_nm, foot_of_perpendicular = calculate_perpendicular_distance(
-                closest_point, intended_start, checkpoint
-            )
+            # Calculate the intended course direction (from start to checkpoint)
+            import math
+            course_lat_delta = checkpoint['lat'] - intended_start['lat']
+            course_lon_delta = checkpoint['lon'] - intended_start['lon']
+            course_magnitude = math.sqrt(course_lat_delta**2 + course_lon_delta**2)
             
-            # Draw perpendicular line from closest point to foot of perpendicular
-            ax.plot(
-                [closest_point['lon'], foot_of_perpendicular['lon']],
-                [closest_point['lat'], foot_of_perpendicular['lat']],
-                color='#FF1493',  # Deep pink for perpendicular line
-                linewidth=2.5,
-                linestyle='--',
-                alpha=0.8,
-                label=f'"The Plane" ({perpendicular_distance_nm:.3f} NM)',
-                zorder=4
-            )
-            
-            # Mark foot of perpendicular
-            ax.scatter(foot_of_perpendicular['lon'], foot_of_perpendicular['lat'],
-                      c='#FF1493', s=100, marker='|', zorder=5, linewidth=2)
-            
-            # Add distance label on the perpendicular line
-            # Calculate midpoint of perpendicular for label placement
-            mid_lat = (closest_point['lat'] + foot_of_perpendicular['lat']) / 2
-            mid_lon = (closest_point['lon'] + foot_of_perpendicular['lon']) / 2
-            
-            # Offset label slightly perpendicular to the perpendicular line for readability
-            lat_offset = (foot_of_perpendicular['lon'] - closest_point['lon']) * 0.001
-            lon_offset = (foot_of_perpendicular['lat'] - closest_point['lat']) * 0.001
-            
-            ax.text(
-                mid_lon + lon_offset, mid_lat + lat_offset,
-                f'{perpendicular_distance_nm:.3f} NM',
-                fontsize=9, fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='#FF1493', alpha=0.7, edgecolor='black'),
-                ha='center', va='center', zorder=6, color='white'
-            )
+            if course_magnitude > 0:
+                # Normalize the course direction
+                course_lat_unit = course_lat_delta / course_magnitude
+                course_lon_unit = course_lon_delta / course_magnitude
+                
+                # Calculate perpendicular direction (rotate 90 degrees counter-clockwise)
+                # In standard coordinates: (x, y) -> (-y, x)
+                perp_lat_unit = -course_lon_unit
+                perp_lon_unit = course_lat_unit
+                
+                # Extend the perpendicular line in both directions from the checkpoint
+                # Use a reasonable extension in degrees (about 0.01 degrees ≈ 0.6 NM)
+                extension = 0.015
+                
+                # Calculate line endpoints
+                plane_start_lat = checkpoint['lat'] + perp_lat_unit * extension
+                plane_start_lon = checkpoint['lon'] + perp_lon_unit * extension
+                
+                plane_end_lat = checkpoint['lat'] - perp_lat_unit * extension
+                plane_end_lon = checkpoint['lon'] - perp_lon_unit * extension
+                
+                # Draw "the plane" - the full perpendicular line through the checkpoint
+                ax.plot(
+                    [plane_start_lon, plane_end_lon],
+                    [plane_start_lat, plane_end_lat],
+                    color='#FF1493',  # Deep pink for perpendicular line
+                    linewidth=2.5,
+                    linestyle='--',
+                    alpha=0.8,
+                    label='"The Plane" (Perpendicular to Course)',
+                    zorder=4
+                )
+                
+                # Calculate perpendicular distance from closest point to the intended course line
+                # This shows how far off the intended course the aircraft was
+                perpendicular_distance_nm, foot_of_perpendicular = calculate_perpendicular_distance(
+                    closest_point, intended_start, checkpoint
+                )
+                
+                # Draw a line from closest point perpendicular to the intended course
+                # (showing the off-course deviation)
+                ax.plot(
+                    [closest_point['lon'], foot_of_perpendicular['lon']],
+                    [closest_point['lat'], foot_of_perpendicular['lat']],
+                    color='#00FF00',  # Green for off-course deviation line
+                    linewidth=1.5,
+                    linestyle=':',
+                    alpha=0.7,
+                    zorder=3
+                )
+                
+                # Mark foot of perpendicular on intended course
+                ax.scatter(foot_of_perpendicular['lon'], foot_of_perpendicular['lat'],
+                          c='#00FF00', s=100, marker='o', zorder=5, linewidth=1.5, alpha=0.8)
+                
+                # Add distance label showing off-course deviation
+                # Calculate midpoint of deviation line for label placement
+                mid_lat = (closest_point['lat'] + foot_of_perpendicular['lat']) / 2
+                mid_lon = (closest_point['lon'] + foot_of_perpendicular['lon']) / 2
+                
+                # Offset label slightly for readability
+                lat_offset = (foot_of_perpendicular['lon'] - closest_point['lon']) * 0.001
+                lon_offset = (foot_of_perpendicular['lat'] - closest_point['lat']) * 0.001
+                
+                ax.text(
+                    mid_lon + lon_offset, mid_lat + lat_offset,
+                    f'Off-Course:\n{perpendicular_distance_nm:.3f} NM',
+                    fontsize=8, fontweight='bold',
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='#00FF00', alpha=0.7, edgecolor='black'),
+                    ha='center', va='center', zorder=6, color='black'
+                )
     
     # Set map extent
     ax.set_xlim(min_lon, max_lon)
@@ -518,7 +559,7 @@ def generate_enhanced_pdf_report(
     
     # Build results table with improved column structure including "Method"
     table_data = [
-        ['CP', 'Name', 'Method', 'Est Time', 'Act Time', 'Dev', 'Distance\n(NM)', 'Timing\nScore', 'Off-Course\nPenalty', 'Leg\nTotal'],
+        ['CP', 'Name', 'Est Time', 'Act Time', 'Dev', 'Distance\n(NM)', 'Method', 'Timing\nScore', 'Off-Course\nPenalty', 'Leg\nTotal'],
     ]
     
     # Checkpoint rows - plain text strings only
@@ -536,11 +577,11 @@ def generate_enhanced_pdf_report(
         table_data.append([
             str(i),
             cp_name,
-            method,
             est_time,
             act_time,
             dev,
             distance,
+            method,
             points,
             penalty,
             total
@@ -564,17 +605,18 @@ def generate_enhanced_pdf_report(
     act_total_str = f"{int(act_total_time//3600):02d}:{int((act_total_time%3600)//60):02d}:{int(act_total_time%60):02d}"
     
     # Total Time row (full format, appears before TIMING SUBTOTAL)
-    table_data.append(['', 'Total Time', '', est_total_str, act_total_str, total_time_dev, '', '', '', ''])
+    # Reordered to match new column order: CP, Name, Est Time, Act Time, Dev, Distance, Method, Time Score, Off-Course Penalty, Total
+    table_data.append(['', 'Total Time', est_total_str, act_total_str, total_time_dev, '', '', time_score, '', ''])
     
     # Calculate column widths for landscape (11" - margins = 10.2")
     col_widths = [
         0.35*inch,  # CP number
         1.5*inch,   # Name (increased to accommodate longer checkpoint names)
-        0.65*inch,  # Method (reduced slightly)
         0.6*inch,   # Est Time (reduced slightly)
         0.6*inch,   # Act Time (reduced slightly)
         0.5*inch,   # Deviation (reduced slightly)
         0.65*inch,  # Distance
+        0.65*inch,  # Method (moved to position 7, after Distance)
         0.7*inch,   # Timing Score
         0.75*inch,  # Off-Course Penalty
         0.7*inch,   # Leg Total
@@ -584,8 +626,8 @@ def generate_enhanced_pdf_report(
     
     # Professional table styling
     table_style = TableStyle([
-        # Header row - dark blue background
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
+        # Header row - maroon background
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8B0015')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -608,8 +650,8 @@ def generate_enhanced_pdf_report(
         
         # Grid lines
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
-        ('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#003366')),
-        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.HexColor('#003366')),
+        ('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#8B0015')),
+        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.HexColor('#8B0015')),
         
         # Format Total Time row (last row before summary table)
         ('BACKGROUND', (0, len(table_data)-1), (-1, len(table_data)-1), colors.HexColor('#F5F5F5')),
@@ -620,6 +662,87 @@ def generate_enhanced_pdf_report(
     results_table.setStyle(table_style)
     
     story.append(results_table)
+    story.append(Spacer(1, 0.15*inch))
+    
+    # ===== SCORING SUMMARY TABLE =====
+    
+    story.append(Paragraph("Scoring Summary", styles['Heading2']))
+    story.append(Spacer(1, 0.1*inch))
+    
+    # Calculate timing subtotal (sum of all leg scores + total time penalty)
+    leg_penalties_total = sum(
+        float(cp.get('leg_score', 0)) + float(cp.get('off_course_penalty', 0)) 
+        for cp in result_data.get('checkpoint_results', [])
+    )
+    timing_subtotal = leg_penalties_total + float(result_data.get('total_time_penalty', 0))
+    
+    # Get penalty values
+    fuel_penalty = float(result_data.get('fuel_penalty', 0))
+    cp_secrets_penalty = float(result_data.get('checkpoint_secrets_penalty', 0))
+    enroute_secrets_penalty = float(result_data.get('enroute_secrets_penalty', 0))
+    overall_score = float(result_data.get('overall_score', 0))
+    
+    # Build summary table (2 columns: label and value)
+    summary_table_data = [
+        ['Scoring Component', 'Points'],
+        ['Leg Penalties & Time Deviations (Timing Subtotal)', f'{timing_subtotal:.0f}'],
+        ['Fuel Penalty', f'{fuel_penalty:.0f}'],
+        ['Checkpoint Secrets Penalty', f'{cp_secrets_penalty:.0f}'],
+        ['Enroute Secrets Penalty', f'{enroute_secrets_penalty:.0f}'],
+        ['', ''],  # Blank row for spacing
+        ['OVERALL SCORE (Total Penalties)', f'{overall_score:.0f}'],
+    ]
+    
+    summary_table = Table(summary_table_data, colWidths=[4.5*inch, 1.5*inch])
+    
+    # Professional styling for summary table
+    summary_style = TableStyle([
+        # Header row
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8B0015')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, 0), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+        
+        # Data rows
+        ('FONTSIZE', (0, 1), (-1, -2), 9),
+        ('ALIGN', (0, 1), (0, -2), 'LEFT'),
+        ('ALIGN', (1, 1), (1, -2), 'RIGHT'),
+        ('VALIGN', (0, 1), (-1, -2), 'MIDDLE'),
+        ('TOPPADDING', (0, 1), (-1, -2), 4),
+        ('BOTTOMPADDING', (0, 1), (-1, -2), 4),
+        
+        # Alternating row colors
+        ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F0F0F0')]),
+        
+        # Blank spacing row
+        ('BACKGROUND', (0, -2), (-1, -2), colors.white),
+        
+        # Overall Score row - bold, highlighted
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#8B0015')),
+        ('TEXTCOLOR', (0, -1), (-1, -1), colors.whitesmoke),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ('ALIGN', (0, -1), (0, -1), 'LEFT'),
+        ('ALIGN', (1, -1), (1, -1), 'RIGHT'),
+        ('TOPPADDING', (0, -1), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 6),
+        
+        # Grid lines
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
+        ('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#8B0015')),
+        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.HexColor('#8B0015')),
+        ('LINEABOVE', (0, -1), (-1, -1), 1.5, colors.HexColor('#8B0015')),
+        ('LINEBELOW', (0, -1), (-1, -1), 1.5, colors.HexColor('#8B0015')),
+    ])
+    
+    summary_table.setStyle(summary_style)
+    story.append(summary_table)
     story.append(Spacer(1, 0.2*inch))
     
     # ===== PAGE 2: ROUTE MAP =====

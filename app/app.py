@@ -1238,10 +1238,10 @@ async def submit_prenav(
                 raise HTTPException(status_code=400, detail="No active pairing found")
             pairing_id = pairing["id"]
         
-        # Verify user is pilot (if competitor) or allow coach to submit
-        if not (is_coach or is_admin) and pairing["pilot_id"] != user["user_id"]:
-            logger.error(f"User {user['user_id']} is not the pilot (pilot_id={pairing['pilot_id']})")
-            raise HTTPException(status_code=403, detail="Only pilot can submit pre-flight plan")
+        # Verify user is in pairing (pilot or observer) or allow coach to submit
+        if not (is_coach or is_admin) and user["user_id"] not in [pairing["pilot_id"], pairing["safety_observer_id"]]:
+            logger.error(f"User {user['user_id']} is not in pairing {pairing['id']} (pilot_id={pairing['pilot_id']}, observer_id={pairing['safety_observer_id']})")
+            raise HTTPException(status_code=403, detail="You are not authorized to submit pre-flight plan for this pairing")
         
         # Parse times - Issue 16: leg_times_str is now JSON array of seconds, total_time_str is seconds
         try:
@@ -1758,18 +1758,13 @@ async def submit_flight(
                     "flight_started_at": prenav.get("submitted_at", datetime.utcnow().isoformat())
                 }
                 
-                # Call enhanced PDF generator (wrapped to prevent crashes)
-                try:
-                    generate_enhanced_pdf_report(
-                        result_data_for_pdf, nav, pairing_display,
-                        start_gate, checkpoints, track_points,
-                        full_route_map_path, checkpoint_maps_paths,
-                        pdf_path
-                    )
-                except Exception as pdf_err:
-                    logger.error(f"PDF generation failed for prenav_id={prenav_id}: {pdf_err}", exc_info=True)
-                    # Continue anyway - PDF is optional, scoring results are what matters
-                    pdf_filename = None  # Mark as no PDF available
+                # Call enhanced PDF generator
+                generate_enhanced_pdf_report(
+                    result_data_for_pdf, nav, pairing_display,
+                    start_gate, checkpoints, track_points,
+                    full_route_map_path, checkpoint_maps_paths,
+                    pdf_path
+                )
                 
                 # Save result to database
                 result_id = db.create_flight_result(
@@ -3581,38 +3576,74 @@ async def coach_assignments(
 async def coach_create_assignment(
     request: Request,
     user: dict = Depends(require_admin),
-    pairing_id: int = Form(...),
     nav_id: int = Form(...),
     semester: str = Form("Spring 2026"),
-    notes: str = Form(None)
+    notes: str = Form(None),
+    pairing_ids: List[int] = Form(default=[])
 ):
-    """Create new NAV assignment. Admin only. Item 37."""
+    """Create new NAV assignment for one or more pairings. Admin only. Item 37."""
     try:
-        # Check for duplicates
-        if db.check_duplicate_assignment(nav_id, pairing_id, semester):
+        # Handle backward compatibility: accept pairing_id if pairing_ids is empty
+        form_data = await request.form()
+        if not pairing_ids and 'pairing_id' in form_data:
+            pairing_ids = [int(form_data['pairing_id'])]
+        
+        if not pairing_ids:
             return RedirectResponse(
-                url=f"/coach/assignments?error=This NAV is already assigned to this pairing for {semester}",
+                url="/coach/assignments?error=Please select at least one pairing",
                 status_code=303
             )
         
-        # Create assignment
-        assignment_id = db.create_assignment(
-            nav_id=nav_id,
-            pairing_id=pairing_id,
-            assigned_by=user["user_id"],
-            semester=semester,
-            notes=notes
-        )
+        # Create assignments for each selected pairing
+        successful_assignments = []
+        failed_assignments = []
+        duplicate_assignments = []
         
-        if assignment_id:
-            logger.info(f"NAV assignment created: assignment_id={assignment_id} nav={nav_id} pairing={pairing_id} by user={user['user_id']}")
+        for pairing_id in pairing_ids:
+            # Check for duplicates
+            if db.check_duplicate_assignment(nav_id, pairing_id, semester):
+                duplicate_assignments.append(pairing_id)
+                continue
+            
+            # Create assignment
+            assignment_id = db.create_assignment(
+                nav_id=nav_id,
+                pairing_id=pairing_id,
+                assigned_by=user["user_id"],
+                semester=semester,
+                notes=notes
+            )
+            
+            if assignment_id:
+                successful_assignments.append(pairing_id)
+                logger.info(f"NAV assignment created: assignment_id={assignment_id} nav={nav_id} pairing={pairing_id} by user={user['user_id']}")
+            else:
+                failed_assignments.append(pairing_id)
+        
+        # Build response message
+        if successful_assignments and not failed_assignments and not duplicate_assignments:
+            if len(successful_assignments) == 1:
+                message = "NAV assigned successfully to 1 pairing"
+            else:
+                message = f"NAV assigned successfully to {len(successful_assignments)} pairings"
             return RedirectResponse(
-                url="/coach/assignments?message=NAV assigned successfully",
+                url=f"/coach/assignments?message={message}",
                 status_code=303
             )
         else:
+            # Build detailed error/success message
+            messages = []
+            if successful_assignments:
+                messages.append(f"{len(successful_assignments)} pairing(s) assigned")
+            if duplicate_assignments:
+                messages.append(f"{len(duplicate_assignments)} pairing(s) already have this NAV")
+            if failed_assignments:
+                messages.append(f"{len(failed_assignments)} pairing(s) failed to assign")
+            
+            message = "; ".join(messages)
+            status = "error" if failed_assignments else "message"
             return RedirectResponse(
-                url="/coach/assignments?error=Failed to create assignment",
+                url=f"/coach/assignments?{status}={message}",
                 status_code=303
             )
     except Exception as e:

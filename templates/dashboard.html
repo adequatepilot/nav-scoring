@@ -277,23 +277,31 @@
 </div>
 {% endif %}
 
-<!-- Quick Actions: Everyone sees these -->
+<!-- Quick Actions -->
 <h3>Quick Actions</h3>
 <div class="quick-links">
+    <!-- Pre-flight and Post-flight submission buttons only for admins/coaches -->
+    {% if is_coach or is_admin %}
     <a href="/prenav" class="quick-link">
         <h3>📝 Submit Pre-Flight Plan</h3>
         <p>Enter leg times and fuel estimate</p>
     </a>
-    {% if not is_coach and not is_admin %}
+    {% endif %}
+    
+    {% if not is_coach and not is_admin and assigned_navs_count > 0 %}
     <a href="/team/assigned-navs" class="quick-link assigned-navs-pulse">
         <h3>📌 Assigned NAVs</h3>
         <p>View your assigned practice NAVs</p>
     </a>
     {% endif %}
+    
+    {% if is_coach or is_admin %}
     <a href="/flight/select" class="quick-link">
         <h3>✈️ Submit Post-Flight</h3>
         <p>Upload GPX and report actuals</p>
     </a>
+    {% endif %}
+    
     <a href="/results" class="quick-link">
         <h3>📊 View Results</h3>
         {% if is_coach or is_admin %}

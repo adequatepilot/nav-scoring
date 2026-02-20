@@ -36,6 +36,11 @@ from app.auth import Auth
 from app.scoring_engine import NavScoringEngine
 from app.email import EmailService
 from app.backup_scheduler import BackupScheduler
+from app.pdf_generator import (
+    generate_full_route_map,
+    generate_checkpoint_detail_map,
+    generate_enhanced_pdf_report
+)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -755,6 +760,7 @@ async def unified_dashboard(request: Request, user: dict = Depends(require_login
         # Get pairing info
         pairing = db.get_active_pairing_for_member(user["user_id"])
         pairing_data = None
+        assigned_navs_count = 0
         
         if pairing:
             pilot = db.get_user_by_id(pairing["pilot_id"])
@@ -781,6 +787,10 @@ async def unified_dashboard(request: Request, user: dict = Depends(require_login
                 "observer_picture": observer_picture,
                 "observer_color": get_avatar_color(observer["name"]) if observer else "avatar-color-2"
             }
+            
+            # Count active assignments for this pairing
+            active_assignments = db.get_assignments_for_pairing(pairing["id"], completed=False)
+            assigned_navs_count = len(active_assignments) if active_assignments else 0
         
         # Get recent results for this user's pairings
         pairings = db.list_pairings_for_member(user["user_id"], active_only=False)
@@ -807,6 +817,7 @@ async def unified_dashboard(request: Request, user: dict = Depends(require_login
             "is_admin": is_admin,
             "pairing_info": pairing_data,
             "recent_results": recent_results,
+            "assigned_navs_count": assigned_navs_count,
             "stats": None
         })
 
@@ -1137,9 +1148,16 @@ async def team_dashboard(request: Request, user: dict = Depends(require_competit
 
 @app.get("/prenav", response_class=HTMLResponse)
 async def prenav_form(request: Request, user: dict = Depends(require_login)):
-    """Display pre-flight form. Coaches can select pairing, competitors use their own."""
+    """Display pre-flight form. Coaches can select pairing, competitors use their own.
+    
+    Query parameters:
+    - nav_id: Pre-select a NAV and skip the selection page (for assignment workflow)
+    """
     is_coach = user.get("is_coach", False)
     is_admin = user.get("is_admin", False)
+    
+    # Get nav_id from query params if provided (from assignment workflow)
+    nav_id = request.query_params.get('nav_id', None)
     
     navs = db.list_navs()
     
@@ -1181,7 +1199,8 @@ async def prenav_form(request: Request, user: dict = Depends(require_login)):
         "pairings_for_dropdown": pairings_for_dropdown,
         "is_coach": is_coach,
         "is_admin": is_admin,
-        "member_name": user["name"]
+        "member_name": user["name"],
+        "nav_id": nav_id  # Pass nav_id to template for pre-selection
     })
 
 @app.post("/prenav")
@@ -1305,6 +1324,10 @@ async def prenav_confirmation(request: Request, user: dict = Depends(require_log
     pilot = db.get_user_by_id(pairing["pilot_id"]) if pairing else None
     observer = db.get_user_by_id(pairing["safety_observer_id"]) if pairing else None
     
+    # Get assignment associated with this prenav
+    assignment = db.get_assignment_by_prenav(prenav_id)
+    assignment_id = assignment["id"] if assignment else None
+    
     # Use submitted_at from prenav (matching the schema)
     created_at = datetime.fromisoformat(prenav.get("submitted_at") or datetime.utcnow().isoformat())
     
@@ -1316,14 +1339,46 @@ async def prenav_confirmation(request: Request, user: dict = Depends(require_log
         "pilot_name": pilot["name"] if pilot else "Unknown",
         "observer_name": observer["name"] if observer else "Unknown",
         "created_at": created_at.strftime("%Y-%m-%d %H:%M UTC"),
-        "member_name": user["name"]
+        "member_name": user["name"],
+        "assignment_id": assignment_id
     })
 
 @app.get("/flight/select", response_class=HTMLResponse)
 async def flight_select_page(request: Request, user: dict = Depends(require_login)):
-    """Display selection page with table of open pre-flight submissions. v0.4.2"""
+    """Display selection page with table of open pre-flight submissions. v0.4.2
+    
+    Query parameters:
+    - assignment_id: If provided, find the corresponding prenav and redirect directly to /flight
+                     (for assignment workflow - skip the selection page)
+    """
     is_coach = user.get("is_coach", False)
     is_admin = user.get("is_admin", False)
+    
+    # Handle assignment_id - redirect directly to flight form if it's for the assignment
+    assignment_id = request.query_params.get('assignment_id', None)
+    if assignment_id:
+        try:
+            assignment_id = int(assignment_id)
+            # Get the assignment to find nav_id
+            assignment = db.get_assignment(assignment_id)
+            if assignment:
+                # Find the prenav for this assignment's NAV
+                open_prenavs = db.get_open_prenav_submissions(
+                    user_id=user["user_id"],
+                    is_coach=(is_coach or is_admin),
+                    nav_id=assignment["nav_id"]  # Filter by this assignment's NAV
+                )
+                
+                # If there's exactly one prenav for this NAV, redirect to it
+                if open_prenavs and len(open_prenavs) == 1:
+                    prenav_id = open_prenavs[0]['id']
+                    logger.info(f"Redirecting assignment {assignment_id} to prenav {prenav_id}")
+                    return RedirectResponse(url=f"/flight?prenav_id={prenav_id}", status_code=303)
+                # If multiple prenavs, continue to selection page
+                # If no prenavs, continue to selection page (show error there)
+        except (ValueError, AttributeError) as e:
+            logger.warning(f"Invalid assignment_id in /flight/select: {e}")
+            # Continue to normal selection page
     
     # Get open prenav submissions (filtered by role)
     open_prenavs = db.get_open_prenav_submissions(
@@ -1417,20 +1472,52 @@ async def submit_flight(
     request: Request,
     user: dict = Depends(require_login),
     prenav_id: int = Form(...),
-    actual_fuel: float = Form(...),
+    actual_fuel: Optional[float] = Form(None),  # Make optional for backward compatibility
+    actual_fuel_gallons: Optional[str] = Form(None),  # Accept as string initially
+    actual_fuel_tenths: Optional[str] = Form(None),   # Accept as string initially
     secrets_checkpoint: int = Form(...),
     secrets_enroute: int = Form(...),
     start_gate_id: int = Form(...),
     gpx_file: UploadFile = File(...)
 ):
-    """Submit post-flight GPX and process scoring. v0.4.5: Added logging for coach/admin permissions."""
+    """Submit post-flight GPX and process scoring. v0.4.6: Fixed actual_fuel field handling."""
     is_coach = user.get("is_coach", False)
     is_admin = user.get("is_admin", False)
     
+    # Log all form parameters for debugging
+    logger.info(f"POST /flight FORM DEBUG:")
+    logger.info(f"  prenav_id={prenav_id} (type: {type(prenav_id).__name__})")
+    logger.info(f"  actual_fuel={actual_fuel} (type: {type(actual_fuel).__name__ if actual_fuel is not None else 'None'})")
+    logger.info(f"  actual_fuel_gallons={actual_fuel_gallons!r} (type: {type(actual_fuel_gallons).__name__ if actual_fuel_gallons is not None else 'None'})")
+    logger.info(f"  actual_fuel_tenths={actual_fuel_tenths!r} (type: {type(actual_fuel_tenths).__name__ if actual_fuel_tenths is not None else 'None'})")
+    logger.info(f"  secrets_checkpoint={secrets_checkpoint} (type: {type(secrets_checkpoint).__name__})")
+    logger.info(f"  secrets_enroute={secrets_enroute} (type: {type(secrets_enroute).__name__})")
+    logger.info(f"  start_gate_id={start_gate_id} (type: {type(start_gate_id).__name__})")
+    logger.info(f"  gpx_file={gpx_file} (type: {type(gpx_file).__name__})")
     logger.info(f"POST /flight: User {user['user_id']} ({user['name']}) submitting prenav_id={prenav_id}. is_coach={is_coach}, is_admin={is_admin}")
     
     error = None
     try:
+        # Handle actual_fuel - either from combined hidden field or from separate inputs
+        if actual_fuel is None:
+            # Try to combine gallons and tenths if provided
+            if actual_fuel_gallons and actual_fuel_tenths:
+                try:
+                    gallons = float(actual_fuel_gallons.strip())
+                    tenths = float(actual_fuel_tenths.strip())
+                    actual_fuel = gallons + (tenths / 10.0)
+                    logger.info(f"Combined fuel from separate inputs: {actual_fuel_gallons} gallons + {actual_fuel_tenths} tenths = {actual_fuel}")
+                except (ValueError, AttributeError) as e:
+                    error = f"Invalid fuel values. Please enter valid numbers for gallons and tenths. Error: {str(e)}"
+                    logger.error(f"POST /flight: Error parsing fuel values - {error}")
+            else:
+                error = "Please enter actual fuel burn (gallons and tenths)"
+                logger.error(f"POST /flight: Missing fuel values - gallons={actual_fuel_gallons!r}, tenths={actual_fuel_tenths!r}")
+        
+        # Validate fuel value
+        if not error and (actual_fuel is None or actual_fuel < 0):
+            error = f"Invalid fuel value: {actual_fuel}. Please enter a positive number."
+            logger.error(f"POST /flight: Invalid fuel value - {error}")
         # Validate prenav_id
         prenav = db.get_prenav(prenav_id)
         logger.debug(f"POST /flight: prenav_id={prenav_id}, found={prenav is not None}")
@@ -1558,6 +1645,11 @@ async def submit_flight(
         # If no error, proceed with scoring
         if not error:
             try:
+                logger.info(f"POST /flight: Beginning flight scoring...")
+                logger.info(f"  prenav: {prenav}")
+                logger.info(f"  checkpoint_results count: {len(checkpoint_results)}")
+                logger.info(f"  checkpoint_results: {checkpoint_results}")
+                
                 # Calculate total scores
                 # Sum of individual leg penalties
                 leg_penalties = sum(cp["leg_score"] for cp in checkpoint_results)
@@ -1606,17 +1698,27 @@ async def submit_flight(
                     enroute_secrets_penalty
                 )
                 
-                # Generate track plot
+                # Generate enhanced PDF with maps
                 pdf_storage = Path(config["storage"]["pdf_reports"])
                 pdf_storage.mkdir(parents=True, exist_ok=True)
                 
-                plot_filename = f"plot_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.png"
-                plot_path = pdf_storage / plot_filename
+                # Generate full route map
+                timestamp = int(datetime.utcnow().timestamp())
+                full_route_map_filename = f"route_map_{pairing['id']}_{prenav['nav_id']}_{timestamp}.png"
+                full_route_map_path = pdf_storage / full_route_map_filename
                 
-                generate_track_plot(track_points, checkpoints, plot_path)
+                generate_full_route_map(track_points, start_gate, checkpoints, full_route_map_path)
+                
+                # Generate checkpoint detail maps
+                checkpoint_maps_paths = []
+                for i, checkpoint in enumerate(checkpoints):
+                    map_filename = f"checkpoint_map_{i+1}_{pairing['id']}_{prenav['nav_id']}_{timestamp}.png"
+                    map_path = pdf_storage / map_filename
+                    generate_checkpoint_detail_map(track_points, checkpoint, i+1, map_path)
+                    checkpoint_maps_paths.append(map_path)
                 
                 # Generate PDF
-                pdf_filename = f"result_{pairing['id']}_{prenav['nav_id']}_{int(datetime.utcnow().timestamp())}.pdf"
+                pdf_filename = f"result_{pairing['id']}_{prenav['nav_id']}_{timestamp}.pdf"
                 pdf_path = pdf_storage / pdf_filename
                 
                 # Get pairing member names
@@ -1646,10 +1748,17 @@ async def submit_flight(
                     "secrets_missed_checkpoint": secrets_checkpoint,
                     "secrets_missed_enroute": secrets_enroute,
                     "checkpoint_results": checkpoint_results,
-                    "scored_at": datetime.utcnow().isoformat()
+                    "scored_at": datetime.utcnow().isoformat(),
+                    "flight_started_at": prenav.get("submitted_at", datetime.utcnow().isoformat())
                 }
                 
-                generate_pdf_report(result_data_for_pdf, nav, pairing_display, plot_path, pdf_path)
+                # Call enhanced PDF generator
+                generate_enhanced_pdf_report(
+                    result_data_for_pdf, nav, pairing_display,
+                    start_gate, checkpoints, track_points,
+                    full_route_map_path, checkpoint_maps_paths,
+                    pdf_path
+                )
                 
                 # Save result to database
                 result_id = db.create_flight_result(
@@ -1726,8 +1835,32 @@ async def submit_flight(
                 logger.info(f"POST /flight: Successfully scored prenav_id={prenav_id}, result_id={result_id}, overall_score={overall_score:.1f}. Redirecting to results page.")
                 return RedirectResponse(url=f"/results/{result_id}", status_code=303)
             except Exception as e:
+                import traceback
                 logger.error(f"Error processing flight: {e}", exc_info=True)
-                error = f"Error processing flight: {str(e)}"
+                logger.error(f"Exception type: {type(e).__name__}")
+                logger.error(f"Exception args: {e.args}")
+                logger.error(f"Exception message: {str(e)}")
+                logger.error(f"Exception traceback: {traceback.format_exc()}")
+                
+                # Log detailed context
+                logger.error(f"Context at error:")
+                logger.error(f"  prenav_id: {prenav_id}")
+                logger.error(f"  prenav: {prenav}")
+                logger.error(f"  nav_id: {prenav.get('nav_id') if prenav else None}")
+                logger.error(f"  checkpoint_results count: {len(checkpoint_results) if checkpoint_results else 0}")
+                if checkpoint_results:
+                    logger.error(f"  first checkpoint: {checkpoint_results[0] if len(checkpoint_results) > 0 else None}")
+                
+                # Provide better error message for common issues
+                error_str = str(e)
+                if "NOT NULL" in error_str:
+                    error = f"Database error: Missing required data. Please check all form fields are filled correctly."
+                elif "FOREIGN KEY" in error_str:
+                    error = f"Database error: Invalid reference. Please try again or contact support."
+                elif len(error_str) == 0 or error_str == "None":
+                    error = "An unknown error occurred during flight scoring. Please try again or contact support."
+                else:
+                    error = f"Error processing flight: {error_str}"
     
     except Exception as e:
         logger.error(f"Unexpected error in submit_flight: {e}", exc_info=True)
@@ -1744,27 +1877,38 @@ async def submit_flight(
                 if gate not in gates:
                     gates.append(gate)
         
-        # Get open prenav submissions (filtered by role)
-        open_prenavs = db.get_open_prenav_submissions(
-            user_id=user["user_id"],
-            is_coach=(is_coach or is_admin)
-        )
+        # Get the prenav that was submitted to redisplay the form
+        submitted_prenav = db.get_prenav(prenav_id) if prenav_id else None
         
-        # Format prenav options for dropdown
-        prenav_options = []
-        for prenav in open_prenavs:
-            # Use submitted_at_display (CST formatted time from database.py)
-            timestamp_display = prenav.get("submitted_at_display", "Unknown")
-            display = f"{timestamp_display} - {prenav['nav_name']} - {prenav['pilot_name']} (Pilot) + {prenav['observer_name']} (Observer)"
-            prenav_options.append({
-                "id": prenav["id"],
-                "display": display
-            })
+        # If we have the prenav, format it for redisplay
+        selected_prenav_display = None
+        if submitted_prenav:
+            # Format total_time for display
+            total_time = submitted_prenav.get('total_time', 0)
+            hours = int(total_time // 3600)
+            minutes = int((total_time % 3600) // 60)
+            seconds = int(total_time % 60)
+            total_time_display = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            
+            # Get pairing names
+            pairing = db.get_pairing(submitted_prenav["pairing_id"])
+            pilot = db.get_user_by_id(pairing["pilot_id"]) if pairing else None
+            observer = db.get_user_by_id(pairing["safety_observer_id"]) if pairing else None
+            
+            selected_prenav_display = {
+                "id": submitted_prenav["id"],
+                "submitted_at_display": submitted_prenav.get("submitted_at_display", "Unknown"),
+                "nav_name": submitted_prenav.get("nav_name", "Unknown"),
+                "pilot_name": pilot["name"] if pilot else "Unknown",
+                "observer_name": observer["name"] if observer else "Unknown",
+                "total_time_display": total_time_display,
+                "fuel_estimate": submitted_prenav.get("fuel_estimate", 0),
+            }
         
         return templates.TemplateResponse("team/flight.html", {
             "request": request,
             "start_gates": gates,
-            "open_prenavs": prenav_options,
+            "selected_prenav": selected_prenav_display,  # Pass the original prenav to redisplay the form
             "is_coach": is_coach,
             "is_admin": is_admin,
             "member_name": user["name"],

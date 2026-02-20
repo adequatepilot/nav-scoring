@@ -986,12 +986,13 @@ class Database:
             )
             return cursor.rowcount
 
-    def get_open_prenav_submissions(self, user_id: Optional[int] = None, is_coach: bool = False) -> List[Dict]:
+    def get_open_prenav_submissions(self, user_id: Optional[int] = None, is_coach: bool = False, nav_id: Optional[int] = None) -> List[Dict]:
         """Get open prenav submissions with full details.
         
         Args:
             user_id: If provided and not coach, filter to that user's pairings only
             is_coach: If True, return all submissions regardless of user_id
+            nav_id: If provided, filter to submissions for that NAV only
         
         Returns:
             List of open prenav submissions with pairing, nav, and user details.
@@ -1002,41 +1003,79 @@ class Database:
             
             if is_coach or user_id is None:
                 # Coaches/Admins see ALL open submissions
-                cursor.execute("""
-                    SELECT 
-                        ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at as created_at, ps.status,
-                        ps.pilot_id, ps.total_time, ps.fuel_estimate,
-                        n.name as nav_name,
-                        p.pilot_id, p.safety_observer_id,
-                        pilot.name as pilot_name,
-                        observer.name as observer_name
-                    FROM prenav_submissions ps
-                    JOIN navs n ON ps.nav_id = n.id
-                    JOIN pairings p ON ps.pairing_id = p.id
-                    JOIN users pilot ON p.pilot_id = pilot.id
-                    JOIN users observer ON p.safety_observer_id = observer.id
-                    WHERE ps.status = 'open'
-                    ORDER BY ps.submitted_at DESC
-                """)
+                if nav_id:
+                    cursor.execute("""
+                        SELECT 
+                            ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at as created_at, ps.status,
+                            ps.pilot_id, ps.total_time, ps.fuel_estimate,
+                            n.name as nav_name,
+                            p.pilot_id, p.safety_observer_id,
+                            pilot.name as pilot_name,
+                            observer.name as observer_name
+                        FROM prenav_submissions ps
+                        JOIN navs n ON ps.nav_id = n.id
+                        JOIN pairings p ON ps.pairing_id = p.id
+                        JOIN users pilot ON p.pilot_id = pilot.id
+                        JOIN users observer ON p.safety_observer_id = observer.id
+                        WHERE ps.status = 'open' AND ps.nav_id = ?
+                        ORDER BY ps.submitted_at DESC
+                    """, (nav_id,))
+                else:
+                    cursor.execute("""
+                        SELECT 
+                            ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at as created_at, ps.status,
+                            ps.pilot_id, ps.total_time, ps.fuel_estimate,
+                            n.name as nav_name,
+                            p.pilot_id, p.safety_observer_id,
+                            pilot.name as pilot_name,
+                            observer.name as observer_name
+                        FROM prenav_submissions ps
+                        JOIN navs n ON ps.nav_id = n.id
+                        JOIN pairings p ON ps.pairing_id = p.id
+                        JOIN users pilot ON p.pilot_id = pilot.id
+                        JOIN users observer ON p.safety_observer_id = observer.id
+                        WHERE ps.status = 'open'
+                        ORDER BY ps.submitted_at DESC
+                    """)
             else:
                 # Competitors see only their pairing's submissions
-                cursor.execute("""
-                    SELECT 
-                        ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at as created_at, ps.status,
-                        ps.pilot_id, ps.total_time, ps.fuel_estimate,
-                        n.name as nav_name,
-                        p.pilot_id, p.safety_observer_id,
-                        pilot.name as pilot_name,
-                        observer.name as observer_name
-                    FROM prenav_submissions ps
-                    JOIN navs n ON ps.nav_id = n.id
-                    JOIN pairings p ON ps.pairing_id = p.id
-                    JOIN users pilot ON p.pilot_id = pilot.id
-                    JOIN users observer ON p.safety_observer_id = observer.id
-                    WHERE ps.status = 'open'
-                    AND (p.pilot_id = ? OR p.safety_observer_id = ?)
-                    ORDER BY ps.submitted_at DESC
-                """, (user_id, user_id))
+                if nav_id:
+                    cursor.execute("""
+                        SELECT 
+                            ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at as created_at, ps.status,
+                            ps.pilot_id, ps.total_time, ps.fuel_estimate,
+                            n.name as nav_name,
+                            p.pilot_id, p.safety_observer_id,
+                            pilot.name as pilot_name,
+                            observer.name as observer_name
+                        FROM prenav_submissions ps
+                        JOIN navs n ON ps.nav_id = n.id
+                        JOIN pairings p ON ps.pairing_id = p.id
+                        JOIN users pilot ON p.pilot_id = pilot.id
+                        JOIN users observer ON p.safety_observer_id = observer.id
+                        WHERE ps.status = 'open'
+                        AND (p.pilot_id = ? OR p.safety_observer_id = ?)
+                        AND ps.nav_id = ?
+                        ORDER BY ps.submitted_at DESC
+                    """, (user_id, user_id, nav_id))
+                else:
+                    cursor.execute("""
+                        SELECT 
+                            ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at as created_at, ps.status,
+                            ps.pilot_id, ps.total_time, ps.fuel_estimate,
+                            n.name as nav_name,
+                            p.pilot_id, p.safety_observer_id,
+                            pilot.name as pilot_name,
+                            observer.name as observer_name
+                        FROM prenav_submissions ps
+                        JOIN navs n ON ps.nav_id = n.id
+                        JOIN pairings p ON ps.pairing_id = p.id
+                        JOIN users pilot ON p.pilot_id = pilot.id
+                        JOIN users observer ON p.safety_observer_id = observer.id
+                        WHERE ps.status = 'open'
+                        AND (p.pilot_id = ? OR p.safety_observer_id = ?)
+                        ORDER BY ps.submitted_at DESC
+                    """, (user_id, user_id))
             
             submissions = [dict(row) for row in cursor.fetchall()]
             
@@ -1089,7 +1128,7 @@ class Database:
             cursor.execute("""
                 SELECT 
                     ps.id, ps.pairing_id, ps.nav_id, ps.submitted_at, ps.status,
-                    ps.pilot_id, ps.total_time, ps.fuel_estimate,
+                    ps.pilot_id, ps.total_time, ps.fuel_estimate, ps.leg_times,
                     n.name as nav_name,
                     p.pilot_id, p.safety_observer_id,
                     pilot.name as pilot_name,
@@ -1107,6 +1146,16 @@ class Database:
                 return None
             
             prenav = dict(row)
+            
+            # Parse leg_times from JSON
+            if prenav.get('leg_times'):
+                try:
+                    prenav['leg_times'] = json.loads(prenav['leg_times'])
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse leg_times for prenav {prenav_id}")
+                    prenav['leg_times'] = []
+            else:
+                prenav['leg_times'] = []
             
             # Convert UTC timestamp to CST and add display fields
             cst = pytz.timezone('America/Chicago')

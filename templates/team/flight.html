@@ -48,29 +48,47 @@
     4. Get instant score!
 </div>
 
-<form method="POST" action="/flight" enctype="multipart/form-data">
+<form method="POST" action="/flight" enctype="multipart/form-data" novalidate>
     <input type="hidden" name="prenav_id" value="{{ selected_prenav.id }}">
     
     <div class="form-group">
-        <label for="start_gate_id">Start Gate:</label>
-        <select id="start_gate_id" name="start_gate_id" required>
+        <label for="start_gate_id">Start Gate: <span style="color: #d32f2f;">*</span></label>
+        <select id="start_gate_id" name="start_gate_id">
             <option value="">-- Select Start Gate --</option>
             {% for gate in start_gates %}
             <option value="{{ gate.id }}">{{ gate.name }}</option>
             {% endfor %}
         </select>
+        <small style="color: #d32f2f; display: none;" id="start_gate_error">Please select a start gate</small>
     </div>
     
     <div class="form-group">
-        <label for="gpx_file">GPX File:</label>
-        <input type="file" id="gpx_file" name="gpx_file" accept=".gpx" required>
+        <label for="gpx_file">GPX File: <span style="color: #d32f2f;">*</span></label>
+        <input type="file" id="gpx_file" name="gpx_file" accept=".gpx">
         <small style="color: #666;">Upload the GPX track file from your flight</small>
+        <small style="color: #d32f2f; display: none;" id="gpx_file_error">Please select a GPX file</small>
     </div>
     
     <div class="form-group">
-        <label for="actual_fuel">Actual Fuel Burn (gallons):</label>
-        <input type="number" id="actual_fuel" name="actual_fuel" 
-               step="0.1" min="0" placeholder="8.5" required>
+        <label style="display: block; margin-bottom: 0.5rem;">Actual Fuel Burn (gallons):</label>
+        <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <label for="actual_fuel_gallons" style="font-size: 0.85em; margin-bottom: 0.25rem; color: #333;">Gallons</label>
+                <input type="number" id="actual_fuel_gallons" name="actual_fuel_gallons" 
+                       min="0" max="99" placeholder="8" required
+                       style="width: 60px; padding: 0.5rem; font-size: 1rem; text-align: center;">
+            </div>
+            <div style="font-size: 1.8em; font-weight: bold; color: #8B0015; display: flex; align-items: center; line-height: 1; padding-bottom: 0.5rem;">.</div>
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <label for="actual_fuel_tenths" style="font-size: 0.85em; margin-bottom: 0.25rem; color: #333;">Tenths</label>
+                <input type="number" id="actual_fuel_tenths" name="actual_fuel_tenths" 
+                       min="0" max="9" placeholder="5" required
+                       style="width: 60px; padding: 0.5rem; font-size: 1rem; text-align: center;">
+            </div>
+        </div>
+        <small style="color: #666; display: block; margin-top: 0.5rem;">Example: 8 gallons + 5 tenths = 8.5 gallons</small>
+        <!-- Hidden field to store the combined value -->
+        <input type="hidden" id="actual_fuel" name="actual_fuel">
     </div>
     
     <div class="form-group">
@@ -92,6 +110,263 @@
         <a href="/dashboard" class="button" style="background: #666; text-decoration: none; display: inline-block; text-align: center;">Return to Dashboard</a>
     </div>
 </form>
+
+<script>
+// Handle fuel input validation and combination
+document.addEventListener('DOMContentLoaded', function() {
+    const gallonsInput = document.getElementById('actual_fuel_gallons');
+    const tenthsInput = document.getElementById('actual_fuel_tenths');
+    const actualFuelField = document.getElementById('actual_fuel');
+    const form = document.querySelector('form');
+    const startGateSelect = document.getElementById('start_gate_id');
+    const gpxFileInput = document.getElementById('gpx_file');
+    
+    console.log('[FLIGHT FORM] Page loaded');
+    console.log('[FLIGHT FORM] Form element:', form);
+    console.log('[FLIGHT FORM] Fuel inputs found:', !!gallonsInput, !!tenthsInput);
+    console.log('[FLIGHT FORM] Start gate select:', startGateSelect);
+    console.log('[FLIGHT FORM] GPX file input:', gpxFileInput);
+    
+    // Validate and update on input change
+    function validateAndUpdateFuel() {
+        if (!gallonsInput || !tenthsInput) {
+            console.log('[FUEL VALIDATION] Fuel inputs not found, skipping validation');
+            return true;  // Skip if inputs not found
+        }
+        
+        const gallons = gallonsInput.value.trim();
+        const tenths = tenthsInput.value.trim();
+        
+        console.log('[FUEL VALIDATION] Checking fuel: gallons=' + gallons + ', tenths=' + tenths);
+        
+        // Check if both fields have values
+        if (gallons === '' || tenths === '') {
+            if (actualFuelField) {
+                actualFuelField.value = '';  // Clear hidden field if inputs are incomplete
+            }
+            console.log('[FUEL VALIDATION] Inputs incomplete, skipping validation');
+            return true;  // Let form submission validation handle the requirement
+        }
+        
+        // Validate gallons (0-99)
+        if (isNaN(gallons) || parseInt(gallons) < 0 || parseInt(gallons) > 99) {
+            gallonsInput.style.borderColor = '#d32f2f';
+            console.log('[FUEL VALIDATION] Gallons validation FAILED:', gallons);
+            return false;
+        } else {
+            gallonsInput.style.borderColor = '';
+        }
+        
+        // Validate tenths (0-9)
+        if (isNaN(tenths) || parseInt(tenths) < 0 || parseInt(tenths) > 9) {
+            tenthsInput.style.borderColor = '#d32f2f';
+            console.log('[FUEL VALIDATION] Tenths validation FAILED:', tenths);
+            return false;
+        } else {
+            tenthsInput.style.borderColor = '';
+        }
+        
+        // Combine values - always populate the hidden field if validation passes
+        if (actualFuelField) {
+            actualFuelField.value = gallons + '.' + tenths;
+            console.log('[FUEL VALIDATION] Combined fuel value:', actualFuelField.value);
+        }
+        
+        return true;
+    }
+    
+    // Add event listeners for live validation
+    if (gallonsInput) {
+        gallonsInput.addEventListener('input', function() {
+            // Only allow numbers
+            this.value = this.value.replace(/[^0-9]/g, '');
+            // Max 2 digits
+            if (this.value.length > 2) {
+                this.value = this.value.slice(0, 2);
+            }
+            validateAndUpdateFuel();
+        });
+        
+        gallonsInput.addEventListener('blur', validateAndUpdateFuel);
+    }
+    
+    if (tenthsInput) {
+        tenthsInput.addEventListener('input', function() {
+            // Only allow single digit
+            this.value = this.value.replace(/[^0-9]/g, '');
+            // Max 1 digit
+            if (this.value.length > 1) {
+                this.value = this.value.slice(0, 1);
+            }
+            validateAndUpdateFuel();
+        });
+        
+        tenthsInput.addEventListener('blur', validateAndUpdateFuel);
+    }
+    
+    // Handle form submission with detailed validation
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('[FORM SUBMIT] Form submission started');
+            
+            let validationPassed = true;
+            let firstInvalidField = null;
+            
+            // Check prenav_id (hidden field, should always be present)
+            const prenavIdInput = document.querySelector('input[name="prenav_id"]');
+            const prenavId = prenavIdInput ? prenavIdInput.value : '';
+            console.log('[FORM SUBMIT] prenav_id:', prenavId);
+            if (!prenavId) {
+                console.log('[FORM SUBMIT] ERROR: prenav_id not set!');
+                e.preventDefault();
+                alert('Error: Prenav ID not set. Please go back and select a submission.');
+                return false;
+            }
+            
+            // Check start gate selection (MUST be non-empty)
+            const startGateValue = startGateSelect ? startGateSelect.value.trim() : '';
+            const startGateError = document.getElementById('start_gate_error');
+            console.log('[FORM SUBMIT] Start gate value:', startGateValue);
+            if (!startGateValue || startGateValue === '') {
+                console.log('[FORM SUBMIT] ERROR: Start gate not selected!');
+                validationPassed = false;
+                if (!firstInvalidField) firstInvalidField = startGateSelect;
+                startGateSelect.style.borderColor = '#d32f2f';
+                if (startGateError) startGateError.style.display = 'block';
+            } else {
+                startGateSelect.style.borderColor = '';
+                if (startGateError) startGateError.style.display = 'none';
+            }
+            
+            // Check GPX file selection (MUST be selected)
+            const gpxFile = gpxFileInput ? gpxFileInput.files[0] : null;
+            const gpxFileError = document.getElementById('gpx_file_error');
+            console.log('[FORM SUBMIT] GPX file:', gpxFile ? gpxFile.name + ' (' + gpxFile.size + ' bytes)' : 'NOT_SELECTED');
+            if (!gpxFile) {
+                console.log('[FORM SUBMIT] ERROR: GPX file not selected!');
+                validationPassed = false;
+                if (!firstInvalidField) firstInvalidField = gpxFileInput;
+                gpxFileInput.style.borderColor = '#d32f2f';
+                if (gpxFileError) gpxFileError.style.display = 'block';
+            } else {
+                gpxFileInput.style.borderColor = '';
+                if (gpxFileError) gpxFileError.style.display = 'none';
+            }
+            
+            // Check and validate fuel values
+            if (gallonsInput && tenthsInput) {
+                const gallons = gallonsInput.value.trim();
+                const tenths = tenthsInput.value.trim();
+                
+                console.log('[FORM SUBMIT] Fuel values:', { gallons, tenths });
+                
+                // Check if both fields have values
+                if (gallons === '' || tenths === '') {
+                    console.log('[FORM SUBMIT] ERROR: Missing fuel values');
+                    validationPassed = false;
+                    if (!firstInvalidField) firstInvalidField = gallonsInput;
+                    if (gallons === '') gallonsInput.style.borderColor = '#d32f2f';
+                    if (tenths === '') tenthsInput.style.borderColor = '#d32f2f';
+                } else {
+                    // Validate ranges
+                    const gallonsNum = parseInt(gallons);
+                    const tenthsNum = parseInt(tenths);
+                    
+                    if (isNaN(gallonsNum) || gallonsNum < 0 || gallonsNum > 99) {
+                        console.log('[FORM SUBMIT] ERROR: Gallons out of range:', gallonsNum);
+                        validationPassed = false;
+                        if (!firstInvalidField) firstInvalidField = gallonsInput;
+                        gallonsInput.style.borderColor = '#d32f2f';
+                    } else {
+                        gallonsInput.style.borderColor = '';
+                    }
+                    
+                    if (isNaN(tenthsNum) || tenthsNum < 0 || tenthsNum > 9) {
+                        console.log('[FORM SUBMIT] ERROR: Tenths out of range:', tenthsNum);
+                        validationPassed = false;
+                        if (!firstInvalidField) firstInvalidField = tenthsInput;
+                        tenthsInput.style.borderColor = '#d32f2f';
+                    } else {
+                        tenthsInput.style.borderColor = '';
+                    }
+                    
+                    // If all fuel validation passed, populate hidden field
+                    if (gallonsNum >= 0 && gallonsNum <= 99 && tenthsNum >= 0 && tenthsNum <= 9) {
+                        if (actualFuelField) {
+                            actualFuelField.value = gallons + '.' + tenths;
+                            console.log('[FORM SUBMIT] Populated actual_fuel:', actualFuelField.value);
+                        }
+                    }
+                }
+            }
+            
+            // Check secrets values (should be non-negative integers)
+            const secretsCheckpointInput = document.querySelector('input[name="secrets_checkpoint"]');
+            const secretsEnrouteInput = document.querySelector('input[name="secrets_enroute"]');
+            
+            if (secretsCheckpointInput) {
+                const value = parseInt(secretsCheckpointInput.value || '0');
+                if (isNaN(value) || value < 0) {
+                    console.log('[FORM SUBMIT] ERROR: Invalid secrets_checkpoint:', value);
+                    validationPassed = false;
+                    if (!firstInvalidField) firstInvalidField = secretsCheckpointInput;
+                    secretsCheckpointInput.style.borderColor = '#d32f2f';
+                } else {
+                    secretsCheckpointInput.style.borderColor = '';
+                }
+            }
+            
+            if (secretsEnrouteInput) {
+                const value = parseInt(secretsEnrouteInput.value || '0');
+                if (isNaN(value) || value < 0) {
+                    console.log('[FORM SUBMIT] ERROR: Invalid secrets_enroute:', value);
+                    validationPassed = false;
+                    if (!firstInvalidField) firstInvalidField = secretsEnrouteInput;
+                    secretsEnrouteInput.style.borderColor = '#d32f2f';
+                } else {
+                    secretsEnrouteInput.style.borderColor = '';
+                }
+            }
+            
+            // Log final form data
+            console.log('[FORM SUBMIT] === FORM FIELDS TO SUBMIT ===');
+            const formData = new FormData(form);
+            for (const [key, value] of formData.entries()) {
+                if (key === 'gpx_file') {
+                    console.log('[FORM SUBMIT]   ' + key + ': File(' + value.name + ', ' + value.size + ' bytes)');
+                } else {
+                    console.log('[FORM SUBMIT]   ' + key + ': ' + value);
+                }
+            }
+            console.log('[FORM SUBMIT] === END FORM FIELDS ===');
+            
+            // If validation failed, prevent submission
+            if (!validationPassed) {
+                e.preventDefault();
+                let errorMsg = 'Please fix the following errors before submitting:\n\n';
+                if (!startGateValue) errorMsg += '• Please select a start gate\n';
+                if (!gpxFile) errorMsg += '• Please select a GPX file\n';
+                const gallons = gallonsInput ? gallonsInput.value.trim() : '';
+                const tenths = tenthsInput ? tenthsInput.value.trim() : '';
+                if (!gallons || !tenths) errorMsg += '• Please enter fuel amounts (gallons and tenths)\n';
+                
+                console.log('[FORM SUBMIT] VALIDATION FAILED:', errorMsg);
+                alert(errorMsg);
+                
+                // Focus on first invalid field
+                if (firstInvalidField) {
+                    firstInvalidField.focus();
+                }
+                return false;
+            }
+            
+            console.log('[FORM SUBMIT] All validations passed, submitting form');
+            // All validation passed, form can submit
+            return true;
+        });
+    }
+});
+</script>
 
 {% else %}
 <div class="info" style="margin-top: 1.5rem; padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107;">

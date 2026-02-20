@@ -22,6 +22,18 @@
     <a href="/dashboard" style="display: inline-block; background: #8B0015; color: white; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none; transition: transform 0.2s;">← Return to Dashboard</a>
 </div>
 
+<!-- Pass nav data to JavaScript for lookup -->
+<script>
+const NAV_DATA = {
+    {% for nav in navs %}
+    '{{ nav.id }}': {
+        'id': '{{ nav.id }}',
+        'name': '{{ nav.name }}',
+        'checkpoints': {{ nav.checkpoints|length }}
+    }{{ "," if not loop.last else "" }}
+    {% endfor %}
+};
+</script>
 
 {% if error %}
 <div class="error">{{ error }}</div>
@@ -45,7 +57,7 @@
         <select id="nav_id" name="nav_id" required onchange="updateCheckpointFields()">
             <option value="">-- Select NAV --</option>
             {% for nav in navs %}
-            <option value="{{ nav.id }}" data-checkpoints="{{ nav.checkpoints|length }}">{{ nav.name }}</option>
+            <option value="{{ nav.id }}" data-checkpoints="{{ nav.checkpoints|length }}" {% if nav_id and nav.id|string == nav_id|string %}selected{% endif %}>{{ nav.name }}</option>
             {% endfor %}
         </select>
     </div>
@@ -83,14 +95,28 @@
     </div>
     
     <div class="form-group" style="display: none;" id="fuel_group">
-        <label for="fuel_estimate">Estimated Fuel Burn (gallons):</label>
-        <input type="number" id="fuel_estimate" name="fuel_estimate" 
-               step="0.1" min="0" placeholder="8.5" required>
-        <small style="color: #666;">Enter to the nearest 0.1 gallon (e.g., 8.5, 10.2)</small>
+        <label style="display: block; margin-bottom: 0.5rem;">Estimated Fuel Burn (gallons):</label>
+        <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <label for="fuel_gallons" style="font-size: 0.85em; margin-bottom: 0.25rem; color: #333;">Gallons</label>
+                <input type="number" id="fuel_gallons" name="fuel_gallons" 
+                       min="0" max="99" value="0" placeholder="0" required 
+                       style="width: 60px; padding: 0.5rem; font-size: 1rem; text-align: center;">
+            </div>
+            <div style="font-size: 1.8em; font-weight: bold; color: #8B0015; display: flex; align-items: center; line-height: 1; padding-bottom: 0.5rem;">.</div>
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <label for="fuel_tenths" style="font-size: 0.85em; margin-bottom: 0.25rem; color: #333;">Tenths</label>
+                <input type="number" id="fuel_tenths" name="fuel_tenths" 
+                       min="0" max="9" value="0" placeholder="0" required 
+                       style="width: 60px; padding: 0.5rem; font-size: 1rem; text-align: center;">
+            </div>
+        </div>
+        <small style="color: #666; display: block; margin-top: 0.5rem;">Enter gallons (0-99) and tenths (0-9). Example: 10 gallons + 5 tenths = 10.5 gallons</small>
     </div>
     
     <input type="hidden" id="leg_times_str" name="leg_times_str">
     <input type="hidden" id="total_time_str" name="total_time_str">
+    <input type="hidden" id="fuel_estimate" name="fuel_estimate">
     
     <button type="submit">Submit Pre-Flight Plan</button>
 </form>
@@ -113,6 +139,13 @@
 <form method="POST" action="/prenav" id="prenavForm">
     <input type="hidden" name="pairing_id" value="{{ pairing.id }}">
     
+    {% if nav_id %}
+    <!-- NAV is pre-selected from assignment workflow -->
+    <div class="info" style="background: #e3f2fd; padding: 1rem; margin: 1rem 0; border-left: 4px solid #2196F3; border-radius: 4px; margin-bottom: 1.5rem;">
+        <strong style="font-size: 1.1em;">✓ NAV Selected from Assignment</strong>
+        <input type="hidden" id="nav_id" name="nav_id" value="{{ nav_id }}">
+    </div>
+    {% else %}
     <div class="form-group">
         <label for="nav_id">Select NAV Route:</label>
         <select id="nav_id" name="nav_id" required onchange="updateCheckpointFields()">
@@ -122,6 +155,7 @@
             {% endfor %}
         </select>
     </div>
+    {% endif %}
     
     <!-- Route Confirmation Message -->
     <div id="route_confirmation" style="display: none; background: #e3f2fd; padding: 1rem; margin: 1rem 0; border-left: 4px solid #2196F3; border-radius: 4px;">
@@ -156,14 +190,28 @@
     </div>
     
     <div class="form-group" style="display: none;" id="fuel_group">
-        <label for="fuel_estimate">Estimated Fuel Burn (gallons):</label>
-        <input type="number" id="fuel_estimate" name="fuel_estimate" 
-               step="0.1" min="0" placeholder="8.5" required>
-        <small style="color: #666;">Enter to the nearest 0.1 gallon (e.g., 8.5, 10.2)</small>
+        <label style="display: block; margin-bottom: 0.5rem;">Estimated Fuel Burn (gallons):</label>
+        <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <label for="fuel_gallons" style="font-size: 0.85em; margin-bottom: 0.25rem; color: #333;">Gallons</label>
+                <input type="number" id="fuel_gallons" name="fuel_gallons" 
+                       min="0" max="99" value="0" placeholder="0" required 
+                       style="width: 60px; padding: 0.5rem; font-size: 1rem; text-align: center;">
+            </div>
+            <div style="font-size: 1.8em; font-weight: bold; color: #8B0015; display: flex; align-items: center; line-height: 1; padding-bottom: 0.5rem;">.</div>
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <label for="fuel_tenths" style="font-size: 0.85em; margin-bottom: 0.25rem; color: #333;">Tenths</label>
+                <input type="number" id="fuel_tenths" name="fuel_tenths" 
+                       min="0" max="9" value="0" placeholder="0" required 
+                       style="width: 60px; padding: 0.5rem; font-size: 1rem; text-align: center;">
+            </div>
+        </div>
+        <small style="color: #666; display: block; margin-top: 0.5rem;">Enter gallons (0-99) and tenths (0-9). Example: 10 gallons + 5 tenths = 10.5 gallons</small>
     </div>
     
     <input type="hidden" id="leg_times_str" name="leg_times_str">
     <input type="hidden" id="total_time_str" name="total_time_str">
+    <input type="hidden" id="fuel_estimate" name="fuel_estimate">
     
     <button type="submit">Submit Pre-Flight Plan</button>
 </form>
@@ -174,9 +222,25 @@
 <script>
 function updateCheckpointFields() {
     const navSelect = document.getElementById('nav_id');
-    const selectedOption = navSelect.options[navSelect.selectedIndex];
-    const numCheckpoints = parseInt(selectedOption.dataset.checkpoints || 0);
-    const routeName = selectedOption.text;
+    const navId = navSelect.value;
+    
+    if (!navId) {
+        document.getElementById('leg_times_container').style.display = 'none';
+        document.getElementById('total_time_group').style.display = 'none';
+        document.getElementById('fuel_group').style.display = 'none';
+        document.getElementById('route_confirmation').style.display = 'none';
+        return;
+    }
+    
+    // Look up nav data from the global NAV_DATA object
+    const navInfo = NAV_DATA[navId];
+    if (!navInfo) {
+        console.error('NAV data not found for ID:', navId);
+        return;
+    }
+    
+    const numCheckpoints = navInfo.checkpoints;
+    const routeName = navInfo.name;
     
     if (numCheckpoints === 0) {
         document.getElementById('leg_times_container').style.display = 'none';
@@ -243,8 +307,14 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
         return;
     }
     
-    const selectedOption = navSelect.options[navSelect.selectedIndex];
-    const numCheckpoints = parseInt(selectedOption.dataset.checkpoints || 0);
+    // Get checkpoint count from NAV_DATA object (works for both select and hidden input)
+    const navInfo = NAV_DATA[navId];
+    if (!navInfo) {
+        alert('NAV route not found');
+        return;
+    }
+    
+    const numCheckpoints = navInfo.checkpoints;
     
     if (numCheckpoints === 0) {
         alert('Selected NAV has no checkpoints');
@@ -291,12 +361,38 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
     
     const totalTimeSeconds = timeToSeconds(totalHh, totalMm, totalSs);
     
-    // Validate fuel estimate
-    const fuelEstimate = document.getElementById('fuel_estimate').value;
-    if (!fuelEstimate || parseFloat(fuelEstimate) < 0) {
-        alert('Please enter valid fuel estimate');
+    // Validate and combine fuel gallons and tenths
+    const fuelGallons = document.getElementById('fuel_gallons').value;
+    const fuelTenths = document.getElementById('fuel_tenths').value;
+    
+    if (!fuelGallons || !fuelTenths) {
+        alert('Please enter fuel estimate (both gallons and tenths)');
         return;
     }
+    
+    // Validate that values are numbers
+    if (isNaN(fuelGallons) || isNaN(fuelTenths)) {
+        alert('Fuel values must contain only numbers');
+        return;
+    }
+    
+    // Validate ranges
+    const gallonsNum = parseInt(fuelGallons);
+    const tenthsNum = parseInt(fuelTenths);
+    
+    if (gallonsNum < 0 || gallonsNum > 99) {
+        alert('Gallons must be between 0 and 99');
+        return;
+    }
+    
+    if (tenthsNum < 0 || tenthsNum > 9) {
+        alert('Tenths must be between 0 and 9');
+        return;
+    }
+    
+    // Combine gallons and tenths into fuel_estimate (e.g., "10.5")
+    const combinedFuel = gallonsNum + '.' + tenthsNum;
+    document.getElementById('fuel_estimate').value = combinedFuel;
     
     // Store leg times and total time as JSON arrays of seconds
     document.getElementById('leg_times_str').value = JSON.stringify(legTimes);
@@ -304,6 +400,15 @@ document.getElementById('prenavForm').addEventListener('submit', function(e) {
     
     // Submit form
     this.submit();
+});
+
+// Initialize form if nav_id is pre-selected (from assignment workflow)
+document.addEventListener('DOMContentLoaded', function() {
+    const navSelect = document.getElementById('nav_id');
+    if (navSelect && navSelect.value) {
+        // NAV is already selected, trigger the form setup
+        updateCheckpointFields();
+    }
 });
 </script>
 {% endblock %}

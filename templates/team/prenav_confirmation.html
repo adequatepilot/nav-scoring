@@ -36,19 +36,12 @@
     <p><strong>Status:</strong> <span style="color: #4CAF50;">Open - Ready to Score</span></p>
 </div>
 
-<div style="margin-top: 2rem; color: #666;">
-    <h3>Next Steps:</h3>
-    <ol style="margin-left: 1.5rem; line-height: 1.8;">
-        <li>Complete your flight</li>
-        <li>Go to <a href="/flight/select">Post-Flight Form</a></li>
-        <li>Select this submission from the dropdown list</li>
-        <li>Upload your GPX file</li>
-        <li>Get your instant score!</li>
-    </ol>
-</div>
-
 <div class="button-group">
+    {% if assignment_id %}
+    <button onclick="window.location.href='/assignments/{{ assignment_id }}'">Return to {{ nav_name }}</button>
+    {% else %}
+    <button onclick="window.location.href='/team/assigned-navs'">Return to Assignments</button>
+    {% endif %}
     <button onclick="window.location.href='/prenav'">Submit Another</button>
-    <button onclick="window.location.href='/flight/select'">Go to Post-Flight Form</button>
 </div>
 {% endblock %}

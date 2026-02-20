@@ -817,6 +817,20 @@ class Database:
             )
             return [dict(row) for row in cursor.fetchall()]
 
+    def update_nav_pdf(self, nav_id: int, pdf_path: str) -> bool:
+        """Update NAV PDF path."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE navs SET pdf_path = ? WHERE id = ?", (pdf_path, nav_id))
+            return cursor.rowcount > 0
+
+    def delete_nav_pdf(self, nav_id: int) -> bool:
+        """Delete NAV PDF path (sets to NULL)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE navs SET pdf_path = NULL WHERE id = ?", (nav_id,))
+            return cursor.rowcount > 0
+
     def get_checkpoints(self, nav_id: int) -> List[Dict]:
         """Get checkpoints for a NAV."""
         with self.get_connection() as conn:
@@ -1483,6 +1497,39 @@ class Database:
             cursor = conn.cursor()
             cursor.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
+
+    def get_assignment(self, assignment_id: int) -> Optional[Dict]:
+        """Get a single assignment by ID."""
+        query = """
+            SELECT 
+                a.id,
+                a.nav_id,
+                a.pairing_id,
+                a.assigned_at,
+                a.assigned_by,
+                a.completed_at,
+                a.semester,
+                a.notes,
+                n.name as nav_name,
+                n.airport_id,
+                ap.code as airport_code,
+                pilot.name as pilot_name,
+                observer.name as observer_name,
+                u.name as assigned_by_name
+            FROM nav_assignments a
+            JOIN navs n ON a.nav_id = n.id
+            JOIN airports ap ON n.airport_id = ap.id
+            JOIN pairings p ON a.pairing_id = p.id
+            JOIN users pilot ON p.pilot_id = pilot.id
+            JOIN users observer ON p.safety_observer_id = observer.id
+            LEFT JOIN users u ON a.assigned_by = u.id
+            WHERE a.id = ?
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (assignment_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
     def mark_assignment_complete(self, assignment_id: int) -> bool:
         """Mark an assignment as completed."""

@@ -63,7 +63,8 @@ def load_config(config_path: str = "data/config.yaml") -> dict:
             "prenav": {"token_expiry_hours": 48},
             "storage": {
                 "gpx_uploads": "data/gpx_uploads",
-                "pdf_reports": "data/pdf_reports"
+                "pdf_reports": "data/pdf_reports",
+                "nav_packets": "data/nav_packets"
             },
             "scoring": {
                 "timing_penalty_per_second": 1.0,
@@ -163,6 +164,15 @@ static_path = Path("static")
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
+# Serve NAV packet PDFs
+@app.get("/nav-packets/{filename}")
+async def download_nav_packet(filename: str):
+    """Download NAV packet PDF."""
+    pdf_path = Path(config["storage"].get("nav_packets", "data/nav_packets")) / filename
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="PDF not found")
+    return FileResponse(pdf_path, media_type="application/pdf", filename=filename)
+
 # Cleanup on startup
 @app.on_event("startup")
 async def startup_event():
@@ -188,6 +198,7 @@ async def startup_event():
     try:
         Path(config["storage"]["gpx_uploads"]).mkdir(parents=True, exist_ok=True)
         Path(config["storage"]["pdf_reports"]).mkdir(parents=True, exist_ok=True)
+        Path(config["storage"]["nav_packets"]).mkdir(parents=True, exist_ok=True)
         Path(config.get("backup", {}).get("backup_path", "data/backups")).mkdir(parents=True, exist_ok=True)
     except Exception as e:
         logger.error(f"Error creating storage directories: {e}")
@@ -1912,6 +1923,60 @@ async def download_pdf(result_id: int, user: dict = Depends(require_login)):
     
     return FileResponse(pdf_path, media_type="application/pdf", filename=result["pdf_filename"])
 
+@app.get("/coach/navs/{nav_id}/pdf")
+async def download_nav_pdf(nav_id: int, user: dict = Depends(require_login)):
+    """Download NAV packet PDF. Available to all authenticated users."""
+    try:
+        nav = db.get_nav(nav_id)
+        if not nav:
+            raise HTTPException(status_code=404, detail="NAV not found")
+        
+        # Check if pdf_path is set
+        pdf_path_value = nav.get("pdf_path")
+        if not pdf_path_value:
+            raise HTTPException(status_code=404, detail="NAV packet PDF not available")
+        
+        # Build full path - try multiple possible locations
+        pdf_path = Path(pdf_path_value)
+        
+        # If it's a relative path, try to resolve it
+        if not pdf_path.is_absolute():
+            # Try: data/{pdf_path_value}
+            candidate1 = Path("data") / pdf_path_value
+            # Try: {pdf_path_value} as-is
+            candidate2 = Path(pdf_path_value)
+            # Try: data/nav_packets/{filename} (in case pdf_path_value is just the filename)
+            pdf_filename = Path(pdf_path_value).name
+            candidate3 = Path("data/nav_packets") / pdf_filename
+            
+            candidates = [candidate1, candidate2, candidate3]
+            pdf_path = None
+            
+            for candidate in candidates:
+                if candidate.exists():
+                    pdf_path = candidate
+                    logger.info(f"Found NAV PDF at: {pdf_path}")
+                    break
+            
+            if not pdf_path:
+                logger.error(f"NAV PDF not found in any of: {candidates}")
+                raise HTTPException(status_code=404, detail="PDF file not found on disk")
+        
+        # Verify file exists
+        if not pdf_path.exists():
+            logger.error(f"NAV PDF file not found: {pdf_path}")
+            raise HTTPException(status_code=404, detail="PDF file not found on disk")
+        
+        # Return the PDF file
+        filename = f"{nav['name']}_NAV_Packet.pdf"
+        return FileResponse(pdf_path, media_type="application/pdf", filename=filename)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading NAV PDF for nav_id {nav_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading PDF: {str(e)}")
+
 @app.get("/results", response_class=HTMLResponse)
 async def list_results(request: Request, user: dict = Depends(require_login)):
     """List results - competitors see only their results, coaches/admins see all. Issue 18: Better error handling."""
@@ -2626,6 +2691,74 @@ async def coach_route_detail(nav_id: int, request: Request, user: dict = Depends
         "error": request.query_params.get("error")
     })
 
+@app.post("/coach/navs/{nav_id}/upload-pdf")
+async def upload_nav_pdf(nav_id: int, request: Request, user: dict = Depends(require_admin), pdf_file: UploadFile = File(...)):
+    """Upload or replace NAV PDF packet."""
+    try:
+        nav = db.get_nav(nav_id)
+        if not nav:
+            raise HTTPException(status_code=404, detail="NAV not found")
+        
+        # Validate PDF file
+        if not pdf_file.filename.lower().endswith('.pdf'):
+            return {"success": False, "message": "Only PDF files are allowed"}
+        
+        max_size = 50 * 1024 * 1024  # 50MB
+        content = await pdf_file.read()
+        if len(content) > max_size:
+            return {"success": False, "message": "PDF file must be under 50MB"}
+        
+        # Create storage directory
+        pdf_storage = Path(config["storage"].get("nav_packets", "data/nav_packets"))
+        pdf_storage.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        timestamp = int(datetime.utcnow().timestamp())
+        pdf_filename = f"nav_{nav_id}_{timestamp}.pdf"
+        pdf_path = pdf_storage / pdf_filename
+        
+        # Delete old PDF if exists
+        if nav.get("pdf_path"):
+            old_path = Path(nav["pdf_path"])
+            if old_path.exists():
+                old_path.unlink()
+        
+        # Save new PDF
+        pdf_path.write_bytes(content)
+        
+        # Update database
+        relative_path = f"nav_packets/{pdf_filename}"
+        db.update_nav_pdf(nav_id, relative_path)
+        
+        logger.info(f"NAV {nav_id} PDF uploaded: {pdf_filename}")
+        return {"success": True, "message": "PDF uploaded successfully", "filename": pdf_filename}
+    except Exception as e:
+        logger.error(f"Error uploading NAV PDF: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.post("/coach/navs/{nav_id}/delete-pdf")
+async def delete_nav_pdf(nav_id: int, user: dict = Depends(require_admin)):
+    """Delete NAV PDF packet."""
+    try:
+        nav = db.get_nav(nav_id)
+        if not nav:
+            raise HTTPException(status_code=404, detail="NAV not found")
+        
+        # Delete file if exists
+        if nav.get("pdf_path"):
+            pdf_path = Path(nav["pdf_path"])
+            if pdf_path.exists():
+                pdf_path.unlink()
+        
+        # Update database
+        db.delete_nav_pdf(nav_id)
+        
+        logger.info(f"NAV {nav_id} PDF deleted")
+        return {"success": True, "message": "PDF deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting NAV PDF: {e}")
+        return {"success": False, "message": str(e)}
+
 @app.post("/coach/navs/airports")
 async def coach_create_airport(
     request: Request,
@@ -3330,8 +3463,8 @@ async def coach_delete_assignment(
 async def team_assigned_navs(request: Request, user: dict = Depends(require_login)):
     """View assigned NAVs for competitor. Item 37."""
     try:
-        # Get user's pairing
-        pairing = db.get_pairing_for_user(user["user_id"])
+        # Get user's active pairing
+        pairing = db.get_active_pairing_for_member(user["user_id"])
         
         if not pairing:
             return templates.TemplateResponse("team/assigned_navs.html", {
@@ -3365,20 +3498,30 @@ async def team_assigned_navs(request: Request, user: dict = Depends(require_logi
 async def assignment_workflow(assignment_id: int, request: Request, user: dict = Depends(require_login)):
     """View single assignment workflow page. Item 37."""
     try:
+        logger.info(f"User {user['user_id']} accessing assignment {assignment_id}")
+        
         # Get assignment details
-        assignments = db.get_all_assignments()
-        assignment = next((a for a in assignments if a["id"] == assignment_id), None)
+        assignment = db.get_assignment(assignment_id)
         
         if not assignment:
+            logger.warning(f"Assignment {assignment_id} not found for user {user['user_id']}")
             return templates.TemplateResponse("error.html", {
                 "request": request,
                 "user": user,
                 "error": "Assignment not found"
             })
         
+        logger.info(f"Assignment found: pairing_id={assignment.get('pairing_id')}, nav_id={assignment.get('nav_id')}")
+        
+        # Verify pairing_id and nav_id exist
+        if "pairing_id" not in assignment or "nav_id" not in assignment:
+            logger.error(f"Assignment {assignment_id} missing pairing_id or nav_id. Keys: {list(assignment.keys())}")
+            raise ValueError("Assignment is missing pairing_id or nav_id")
+        
         # Verify user has access (in the pairing or is coach/admin)
         pairing = db.get_pairing(assignment["pairing_id"])
         if not pairing:
+            logger.warning(f"Pairing {assignment['pairing_id']} not found for assignment {assignment_id}")
             return templates.TemplateResponse("error.html", {
                 "request": request,
                 "user": user,
@@ -3390,6 +3533,7 @@ async def assignment_workflow(assignment_id: int, request: Request, user: dict =
         )
         
         if not is_in_pairing and not user.get("is_coach") and not user.get("is_admin"):
+            logger.warning(f"User {user['user_id']} does not have access to assignment {assignment_id}")
             return templates.TemplateResponse("error.html", {
                 "request": request,
                 "user": user,
@@ -3422,6 +3566,8 @@ async def assignment_workflow(assignment_id: int, request: Request, user: dict =
                 if row:
                     result_id = row[0]
         
+        logger.info(f"Successfully loaded assignment {assignment_id} for user {user['user_id']}")
+        
         return templates.TemplateResponse("team/assignment_workflow.html", {
             "request": request,
             "user": user,
@@ -3432,7 +3578,7 @@ async def assignment_workflow(assignment_id: int, request: Request, user: dict =
             "result_id": result_id
         })
     except Exception as e:
-        logger.error(f"Error displaying assignment workflow: {e}")
+        logger.error(f"Error displaying assignment workflow for assignment {assignment_id}: {e}", exc_info=True)
         return templates.TemplateResponse("error.html", {
             "request": request,
             "user": user,

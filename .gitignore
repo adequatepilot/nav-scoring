@@ -63,3 +63,5 @@ CRITICAL_*.md
 
 # Backup files
 backups/
+.env
+data/

@@ -3,18 +3,20 @@ version: '3.8'
 services:
   nav-scoring:
     build: .
-    container_name: nav_scoring
+    container_name: nav-scoring
     ports:
       - "8000:8000"
     volumes:
-      - /mnt/user/appdata/nav_scoring/data:/app/data
-      - /mnt/user/appdata/nav_scoring/config:/app/config
+      - ./data:/app/data
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:///app/data/nav_scoring.db
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 10s

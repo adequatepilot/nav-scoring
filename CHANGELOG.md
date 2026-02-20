@@ -2,6 +2,47 @@
 
 All notable changes to the NAV Scoring application.
 
+## [0.6.1] - 2026-02-19
+
+### 🔧 BUG FIXES & IMPROVEMENTS
+
+**Results Page Consolidation & Redesign**
+- Consolidated multiple redundant tables into single comprehensive results table
+- Reorganized from penalty-type grouping to leg-based organization
+- Results table now shows: Leg | Estimated | Actual | Deviation | Time Points | Method | Off Course (NM) | Off Course Pts | Total Points
+- Reduced data redundancy by 50%+
+
+**Timestamp Corrections**
+- Fixed results page to display flight start time (start gate trigger) instead of result processing time
+- Changed from `result.scored_at` to `prenav.submitted_at` for accurate flight start time
+- Added clear label "Flight Started:" to timestamp display
+
+**Pairing Information**
+- Added pairing (pilot + observer) display to results page
+- Prominent display near navigation name and date/time
+- Shows which team completed the NAV
+
+**PDF & Map Features**
+- Restored PDF upload/download functionality for NAV packets
+- Implemented comprehensive map visualizations for PDF reports
+- Full route track showing planned route with actual GPS track overlay
+- Checkpoint detail maps (zoomed per checkpoint) with radius circles
+
+**UI/UX Improvements**
+- Moved "Add Start Gate" button outside maroon header box
+- Improved gate card styling and hover effects
+- Better section headers with visual separation
+- Enhanced layout spacing and visual hierarchy
+- Mobile-responsive design optimizations
+
+**Code Quality**
+- All changes committed with clear commit messages
+- Syntax verified and tested
+- No breaking changes to database schema
+- Full backward compatibility maintained
+
+---
+
 ## [0.6.0] - 2026-02-18
 
 ### 🎉 MAJOR RELEASE: Practice NAV Assignment System & Complete UI Redesign

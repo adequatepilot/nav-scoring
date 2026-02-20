@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Error{% endblock %}
+
+{% block navbar %}
+<div class="navbar">
+    <div class="navbar-brand">
+        <button class="hamburger" id="hamburgerBtn">☰</button>
+        <h1>Error</h1>
+    </div>
+    <div class="navbar-links" id="navbarLinks">
+        <a href="/dashboard">Dashboard</a>
+        {% if user and user.get('is_coach') %}
+            <a href="/coach">Coach Dashboard</a>
+        {% endif %}
+        <a href="/profile">Profile</a>
+        <a href="/logout">Logout</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.error-container {
+    max-width: 600px;
+    margin: 4rem auto;
+    padding: 2rem;
+    background: #fff3cd;
+    border: 2px solid #ff6b6b;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.error-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.error-title {
+    color: #c92a2a;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.error-message {
+    color: #333;
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+    word-break: break-word;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.error-actions a, .error-actions button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.error-actions .primary {
+    background: #8B0015;
+    color: white;
+}
+
+.error-actions .primary:hover {
+    background: #5D000F;
+    transform: scale(1.05);
+}
+
+.error-actions .secondary {
+    background: #e9ecef;
+    color: #333;
+}
+
+.error-actions .secondary:hover {
+    background: #dee2e6;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title">Something went wrong</div>
+    <div class="error-message">{{ error or 'An unexpected error occurred. Please try again or contact support.' }}</div>
+    <div class="error-actions">
+        <a href="/dashboard" class="primary">Return to Dashboard</a>
+        <button class="secondary" onclick="history.back()">Go Back</button>
+    </div>
+</div>
+{% endblock %}

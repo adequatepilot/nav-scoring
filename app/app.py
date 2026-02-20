@@ -830,14 +830,6 @@ async def team_redirect(request: Request):
         return RedirectResponse(url="/login", status_code=303)
     return RedirectResponse(url="/dashboard", status_code=303)
 
-@app.get("/coach")
-async def coach_redirect(request: Request):
-    """Legacy redirect: /coach -> /dashboard"""
-    user = get_session_user(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-    return RedirectResponse(url="/dashboard", status_code=303)
-
 @app.get("/reset-password", response_class=HTMLResponse)
 async def reset_password_page(request: Request):
     """Show password reset page. Issue 13."""

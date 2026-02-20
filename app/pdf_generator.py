@@ -321,7 +321,7 @@ def generate_enhanced_pdf_report(
     header_table = Table(header_table_data, colWidths=[3.5*inch, 3.5*inch])
     header_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#E8F0F7')),
-        ('ALIGN', (0, 0), (-1, -1), TA_CENTER),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
@@ -425,7 +425,7 @@ def generate_enhanced_pdf_report(
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 8),
-        ('ALIGN', (0, 0), (-1, 0), TA_CENTER),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
         
@@ -434,8 +434,8 @@ def generate_enhanced_pdf_report(
         
         # Body text
         ('FONTSIZE', (0, 1), (-1, -1), 7.5),
-        ('ALIGN', (0, 1), (0, -1), TA_LEFT),
-        ('ALIGN', (1, 1), (-1, -1), TA_CENTER),
+        ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),

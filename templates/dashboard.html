@@ -62,32 +62,6 @@
     display: block;
 }
 
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.stat-card {
-    background: linear-gradient(135deg, #B0B0B0 0%, #4A4A4A 100%);
-    color: white;
-    padding: 1.5rem;
-    border-radius: 10px;
-    text-align: center;
-}
-
-.stat-number {
-    font-size: 2.5rem;
-    font-weight: bold;
-    margin: 0.5rem 0;
-}
-
-.stat-label {
-    opacity: 0.9;
-    font-size: 0.9rem;
-}
-
 .quick-links {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -225,24 +199,6 @@
 
 {% block content %}
 <h2>Welcome, {{ member_name }}</h2>
-
-{% if is_coach or is_admin %}
-<!-- Coaches/Admins see stats -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-label">Total Users</div>
-        <div class="stat-number">{{ stats.total_members }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Active Pairings</div>
-        <div class="stat-number">{{ stats.active_pairings }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Total Results</div>
-        <div class="stat-number">{{ stats.recent_results }}</div>
-    </div>
-</div>
-{% endif %}
 
 {% if pairing_info and not is_coach and not is_admin %}
 <!-- Competitors see their pairing info -->

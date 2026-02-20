@@ -225,7 +225,8 @@ function createPairing(event) {
         return r.json();
     })
     .then(data => {
-        location.reload();  // Success
+        // Redirect with success message instead of just reloading
+        window.location.href = '/coach/pairings?message=Pairing created successfully';
     })
     .catch(err => {
         const errorDiv = document.getElementById('error-message');

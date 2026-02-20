@@ -2570,12 +2570,16 @@ async def coach_create_member(
     user: dict = Depends(require_admin),
     email: str = Form(...),
     name: str = Form(...),
-    password: str = Form(...)
+    password: str = Form(...),
+    force_reset: str = Form(default="0")
 ):
     """Create new user (unified users table). Admin-created users are pre-approved."""
     try:
         if not password:
             return RedirectResponse(url="/coach/users?error=Password is required", status_code=303)
+        
+        # Determine if user should be forced to reset password
+        must_reset_password = force_reset == "1"
         
         # Create user in unified users table - admin-created users are pre-approved
         password_hash = auth.hash_password(password)
@@ -2588,9 +2592,9 @@ async def coach_create_member(
             is_admin=False,
             is_approved=1,  # Admin-created users are pre-approved
             email_verified=True,  # Coach-created accounts have verified email
-            must_reset_password=True  # Require password reset on first login
+            must_reset_password=must_reset_password  # Respect the checkbox value
         )
-        logger.info(f"New user created (pre-approved): {email} (ID: {user_id})")
+        logger.info(f"New user created (pre-approved): {email} (ID: {user_id}, force_reset={must_reset_password})")
         return RedirectResponse(url="/coach/users?message=User created and approved", status_code=303)
     except Exception as e:
         logger.error(f"Error creating user: {e}")

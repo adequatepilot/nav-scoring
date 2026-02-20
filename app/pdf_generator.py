@@ -590,7 +590,7 @@ def generate_enhanced_pdf_report(
     # Summary rows
     total_time_dev = f"{result_data.get('total_time_deviation', 0):+.0f}s"
     total_time_penalty = f"{result_data.get('total_time_penalty', 0):.0f}"
-    time_score = f"{result_data.get('total_time_score', 0):.0f}"
+    time_score = f"{abs(result_data.get('total_time_deviation', 0)):.0f}"
     fuel_penalty = f"{result_data.get('fuel_penalty', 0):.0f}"
     cp_secrets = f"{result_data.get('checkpoint_secrets_penalty', 0):.0f}"
     enroute_secrets = f"{result_data.get('enroute_secrets_penalty', 0):.0f}"

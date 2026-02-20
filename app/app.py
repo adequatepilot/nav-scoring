@@ -1841,6 +1841,16 @@ async def view_result(request: Request, result_id: int, user: dict = Depends(req
         # Get NAV
         nav = db.get_nav(result["nav_id"])
         
+        # Get pairing member names for display
+        pairing_info = None
+        if pairing:
+            pilot = db.get_user_by_id(pairing["pilot_id"])
+            observer = db.get_user_by_id(pairing["safety_observer_id"])
+            pairing_info = {
+                "pilot_name": pilot["name"] if pilot else "Unknown",
+                "observer_name": observer["name"] if observer else "Unknown"
+            }
+        
         # Get prenav - use fallback from result if prenav is missing
         prenav = db.get_prenav(result["prenav_id"])
         if not prenav:
@@ -1865,6 +1875,7 @@ async def view_result(request: Request, result_id: int, user: dict = Depends(req
             "actual_fuel_burn": result["actual_fuel"],
             "pdf_filename": result.get("pdf_filename"),
             "scored_at": result["scored_at"],
+            "flight_started_at": prenav.get("submitted_at"),  # Time when start gate was triggered
             # New fields from v0.4.8
             "leg_penalties": result.get("leg_penalties", 0),
             "total_time_penalty": result.get("total_time_penalty", 0),
@@ -1890,6 +1901,7 @@ async def view_result(request: Request, result_id: int, user: dict = Depends(req
             "request": request,
             "result": result_display,
             "nav": nav,
+            "pairing": pairing_info,
             "member_name": user["name"]
         })
     except HTTPException:
@@ -2140,6 +2152,18 @@ async def coach_view_result(request: Request, result_id: int, user: dict = Depen
             raise HTTPException(status_code=404, detail="Result not found")
         
         nav = db.get_nav(result["nav_id"])
+        
+        # Get pairing member names for display
+        pairing_info = None
+        pairing = db.get_pairing(result["pairing_id"])
+        if pairing:
+            pilot = db.get_user_by_id(pairing["pilot_id"])
+            observer = db.get_user_by_id(pairing["safety_observer_id"])
+            pairing_info = {
+                "pilot_name": pilot["name"] if pilot else "Unknown",
+                "observer_name": observer["name"] if observer else "Unknown"
+            }
+        
         prenav = db.get_prenav(result["prenav_id"])
         
         # Handle missing prenav gracefully
@@ -2163,6 +2187,7 @@ async def coach_view_result(request: Request, result_id: int, user: dict = Depen
             "actual_fuel_burn": result["actual_fuel"],
             "pdf_filename": result.get("pdf_filename"),
             "scored_at": result["scored_at"],
+            "flight_started_at": prenav.get("submitted_at"),  # Time when start gate was triggered
             # New fields from v0.4.8
             "leg_penalties": result.get("leg_penalties", 0),
             "total_time_penalty": result.get("total_time_penalty", 0),
@@ -2180,6 +2205,7 @@ async def coach_view_result(request: Request, result_id: int, user: dict = Depen
             "request": request,
             "result": result_display,
             "nav": nav,
+            "pairing": pairing_info,
             "member_name": "Coach",
             "dashboard_url": "/coach"
         })

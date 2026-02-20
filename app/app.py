@@ -2218,14 +2218,19 @@ async def coach_dashboard(request: Request, user: dict = Depends(require_coach))
             observer = db.get_user_by_id(pairing["safety_observer_id"])
             result["team_name"] = f"{pilot['name']} / {observer['name']}" if pilot and observer else "Unknown"
     
+    # Calculate stats - ensure they're integers
+    total_users_count = len(members) if members else 0
+    active_pairings_count = len(pairings) if pairings else 0
+    recent_results_count = len(results) if results else 0
+    
     return templates.TemplateResponse("coach/dashboard.html", {
         "request": request,
         "is_admin": user.get("is_admin", False),
         "pending_count": pending_count,
         "stats": {
-            "total_users": len(members),
-            "active_pairings": len(pairings),
-            "recent_results": len(results)
+            "total_users": total_users_count,
+            "active_pairings": active_pairings_count,
+            "recent_results": recent_results_count
         },
         "recent_results": recent
     })
@@ -2580,6 +2585,7 @@ async def coach_create_member(
         
         # Determine if user should be forced to reset password
         must_reset_password = force_reset == "1"
+        logger.info(f"Coach creating user: {email}, force_reset checkbox value='{force_reset}', must_reset_password={must_reset_password}")
         
         # Create user in unified users table - admin-created users are pre-approved
         password_hash = auth.hash_password(password)
@@ -2594,7 +2600,7 @@ async def coach_create_member(
             email_verified=True,  # Coach-created accounts have verified email
             must_reset_password=must_reset_password  # Respect the checkbox value
         )
-        logger.info(f"New user created (pre-approved): {email} (ID: {user_id}, force_reset={must_reset_password})")
+        logger.info(f"New user created (pre-approved): {email} (ID: {user_id}, must_reset_password={must_reset_password})")
         return RedirectResponse(url="/coach/users?message=User created and approved", status_code=303)
     except Exception as e:
         logger.error(f"Error creating user: {e}")
@@ -3603,6 +3609,10 @@ async def coach_create_assignment(
         failed_assignments = []
         duplicate_assignments = []
         
+        # Get NAV details for email
+        nav = db.get_nav(nav_id)
+        nav_name = nav.get("name", "Unknown NAV") if nav else "Unknown NAV"
+        
         for pairing_id in pairing_ids:
             # Check for duplicates
             if db.check_duplicate_assignment(nav_id, pairing_id, semester):
@@ -3621,6 +3631,27 @@ async def coach_create_assignment(
             if assignment_id:
                 successful_assignments.append(pairing_id)
                 logger.info(f"NAV assignment created: assignment_id={assignment_id} nav={nav_id} pairing={pairing_id} by user={user['user_id']}")
+                
+                # Send email notification to pilot and observer (fail gracefully if email fails)
+                try:
+                    pairing = db.get_pairing(pairing_id)
+                    if pairing:
+                        # Get full pairing details with names and emails via list_pairings
+                        all_pairings = db.list_pairings(active_only=False)
+                        pairing_details = next((p for p in all_pairings if p['id'] == pairing_id), None)
+                        
+                        if pairing_details:
+                            await email_service.send_nav_assigned(
+                                pilot_email=pairing_details.get("pilot_email", ""),
+                                observer_email=pairing_details.get("observer_email", ""),
+                                pilot_name=pairing_details.get("pilot_name", "Pilot"),
+                                observer_name=pairing_details.get("observer_name", "Observer"),
+                                nav_name=nav_name
+                            )
+                            logger.info(f"NAV assignment email sent for assignment_id={assignment_id}")
+                except Exception as e:
+                    # Log email error but don't fail the assignment creation
+                    logger.error(f"Failed to send NAV assignment email for pairing {pairing_id}: {e}")
             else:
                 failed_assignments.append(pairing_id)
         

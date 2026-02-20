@@ -150,7 +150,7 @@ class Auth:
 
         # Update last login
         self.db.update_user_last_login(user["id"])
-        logger.info(f"User logged in: {email} (coach={user.get('is_coach')}, admin={user.get('is_admin')})")
+        logger.info(f"User logged in: {email} (coach={user.get('is_coach')}, admin={user.get('is_admin')}, must_reset={user.get('must_reset_password')})")
 
         return {
             "success": True,
@@ -161,6 +161,7 @@ class Auth:
                 "name": user["name"],
                 "is_coach": user.get("is_coach", 0) == 1,
                 "is_admin": user.get("is_admin", 0) == 1,
+                "must_reset_password": user.get("must_reset_password", 0),
             },
         }
 

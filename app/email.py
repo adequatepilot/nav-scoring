@@ -228,6 +228,85 @@ Log in to review detailed results.
         
         return all_success
 
+    async def send_nav_assigned(
+        self,
+        pilot_email: str,
+        observer_email: str,
+        pilot_name: str,
+        observer_name: str,
+        nav_name: str
+    ) -> bool:
+        """Send email notification when a NAV is assigned to a pairing."""
+        subject = f"NAV Assignment: {nav_name}"
+        
+        html_body = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; color: #333;">
+                <h2>New NAV Assignment</h2>
+                <p>Hi Team,</p>
+                <p>You have been assigned a new NAV route to prepare for:</p>
+                <h3 style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; color: #003366;">
+                    {nav_name}
+                </h3>
+                <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #003366; margin: 20px 0;">
+                    <p><strong>Pilot:</strong> {pilot_name}</p>
+                    <p><strong>Observer:</strong> {observer_name}</p>
+                </div>
+                <p>Log in to the NAV Scoring portal to:</p>
+                <ul>
+                    <li>View the NAV route details</li>
+                    <li>Prepare your pre-flight planning</li>
+                    <li>Submit your pre-flight data</li>
+                </ul>
+                <p>Questions? Contact your coach.</p>
+                <p style="color: #999; font-size: 12px; margin-top: 2rem;">NAV Scoring System</p>
+            </body>
+        </html>
+        """
+        
+        text_body = f"""
+New NAV Assignment
+
+Hi Team,
+
+You have been assigned a new NAV route to prepare for:
+
+NAV: {nav_name}
+
+Pilot: {pilot_name}
+Observer: {observer_name}
+
+Log in to the NAV Scoring portal to:
+- View the NAV route details
+- Prepare your pre-flight planning
+- Submit your pre-flight data
+
+Questions? Contact your coach.
+
+NAV Scoring System
+        """
+        
+        # Send to both pilot and observer
+        all_success = True
+        
+        pilot_success = await self._send_email(
+            to_email=pilot_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body
+        )
+        all_success = all_success and pilot_success
+        
+        observer_success = await self._send_email(
+            to_email=observer_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body
+        )
+        all_success = all_success and observer_success
+        
+        return all_success
+
     async def test_connection(self) -> tuple[bool, str]:
         """Test SMTP connection, authentication, and send a test email.
         

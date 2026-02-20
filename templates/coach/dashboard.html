@@ -21,28 +21,6 @@
 .card {
     max-width: 900px;
 }
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-.stat-card {
-    background: linear-gradient(135deg, #B0B0B0 0%, #4A4A4A 100%);
-    color: white;
-    padding: 1.5rem;
-    border-radius: 10px;
-    text-align: center;
-}
-.stat-number {
-    font-size: 2.5rem;
-    font-weight: bold;
-    margin: 0.5rem 0;
-}
-.stat-label {
-    opacity: 0.9;
-    font-size: 0.9rem;
-}
 .quick-links {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 250px));
@@ -76,21 +54,6 @@
 
 {% block content %}
 <h2>Welcome, Coach</h2>
-
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-label">Total Users</div>
-        <div class="stat-number">{{ stats.total_users if stats and stats.total_users is not none else 0 }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Active Pairings</div>
-        <div class="stat-number">{{ stats.active_pairings if stats and stats.active_pairings is not none else 0 }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">Recent Results</div>
-        <div class="stat-number">{{ stats.recent_results if stats and stats.recent_results is not none else 0 }}</div>
-    </div>
-</div>
 
 <h3>Quick Actions</h3>
 <div class="quick-links">

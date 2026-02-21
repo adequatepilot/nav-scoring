@@ -161,10 +161,10 @@ class Database:
             admin_password_hash = pwd_context.hash("admin123")
             cursor.execute(
                 """
-                INSERT INTO users (username, email, password_hash, name, is_admin, is_approved, is_coach)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (username, email, password_hash, name, is_admin, is_approved, is_coach, email_verified)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                ("admin", "admin@siu.edu", admin_password_hash, "Main Administrator", 1, 1, 0)
+                ("admin", "admin@siu.edu", admin_password_hash, "Main Administrator", 1, 1, 0, 1)
             )
             
             conn.commit()

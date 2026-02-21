@@ -150,11 +150,26 @@ class Database:
             logger.info("✓ Users table exists, checking for admin account...")
             
             # Check if admin already exists
-            cursor.execute("SELECT id FROM users WHERE email = ?", ("admin@siu.edu",))
-            if cursor.fetchone():
-                logger.info("✓ Admin account already exists")
-                conn.close()
-                return
+            cursor.execute("SELECT id, email_verified FROM users WHERE email = ?", ("admin@siu.edu",))
+            result = cursor.fetchone()
+            
+            if result:
+                admin_id, is_verified = result
+                if is_verified:
+                    logger.info("✓ Admin account already exists and is verified")
+                    conn.close()
+                    return
+                else:
+                    # Admin exists but not verified - fix it
+                    logger.info("✓ Admin exists but not verified - marking as verified...")
+                    cursor.execute(
+                        "UPDATE users SET email_verified=1 WHERE id=?",
+                        (admin_id,)
+                    )
+                    conn.commit()
+                    logger.info("✅ Admin account marked as verified")
+                    conn.close()
+                    return
             
             # Create admin account (all required fields)
             logger.info("Creating admin account...")

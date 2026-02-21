@@ -140,21 +140,24 @@ class Database:
             conn = sqlite3.connect(str(self.db_path), timeout=5.0, check_same_thread=False)
             cursor = conn.cursor()
             
-            # Check if users table exists (migration 003 may not have run yet)
+            # Check if users table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
             if not cursor.fetchone():
-                logger.warning("Users table not yet created, skipping seed")
+                logger.error("❌ Users table does not exist after migrations! Cannot seed admin account.")
                 conn.close()
                 return
+            
+            logger.info("✓ Users table exists, checking for admin account...")
             
             # Check if admin already exists
             cursor.execute("SELECT id FROM users WHERE email = ?", ("admin@siu.edu",))
             if cursor.fetchone():
-                logger.info("Admin account already exists")
+                logger.info("✓ Admin account already exists")
                 conn.close()
                 return
             
             # Create admin account (all required fields)
+            logger.info("Creating admin account...")
             admin_password_hash = pwd_context.hash("admin123")
             cursor.execute(
                 """
@@ -165,11 +168,13 @@ class Database:
             )
             
             conn.commit()
-            logger.info("✅ Admin account created: admin@siu.edu / admin123")
+            logger.info("✅ SUCCESS: Admin account created: admin@siu.edu / admin123")
             conn.close()
             
         except Exception as e:
-            logger.error(f"Error seeding default accounts: {e}")
+            logger.error(f"❌ FAILED to seed admin account: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
     # ===== MEMBER MANAGEMENT =====
 

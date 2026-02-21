@@ -1,18 +1,8 @@
 #!/bin/bash
-# Initialize database if it doesn't exist
-if [ ! -f /app/data/navs.db ]; then
-    echo "Database not found, initializing..."
-    python /app/bootstrap_db.py
-    python /app/seed.py
-    echo "Database initialized!"
-fi
+# Initialize database and start app
 
-# Initialize config from template if it doesn't exist
-if [ ! -f /app/data/config.yaml ]; then
-    echo "Creating default config from template..."
-    cp /app/config.yaml.template /app/data/config.yaml
-    echo "Config initialized!"
-fi
+# Ensure data directory exists
+mkdir -p /app/data
 
-# Start the app
+# Start the app - it will run migrations on startup
 exec python -m uvicorn app.app:app --host 0.0.0.0 --port 8000

@@ -53,18 +53,42 @@ class Database:
     def _init_db(self):
         """Initialize database with schema and run migrations."""
         try:
-            # Try to run migrations if database exists
-            if self.db_path.exists():
-                self._run_migrations()
-            else:
-                logger.warning(
-                    f"Database file does not exist at {self.db_path}. "
-                    "Run: python3 bootstrap_db.py to create it, or run this in Docker. "
-                    "See SETUP.md for instructions."
-                )
+            # Create initial schema (this also creates the database file)
+            self._run_initial_schema()
+            # Then run any pending migrations
+            self._run_migrations()
         except Exception as e:
-            logger.warning(f"Could not initialize database: {e}. Database may need manual setup.")
+            logger.error(f"Database initialization error: {e}")
+            raise
 
+    def _run_initial_schema(self):
+        """Run initial schema creation (creates database file and base tables)."""
+        migrations_dir = Path(__file__).parent.parent / "migrations"
+        schema_file = migrations_dir / "001_initial_schema.sql"
+        
+        if not schema_file.exists():
+            logger.warning(f"Initial schema file not found: {schema_file}")
+            return
+        
+        # Create connection (which creates the database file)
+        conn = sqlite3.connect(str(self.db_path), timeout=5.0, check_same_thread=False, isolation_level=None)
+        try:
+            with open(schema_file, "r") as f:
+                sql = f.read()
+            
+            # Split by semicolon and execute each statement
+            statements = [s.strip() for s in sql.split(';') if s.strip()]
+            for statement in statements:
+                conn.execute(statement)
+            conn.commit()
+            logger.info("Initial schema created successfully")
+        except Exception as e:
+            logger.error(f"Error running initial schema: {e}")
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    
     def _run_migrations(self):
         """Run any pending migrations."""
         migrations_dir = Path(__file__).parent.parent / "migrations"

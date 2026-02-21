@@ -28,17 +28,17 @@ read -p "Enter Zoho SMTP email (or skip with blank): " ZOHO_EMAIL
 read -sp "Enter Zoho SMTP password (or skip with blank): " ZOHO_PASS
 echo ""
 
-# Create .env file if provided
-if [ -n "$ZOHO_EMAIL" ]; then
-    cat > .env << EOF
-ZOHO_SMTP_USER=$ZOHO_EMAIL
-ZOHO_SMTP_PASSWORD=$ZOHO_PASS
+# Create .env file (always, even if empty)
+cat > .env << EOF
+DATABASE_URL=sqlite:///app/data/nav_scoring.db
+ZOHO_SMTP_USER=${ZOHO_EMAIL:-}
+ZOHO_SMTP_PASSWORD=${ZOHO_PASS:-}
 ZOHO_SMTP_HOST=smtp.zoho.com
 ZOHO_SMTP_PORT=587
 EOF
-    echo "✅ .env file created"
-else
-    echo "⚠️  Skipping .env file (email notifications disabled)"
+echo "✅ .env file created"
+if [ -z "$ZOHO_EMAIL" ]; then
+    echo "⚠️  Email notifications skipped (can configure later in System Config)"
 fi
 
 # Create docker-compose.yml for SQLite

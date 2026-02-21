@@ -57,6 +57,8 @@ class Database:
             self._run_initial_schema()
             # Then run any pending migrations
             self._run_migrations()
+            # Finally, seed default accounts if needed
+            self._seed_default_accounts()
         except Exception as e:
             logger.error(f"Database initialization error: {e}")
             raise
@@ -127,6 +129,40 @@ class Database:
             logger.info("Migrations completed")
         finally:
             conn.close()
+    
+    def _seed_default_accounts(self):
+        """Create default admin account if it doesn't exist."""
+        try:
+            from passlib.context import CryptContext
+            
+            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+            
+            conn = sqlite3.connect(str(self.db_path), timeout=5.0, check_same_thread=False)
+            cursor = conn.cursor()
+            
+            # Check if admin already exists
+            cursor.execute("SELECT id FROM users WHERE email = ?", ("admin@siu.edu",))
+            if cursor.fetchone():
+                logger.info("Admin account already exists")
+                conn.close()
+                return
+            
+            # Create admin account
+            admin_password_hash = pwd_context.hash("admin123")
+            cursor.execute(
+                """
+                INSERT INTO users (name, email, password_hash, is_admin, is_approved, is_coach)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                ("Main Administrator", "admin@siu.edu", admin_password_hash, 1, 1, 0)
+            )
+            
+            conn.commit()
+            logger.info("✅ Admin account created: admin@siu.edu / admin123")
+            conn.close()
+            
+        except Exception as e:
+            logger.error(f"Error seeding default accounts: {e}")
 
     # ===== MEMBER MANAGEMENT =====
 

@@ -140,6 +140,13 @@ class Database:
             conn = sqlite3.connect(str(self.db_path), timeout=5.0, check_same_thread=False)
             cursor = conn.cursor()
             
+            # Check if users table exists (migration 003 may not have run yet)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+            if not cursor.fetchone():
+                logger.warning("Users table not yet created, skipping seed")
+                conn.close()
+                return
+            
             # Check if admin already exists
             cursor.execute("SELECT id FROM users WHERE email = ?", ("admin@siu.edu",))
             if cursor.fetchone():
@@ -147,14 +154,14 @@ class Database:
                 conn.close()
                 return
             
-            # Create admin account
+            # Create admin account (all required fields)
             admin_password_hash = pwd_context.hash("admin123")
             cursor.execute(
                 """
-                INSERT INTO users (name, email, password_hash, is_admin, is_approved, is_coach)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO users (username, email, password_hash, name, is_admin, is_approved, is_coach)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                ("Main Administrator", "admin@siu.edu", admin_password_hash, 1, 1, 0)
+                ("admin", "admin@siu.edu", admin_password_hash, "Main Administrator", 1, 1, 0)
             )
             
             conn.commit()

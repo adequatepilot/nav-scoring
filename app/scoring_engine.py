@@ -232,7 +232,7 @@ class NavScoringEngine:
                 {"lat": closest_point["lat"], "lon": closest_point["lon"]},
                 checkpoint,
             )
-            timing_point = {"lat": closest_point["lat"], "lon": closest_point["lon"]}
+            timing_point = {"lat": closest_point["lat"], "lon": closest_point["lon"], "time": closest_point["time"]}
             crossing_time = closest_point["time"]
 
         # Determine method and penalty status

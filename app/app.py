@@ -170,7 +170,7 @@ if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # Profile pictures (persistent storage in data directory)
-profile_pics_path = Path("data/profile_pictures")
+profile_pics_path = Path("data/profile_pictures").resolve()
 profile_pics_path.mkdir(parents=True, exist_ok=True)
 app.mount("/profile_pictures", StaticFiles(directory=str(profile_pics_path)), name="profile_pictures")
 

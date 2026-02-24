@@ -169,6 +169,11 @@ static_path = Path("static")
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
+# Profile pictures (persistent storage in data directory)
+profile_pics_path = Path("data/profile_pictures")
+profile_pics_path.mkdir(parents=True, exist_ok=True)
+app.mount("/profile_pictures", StaticFiles(directory=str(profile_pics_path)), name="profile_pictures")
+
 # Serve NAV packet PDFs
 @app.get("/nav-packets/{filename}")
 async def download_nav_packet(filename: str):
@@ -769,12 +774,18 @@ async def unified_dashboard(request: Request, user: dict = Depends(require_login
             # Build pilot data with profile picture
             pilot_picture = None
             if pilot and pilot.get("profile_picture_path"):
-                pilot_picture = f"/static/{pilot['profile_picture_path']}"
+                # Extract filename from "profile_pictures/{filename}"
+                pic_path = pilot['profile_picture_path']
+                filename = pic_path.split('/')[-1] if '/' in pic_path else pic_path
+                pilot_picture = f"/profile_pictures/{filename}"
             
             # Build observer data with profile picture
             observer_picture = None
             if observer and observer.get("profile_picture_path"):
-                observer_picture = f"/static/{observer['profile_picture_path']}"
+                # Extract filename from "profile_pictures/{filename}"
+                pic_path = observer['profile_picture_path']
+                filename = pic_path.split('/')[-1] if '/' in pic_path else pic_path
+                observer_picture = f"/profile_pictures/{filename}"
             
             pairing_data = {
                 "id": pairing["id"],
@@ -902,7 +913,9 @@ async def profile_page(request: Request, user: dict = Depends(require_login)):
     
     profile_picture = None
     if user_data and user_data.get("profile_picture_path"):
-        profile_picture = f"/static/{user_data['profile_picture_path']}"
+        pic_path = user_data['profile_picture_path']
+        filename = pic_path.split('/')[-1] if '/' in pic_path else pic_path
+        profile_picture = f"/profile_pictures/{filename}"
     
     return templates.TemplateResponse("team/profile.html", {
         "request": request,
@@ -936,7 +949,7 @@ async def upload_profile_picture(
             return {"success": False, "message": "Invalid file type. Allowed: JPG, PNG, GIF, WebP"}
         
         # Create profile_pictures directory if it doesn't exist
-        profile_pics_dir = Path("static/profile_pictures")
+        profile_pics_dir = Path("data/profile_pictures")
         profile_pics_dir.mkdir(parents=True, exist_ok=True)
         
         # Read file content
@@ -1092,12 +1105,16 @@ async def team_dashboard(request: Request, user: dict = Depends(require_competit
         # Build pilot data with profile picture
         pilot_picture = None
         if pilot and pilot.get("profile_picture_path"):
-            pilot_picture = f"/static/{pilot['profile_picture_path']}"
+            pic_path = pilot['profile_picture_path']
+            filename = pic_path.split('/')[-1] if '/' in pic_path else pic_path
+            pilot_picture = f"/profile_pictures/{filename}"
         
         # Build observer data with profile picture
         observer_picture = None
         if observer and observer.get("profile_picture_path"):
-            observer_picture = f"/static/{observer['profile_picture_path']}"
+            pic_path = observer['profile_picture_path']
+            filename = pic_path.split('/')[-1] if '/' in pic_path else pic_path
+            observer_picture = f"/profile_pictures/{filename}"
         
         pairing_data = {
             "id": pairing["id"],
@@ -2475,7 +2492,7 @@ async def edit_user(
                 return {"success": False, "message": "Profile picture must be JPG, PNG, or GIF"}
             
             # Save the file
-            profile_pics_dir = Path("static/profile_pictures")
+            profile_pics_dir = Path("data/profile_pictures")
             profile_pics_dir.mkdir(parents=True, exist_ok=True)
             
             file_content = await profile_picture.read()

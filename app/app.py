@@ -54,10 +54,14 @@ def load_config(config_path: str = "data/config.yaml") -> dict:
             return yaml.safe_load(f)
     except FileNotFoundError:
         logger.warning(f"Config file not found: {config_path}, using defaults")
-        # Return default config
+        # Get database path from DATABASE_URL env var or use default
+        import os
+        db_url = os.getenv("DATABASE_URL", "sqlite:///data/nav_scoring.db")
+        # Extract path from sqlite:///... format
+        db_path = db_url.replace("sqlite:///", "") if db_url.startswith("sqlite:///") else db_url
         # Return default config
         return {
-            "database": {"path": "data/navs.db"},
+            "database": {"path": db_path},
             "app": {"title": "NAV Scoring", "version": "1.0.0", "debug": False},
             "session": {
                 "cookie_name": "nav_scoring_session",

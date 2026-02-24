@@ -9,7 +9,7 @@ backup:
   max_backups: 10
   retention_days: 7
 database:
-  path: /app/data/navs.db
+  path: /app/data/nav_scoring.db
 email:
   recipients_coach: mike@YOUR_DOMAIN.com
   sender_email: mike@nssttw.com

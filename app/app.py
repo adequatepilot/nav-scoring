@@ -975,7 +975,7 @@ async def upload_profile_picture(
         return {
             "success": True,
             "message": "Profile picture uploaded successfully",
-            "path": f"/static/{relative_path}"
+            "path": f"/profile_pictures/{filename}"
         }
     
     except Exception as e:

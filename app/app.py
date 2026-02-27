@@ -693,8 +693,19 @@ async def login(
 ):
     """Handle unified login for all users (email-based). Issue 13: Check for password reset flag."""
     result = auth.login(email, password)
+    ip_address = request.client.host if request.client else None
     
     if not result["success"]:
+        # Log failed login attempt
+        user = db.get_user_by_email(email)
+        if user:
+            db.log_activity(
+                user_id=user["id"],
+                category="auth",
+                activity_type="login_failed",
+                details=f"Failed login attempt: {result['message']}",
+                ip_address=ip_address
+            )
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": result["message"]
@@ -710,6 +721,15 @@ async def login(
         "is_admin": user_data["is_admin"]
     }
     
+    # Log successful login
+    db.log_activity(
+        user_id=user_data["id"],
+        category="auth",
+        activity_type="login",
+        details="User logged in successfully",
+        ip_address=ip_address
+    )
+    
     # Issue 13: Check if user must reset password
     if user_data.get("must_reset_password", 0) == 1:
         request.session["must_reset_password"] = True
@@ -722,6 +742,18 @@ async def login(
 @app.get("/logout")
 async def logout(request: Request):
     """Logout user."""
+    # Log logout before clearing session
+    user = request.session.get("user")
+    if user:
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="auth",
+            activity_type="logout",
+            details="User logged out",
+            ip_address=ip_address
+        )
+    
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
 
@@ -1280,6 +1312,19 @@ async def submit_prenav(
         
         logger.info(f"Created prenav: ID={prenav_id} (status=open, no token)")
         
+        # Log activity
+        nav_info = db.get_nav(nav_id)
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="nav",
+            activity_type="submit_prenav",
+            details=f"Submitted pre-flight plan for {nav_info['name'] if nav_info else 'NAV'} (fuel estimate: {fuel_estimate} gal)",
+            entity_type="prenav_submission",
+            entity_id=prenav_id,
+            ip_address=ip_address
+        )
+        
         # Get NAV name
         nav = db.get_nav(nav_id)
         
@@ -1800,6 +1845,18 @@ async def submit_flight(
                     fuel_error_pct=fuel_error_pct,
                     estimated_fuel_burn=prenav["fuel_estimate"],
                     checkpoint_radius=config["scoring"]["off_course"].get("checkpoint_radius_nm", 0.25)
+                )
+                
+                # Log flight completion
+                ip_address = request.client.host if request.client else None
+                db.log_activity(
+                    user_id=user["user_id"],
+                    category="flight",
+                    activity_type="flight_scored",
+                    details=f"Flight scored: {nav['name']} - Score: {overall_score:.1f}",
+                    entity_type="flight_result",
+                    entity_id=result_id,
+                    ip_address=ip_address
                 )
                 
                 # Mark prenav as scored (v0.4.0)
@@ -2761,6 +2818,21 @@ async def coach_create_pairing(
     """Create pairing. Issue 20: Returns JSON for AJAX, redirect for form submission."""
     try:
         pairing_id = db.create_pairing(pilot_id, safety_observer_id)
+        
+        # Log activity
+        pilot = db.get_user_by_id(pilot_id)
+        observer = db.get_user_by_id(safety_observer_id)
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="pairing",
+            activity_type="create_pairing",
+            details=f"Created pairing: {pilot['name'] if pilot else 'Unknown'} / {observer['name'] if observer else 'Unknown'}",
+            entity_type="pairing",
+            entity_id=pairing_id,
+            ip_address=ip_address
+        )
+        
         # Check if it's an AJAX request
         if request.headers.get('x-requested-with') == 'XMLHttpRequest' or 'application/json' in request.headers.get('accept', ''):
             return {"success": True, "pairing_id": pairing_id}
@@ -2776,9 +2848,25 @@ async def coach_create_pairing(
             return RedirectResponse(url=f"/coach/pairings?error={error_msg}", status_code=303)
 
 @app.get("/coach/pairings/{pairing_id}/break")
-async def coach_break_pairing(pairing_id: int, user: dict = Depends(require_admin)):
+async def coach_break_pairing(pairing_id: int, request: Request, user: dict = Depends(require_admin)):
     """Break pairing."""
     db.break_pairing(pairing_id)
+    
+    # Log activity
+    pairing = db.get_pairing(pairing_id)
+    pilot = db.get_user_by_id(pairing["pilot_id"]) if pairing else None
+    observer = db.get_user_by_id(pairing["safety_observer_id"]) if pairing else None
+    ip_address = request.client.host if request.client else None
+    db.log_activity(
+        user_id=user["user_id"],
+        category="pairing",
+        activity_type="break_pairing",
+        details=f"Broke pairing: {pilot['name'] if pilot else 'Unknown'} / {observer['name'] if observer else 'Unknown'}",
+        entity_type="pairing",
+        entity_id=pairing_id,
+        ip_address=ip_address
+    )
+    
     return RedirectResponse(url="/coach/pairings?message=Pairing broken", status_code=303)
 
 @app.get("/coach/pairings/{pairing_id}/reactivate")

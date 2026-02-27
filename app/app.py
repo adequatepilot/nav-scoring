@@ -928,6 +928,16 @@ async def reset_password(
         
         logger.info(f"User {user['email']} successfully reset their password")
         
+        # Log activity
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="auth",
+            activity_type="password_reset",
+            details="User reset password",
+            ip_address=ip_address
+        )
+        
         # Show success and redirect
         request.session["message"] = "Password reset successfully!"
         if user["is_coach"]:
@@ -1007,6 +1017,16 @@ async def upload_profile_picture(
         db.update_user(user["user_id"], profile_picture_path=relative_path)
         
         logger.info(f"Profile picture uploaded for user {user['user_id']}: {filename}")
+        
+        # Log activity
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="user",
+            activity_type="upload_profile_picture",
+            details=f"Uploaded profile picture",
+            ip_address=ip_address
+        )
         
         return {
             "success": True,
@@ -1121,6 +1141,17 @@ async def change_password(
         db.update_user(user["user_id"], password_hash=password_hash)
         
         logger.info(f"User {user['email']} successfully changed their password")
+        
+        # Log activity
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="auth",
+            activity_type="password_changed",
+            details="User changed their password",
+            ip_address=ip_address
+        )
+        
         return {"success": True, "message": "Password changed successfully"}
     
     except Exception as e:

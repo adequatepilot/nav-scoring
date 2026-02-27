@@ -2629,9 +2629,24 @@ async def delete_user_route(
 ):
     """Delete a user. Admin only."""
     try:
+        deleted_user = db.get_user_by_id(user_id)
+        deleted_name = deleted_user["name"] if deleted_user else "Unknown"
         success = db.delete_user(user_id)
         if success:
             logger.info(f"User {user_id} deleted")
+            
+            # Log activity
+            ip_address = request.client.host if request.client else None
+            db.log_activity(
+                user_id=user["user_id"],
+                category="admin",
+                activity_type="delete_user",
+                details=f"Deleted user '{deleted_name}'",
+                entity_type="user",
+                entity_id=user_id,
+                ip_address=ip_address
+            )
+            
             return RedirectResponse(url="/coach/users?message=User deleted", status_code=303)
         else:
             return RedirectResponse(url="/coach/users?error=User not found", status_code=303)
@@ -2671,6 +2686,19 @@ async def coach_create_member(
             must_reset_password=must_reset_password  # Respect the checkbox value
         )
         logger.info(f"New user created (pre-approved): {email} (ID: {user_id}, must_reset_password={must_reset_password})")
+        
+        # Log activity
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="admin",
+            activity_type="create_user",
+            details=f"Created user '{name}' ({email})",
+            entity_type="user",
+            entity_id=user_id,
+            ip_address=ip_address
+        )
+        
         return RedirectResponse(url="/coach/users?message=User created and approved", status_code=303)
     except Exception as e:
         logger.error(f"Error creating user: {e}")
@@ -2920,6 +2948,19 @@ async def coach_create_airport(
             raise ValueError("Airport code cannot be empty")
         airport_id = db.create_airport(code)
         logger.info(f"Created airport {airport_id} with code {code}")
+        
+        # Log activity
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="admin",
+            activity_type="create_airport",
+            details=f"Created airport '{code}'",
+            entity_type="airport",
+            entity_id=airport_id,
+            ip_address=ip_address
+        )
+        
         return RedirectResponse(url="/coach/navs/airports?message=Airport created", status_code=303)
     except Exception as e:
         logger.error(f"Error creating airport: {e}")
@@ -3079,10 +3120,25 @@ async def confirm_delete_airport(request: Request, airport_id: int, user: dict =
     })
 
 @app.post("/coach/navs/airports/{airport_id}/delete")
-async def coach_delete_airport(airport_id: int, user: dict = Depends(require_admin)):
+async def coach_delete_airport(airport_id: int, request: Request, user: dict = Depends(require_admin)):
     """Delete airport."""
     try:
+        airport = db.get_airport(airport_id)
+        airport_code = airport["code"] if airport else "Unknown"
         db.delete_airport(airport_id)
+        
+        # Log activity
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="admin",
+            activity_type="delete_airport",
+            details=f"Deleted airport '{airport_code}'",
+            entity_type="airport",
+            entity_id=airport_id,
+            ip_address=ip_address
+        )
+        
         return RedirectResponse(url="/coach/navs/airports?message=Airport deleted", status_code=303)
     except Exception as e:
         logger.error(f"Error deleting airport: {e}")
@@ -3117,6 +3173,20 @@ async def coach_create_gate(
     try:
         gate_id = db.create_start_gate(airport_id, name, lat, lon)
         logger.info(f"Created start gate {gate_id} for airport {airport_id}")
+        
+        # Log activity
+        airport = db.get_airport(airport_id)
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="admin",
+            activity_type="create_start_gate",
+            details=f"Created start gate '{name}' at {airport['name'] if airport else 'Airport'} ({lat:.4f}, {lon:.4f})",
+            entity_type="start_gate",
+            entity_id=gate_id,
+            ip_address=ip_address
+        )
+        
         return RedirectResponse(url=f"/coach/navs/airport/{airport_id}?message=Gate created", status_code=303)
     except Exception as e:
         logger.error(f"Error creating gate: {e}")
@@ -3140,14 +3210,28 @@ async def confirm_delete_gate(request: Request, gate_id: int, user: dict = Depen
     })
 
 @app.post("/coach/navs/gates/{gate_id}/delete")
-async def coach_delete_gate(gate_id: int, user: dict = Depends(require_admin)):
+async def coach_delete_gate(gate_id: int, request: Request, user: dict = Depends(require_admin)):
     """Delete start gate."""
     try:
         gate = db.get_start_gate(gate_id)
         if not gate:
             raise HTTPException(status_code=404, detail="Gate not found")
         airport_id = gate["airport_id"]
+        gate_name = gate["name"]
         db.delete_start_gate(gate_id)
+        
+        # Log activity
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="admin",
+            activity_type="delete_start_gate",
+            details=f"Deleted start gate '{gate_name}'",
+            entity_type="start_gate",
+            entity_id=gate_id,
+            ip_address=ip_address
+        )
+        
         return RedirectResponse(url=f"/coach/navs/gates/{airport_id}?message=Gate deleted", status_code=303)
     except Exception as e:
         logger.error(f"Error deleting gate: {e}")
@@ -3188,6 +3272,20 @@ async def coach_create_route(
             raise ValueError("Route name cannot be empty")
         nav_id = db.create_nav(name, airport_id)
         logger.info(f"Created NAV route {nav_id} for airport {airport_id}")
+        
+        # Log activity
+        airport = db.get_airport(airport_id)
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="admin",
+            activity_type="create_nav",
+            details=f"Created NAV route '{name}' at {airport['code'] if airport else 'Airport'}",
+            entity_type="nav",
+            entity_id=nav_id,
+            ip_address=ip_address
+        )
+        
         return RedirectResponse(url=f"/coach/navs/airport/{airport_id}?message=NAV route created", status_code=303)
     except Exception as e:
         logger.error(f"Error creating route: {e}")
@@ -3209,10 +3307,25 @@ async def confirm_delete_route(request: Request, nav_id: int, user: dict = Depen
     })
 
 @app.post("/coach/navs/routes/{nav_id}/delete")
-async def coach_delete_route(nav_id: int, user: dict = Depends(require_admin)):
+async def coach_delete_route(nav_id: int, request: Request, user: dict = Depends(require_admin)):
     """Delete NAV route."""
     try:
+        nav = db.get_nav(nav_id)
+        nav_name = nav["name"] if nav else "Unknown"
         db.delete_nav(nav_id)
+        
+        # Log activity
+        ip_address = request.client.host if request.client else None
+        db.log_activity(
+            user_id=user["user_id"],
+            category="admin",
+            activity_type="delete_nav",
+            details=f"Deleted NAV route '{nav_name}'",
+            entity_type="nav",
+            entity_id=nav_id,
+            ip_address=ip_address
+        )
+        
         return RedirectResponse(url="/coach/navs/routes?message=Route deleted", status_code=303)
     except Exception as e:
         logger.error(f"Error deleting route: {e}")

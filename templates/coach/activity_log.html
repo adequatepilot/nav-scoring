@@ -316,6 +316,7 @@
             <th>Category</th>
             <th>Activity</th>
             <th>Details</th>
+            <th>IP Address</th>
         </tr>
     </thead>
     <tbody>
@@ -333,6 +334,7 @@
                 {{ log.activity_details[:100] }}
                 {% if log.activity_details|length > 100 %}...{% endif %}
             </td>
+            <td style="font-family: monospace; color: #666; font-size: 0.9rem;">{{ log.ip_address or 'N/A' }}</td>
         </tr>
         {% endfor %}
     </tbody>

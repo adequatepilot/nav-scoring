@@ -211,7 +211,7 @@ class NavScoringEngine:
                     if distance <= CHECKPOINT_RADIUS_NM:
                         crossing_found = True
                         crossing_distance = distance
-                        timing_point = {"lat": p["lat"], "lon": p["lon"]}
+                        timing_point = {"lat": p["lat"], "lon": p["lon"], "time": p["time"]}
                         crossing_time = p["time"]
                         break
 

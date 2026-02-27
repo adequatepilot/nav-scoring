@@ -85,10 +85,22 @@ docker-compose logs nav-scoring
 ```
 
 ### Database locked error
+SQLite sometimes locks on restart. If you see "database is locked":
 ```bash
-# SQLite sometimes locks on restart
+# 1. Stop container
 docker-compose down
-sleep 5
+
+# 2. Clean stale lock files
+rm -f data/nav_scoring.db-wal data/nav_scoring.db-shm
+
+# 3. Fix file permissions (if owned by root from Docker)
+sudo chown $(whoami):$(whoami) data/nav_scoring.db
+chmod 644 data/nav_scoring.db
+
+# 4. Repair database
+sqlite3 data/nav_scoring.db "VACUUM;"
+
+# 5. Restart
 docker-compose up -d
 ```
 
@@ -99,6 +111,34 @@ docker-compose down
 docker-compose up -d
 # Migrations will recreate fresh DB
 ```
+
+### Multiple database files exist (Testbed vs Production Mismatch)
+**History:** Early versions used `navs.db`, later switched to `nav_scoring.db`. If you see both:
+- `nav.db` — Old database (may contain production data)
+- `nav_scoring.db` — New database (what the app expects)
+
+**What happened:** After git pull, the app creates a fresh `nav_scoring.db` and completely ignores `nav.db`. Your data is safe but in the wrong file.
+
+**Fix:**
+```bash
+cd data/
+# Check which has your data
+sqlite3 nav.db ".tables"           # Should show: airports, flights, etc.
+sqlite3 nav_scoring.db ".tables"   # Should show: users, etc. (less data)
+
+# If nav.db has your data, rename it
+mv nav_scoring.db nav_scoring.db.new
+mv nav.db nav_scoring.db
+
+# Then restart
+cd ..
+docker-compose restart nav-scoring
+```
+
+**Prevention:** DATABASE_URL is configured via environment in `docker-compose.yml`. Both testbed and production should use the same filename. If they diverge again:
+1. Edit `docker-compose.yml` and change `DATABASE_URL` if needed
+2. Use `.env` file for per-machine overrides
+3. Never assume database filenames across environments
 
 ## File Structure
 

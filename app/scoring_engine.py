@@ -134,30 +134,45 @@ class NavScoringEngine:
         Find how aircraft approached checkpoint.
         Returns (timing_point, distance_nm, method, within_025_nm)
         
-        Args:
-            previous_time: datetime object or float (timestamp) of previous checkpoint
+        Logic:
+        - CTP: Radius entered FIRST, then plane crossed AFTER (use plane crossing time)
+        - Radius Entry: Plane crossed FIRST, then radius entered AFTER (use radius entry time)
+        - PCA: Only one or neither event happened
         """
         CHECKPOINT_RADIUS_NM = 0.25
 
         flight_path_bearing = self.calculate_bearing(previous_point, checkpoint)
         plane_bearing = (flight_path_bearing + 90) % 360
 
-        crossing_found = False
-        crossing_point = None
-        crossing_distance = float("inf")
-        plane_crossed = False
-        plane_crossing_time = None
-        timing_point = None
+        # Step 1: Find first time radius is entered (after previous_time)
+        radius_entry_time = None
+        radius_entry_point = None
+        for p in track_points:
+            if p["time"] > previous_time:
+                distance = self.haversine_distance(
+                    {"lat": p["lat"], "lon": p["lon"]}, checkpoint
+                )
+                if distance <= CHECKPOINT_RADIUS_NM:
+                    radius_entry_time = p["time"]
+                    radius_entry_point = p
+                    radius_entry_distance = distance
+                    break
 
-        # Step 1: Look for perpendicular plane crossing (CTP)
+        # Step 2: Find first time plane is crossed (after previous_time)
+        plane_crossing_time = None
+        plane_crossing_point = None
         for j in range(len(track_points) - 1):
             p1 = track_points[j]
             p2 = track_points[j + 1]
+            
+            if p1["time"] <= previous_time:
+                continue
+            
             side1 = self.side_of_plane(p1, checkpoint, plane_bearing)
             side2 = self.side_of_plane(p2, checkpoint, plane_bearing)
 
             if side1 != side2:
-                # Plane crossed perpendicular line
+                # Plane crossed - calculate exact crossing point and time
                 bearing1 = self.calculate_bearing(checkpoint, p1)
                 bearing2 = self.calculate_bearing(checkpoint, p2)
                 angle_diff1 = (bearing1 - plane_bearing + 360) % 360
@@ -174,54 +189,69 @@ class NavScoringEngine:
                     fraction = abs(angle_diff1) / abs(angle_diff1 - angle_diff2)
 
                 temp_crossing_point = self.interpolate_point(p1, p2, fraction)
-                temp_crossing_distance = self.haversine_distance(
+                plane_crossing_time = temp_crossing_point["time"]
+                plane_crossing_point = temp_crossing_point
+                plane_crossing_distance = self.haversine_distance(
                     temp_crossing_point, checkpoint
                 )
-                temp_crossing_time = temp_crossing_point["time"]
+                break
 
-                if not plane_crossed and temp_crossing_time > previous_time:
-                    plane_crossed = True
-                    plane_crossing_time = temp_crossing_time
+        # Step 3: Determine method based on which event happened and in what order
+        timing_point = None
+        crossing_distance = float("inf")
+        method = "PCA"
+        within_025_nm = False
 
-                # CTP: Must be within 0.25 NM and after previous checkpoint
-                if (
-                    temp_crossing_distance <= CHECKPOINT_RADIUS_NM
-                    and p1["time"] <= temp_crossing_time <= p2["time"]
-                    and temp_crossing_time > previous_time
-                ):
-                    crossing_found = True
-                    crossing_point = temp_crossing_point
-                    crossing_distance = temp_crossing_distance
-                    crossing_time = temp_crossing_point["time"]
-
-                    # Snap to nearest GPX point
-                    time_diff_p1 = abs((p1["time"] - crossing_time).total_seconds())
-                    time_diff_p2 = abs((p2["time"] - crossing_time).total_seconds())
-                    timing_point = p1 if time_diff_p1 < time_diff_p2 else p2
-                    break
-
-        # Step 2: If CTP not found, look for radius entry (Radius Entry)
-        if not crossing_found and plane_crossed:
-            for j in range(len(track_points)):
-                p = track_points[j]
-                if p["time"] > plane_crossing_time:
-                    distance = self.haversine_distance(
+        if radius_entry_time and plane_crossing_time:
+            # Both events happened - determine which came first
+            if radius_entry_time < plane_crossing_time:
+                # Radius entered FIRST, then plane crossed AFTER = CTP
+                # Use plane crossing time and distance
+                timing_point = plane_crossing_point
+                crossing_distance = plane_crossing_distance
+                method = "CTP"
+                within_025_nm = True
+            else:
+                # Plane crossed FIRST, then radius entered AFTER = Radius Entry
+                # Use radius entry time and distance
+                timing_point = radius_entry_point
+                crossing_distance = radius_entry_distance
+                method = "Radius Entry"
+                within_025_nm = True
+        elif radius_entry_time:
+            # Only radius entry happened = Radius Entry
+            timing_point = radius_entry_point
+            crossing_distance = radius_entry_distance
+            method = "Radius Entry"
+            within_025_nm = True
+        elif plane_crossing_time:
+            # Only plane crossing happened = PCA
+            # Use PCA to find closest point
+            valid_points = [p for p in track_points if p["time"] > previous_time]
+            if valid_points:
+                closest_point = min(
+                    valid_points,
+                    key=lambda p: self.haversine_distance(
                         {"lat": p["lat"], "lon": p["lon"]}, checkpoint
-                    )
-                    if distance <= CHECKPOINT_RADIUS_NM:
-                        crossing_found = True
-                        crossing_distance = distance
-                        timing_point = {"lat": p["lat"], "lon": p["lon"], "time": p["time"]}
-                        crossing_time = p["time"]
-                        break
-
-        # Step 3: If still not found, use closest point approach (PCA)
-        if not crossing_found:
+                    ),
+                )
+                crossing_distance = self.haversine_distance(
+                    {"lat": closest_point["lat"], "lon": closest_point["lon"]},
+                    checkpoint,
+                )
+                timing_point = closest_point
+                method = "PCA"
+                within_025_nm = crossing_distance <= CHECKPOINT_RADIUS_NM
+            else:
+                logger.error(f"No track points after previous checkpoint time")
+                return None, float("inf"), "PCA", False
+        else:
+            # Neither event happened = PCA (fallback)
             valid_points = [p for p in track_points if p["time"] > previous_time]
             if not valid_points:
                 logger.error(f"No track points after previous checkpoint time")
                 return None, float("inf"), "PCA", False
-
+            
             closest_point = min(
                 valid_points,
                 key=lambda p: self.haversine_distance(
@@ -232,14 +262,7 @@ class NavScoringEngine:
                 {"lat": closest_point["lat"], "lon": closest_point["lon"]},
                 checkpoint,
             )
-            timing_point = {"lat": closest_point["lat"], "lon": closest_point["lon"], "time": closest_point["time"]}
-            crossing_time = closest_point["time"]
-
-        # Determine method and penalty status
-        if crossing_found and crossing_distance <= CHECKPOINT_RADIUS_NM:
-            method = "CTP" if crossing_point else "Radius Entry"
-            within_025_nm = True
-        else:
+            timing_point = closest_point
             method = "PCA"
             within_025_nm = crossing_distance <= CHECKPOINT_RADIUS_NM
 

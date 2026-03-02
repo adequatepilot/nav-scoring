@@ -139,7 +139,9 @@ class NavScoringEngine:
         - Radius Entry: Plane crossed FIRST, then radius entered AFTER (use radius entry time)
         - PCA: Only one or neither event happened
         """
-        CHECKPOINT_RADIUS_NM = 0.25
+        # Get checkpoint radius from config (max_no_penalty_nm)
+        off_course_cfg = self.config["scoring"].get("off_course", {})
+        CHECKPOINT_RADIUS_NM = off_course_cfg.get("max_no_penalty_nm", 0.25)
 
         flight_path_bearing = self.calculate_bearing(previous_point, checkpoint)
         plane_bearing = (flight_path_bearing + 90) % 360
@@ -293,10 +295,10 @@ class NavScoringEngine:
         off_course_penalty = 0
         if not within_025_nm:
             off_course_cfg = cfg.get("off_course", {})
-            checkpoint_radius = off_course_cfg.get("checkpoint_radius_nm", 0.25)
-            min_penalty = off_course_cfg.get("min_penalty", 100)
-            max_penalty = off_course_cfg.get("max_penalty", 600)
-            max_distance = off_course_cfg.get("max_distance_nm", 5.0)
+            checkpoint_radius = off_course_cfg.get("max_no_penalty_nm", 0.25)
+            min_penalty = 100  # Minimum penalty when entering penalty zone
+            max_penalty = off_course_cfg.get("max_penalty_points", 600)
+            max_distance = off_course_cfg.get("max_penalty_distance_nm", 5.0)
             
             # Threshold starts at (radius + 0.01)
             threshold_distance = checkpoint_radius + 0.01
